@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Build / test
+coverage/
+*.tsbuildinfo
+
+# Env (tenere .env.example)
+.env
+.env.*
+!.env.example
+
+# Misc
+*.log
+.DS_Store
