@@ -41,7 +41,7 @@ App web personale di meal planning che risponde alla domanda "cosa mangio oggi?"
 | ORM | Drizzle ORM + drizzle-kit (migrazioni) | Type-safe, leggero, SQL-first, driver serverless Neon supportato |
 | Validazione | Zod | Contratto unico per input API e output LLM |
 | LLM | Vercel AI SDK (`generateObject` + Zod) con provider intercambiabile via env | Provider-agnostico: OpenRouter (anche modelli gratuiti), Gemini, Anthropic, … — si cambia con due variabili d'ambiente |
-| Deploy | Vercel + Neon Postgres (Opzione A, §8) | Free tier sufficiente, zero ops |
+| Deploy | Raspberry Pi (Docker Compose + Tailscale) (Opzione C, §8) | Self-hosted, privacy totale, zero costi, niente login necessario in v1 |
 
 ---
 
@@ -55,7 +55,7 @@ flowchart LR
         UI[UI React<br/>Piano · Lista · Libreria · Impostazioni]
     end
 
-    subgraph Next [Next.js su Vercel]
+    subgraph Next [Next.js su Raspberry Pi / Docker]
         API[Route Handlers / Server Actions]
         subgraph Dominio [Moduli di dominio - TS puro]
             PL[planner<br/>selezione pesata]
@@ -286,26 +286,28 @@ Tutte le request/response validate con gli stessi schemi Zod del dominio.
 
 ## 8. Deployment — mini-ADR
 
-**Decisione: Opzione A (Vercel + Neon).** Schema e ORM restano Postgres standard, quindi migrare all'Opzione C è un `pg_dump`/`pg_restore`.
+**Decisione: Opzione C (Raspberry Pi + Docker + Tailscale).** Schema e ORM restano Postgres standard, quindi un'eventuale migrazione cloud futura (Opzione A) richiederebbe solo un `pg_dump`/`pg_restore` e l'aggiunta di un layer di auth.
 
-### Opzione A — Vercel + Neon Postgres ✅ scelta
+### Opzione C — Self-host su Raspberry Pi (Docker + Tailscale) ✅ scelta per v1
 
 | Dimensione | Valutazione |
 |---|---|
-| Costo | 0 € (free tier: ~0,5 GB storage, 100 CU-ore/mese, ampiamente sufficienti: le ricette sono testo) |
-| Ops | Zero: scale-to-zero automatico con resume rapido alla prima query |
-| Integrazione | Nativa con Vercel (Neon è il Postgres di riferimento dell'ecosistema Vercel), driver serverless senza problemi di connection pooling |
-| Rischi | Cold start di qualche centinaio di ms dopo idle — irrilevante per uso personale |
+| Costo | 0 € (hardware già disponibile a casa) |
+| Privacy & Sicurezza | Totale: nessuna porta aperta su Internet, zero rischio bot/crawler che consumano token LLM |
+| Autenticazione | **Nessuna necessaria in v1** (YAGNI): perimetro di sicurezza gestito via rete (LAN + Tailscale) |
+| Accesso da remoto | **Tailscale** sul Pi e sullo smartphone: accesso sicuro e crittografato ovunque (es. al supermercato) |
+| Architettura | Docker Compose: Next.js (`output: 'standalone'`) + PostgreSQL 16 + volume dati + `cron` backup (`pg_dump`) |
+| Rischi/Ops | Manutenzione container su Raspberry, aggiornamenti via script/git pull, storage locale affidabile |
 
-### Opzione B — Vercel + Supabase (scartata per v1)
+### Opzione A — Vercel + Neon Postgres (alternativa cloud futura)
 
-Pro: auth integrata, utile per il futuro scenario "in due". Contro decisivo: **il free tier mette in pausa il progetto dopo ~7 giorni di inattività**, con riattivazione manuale dalla dashboard — pessimo per un'app usata a cadenza settimanale; il piano Pro (25 $/mese) non è giustificato. Se in v2 servirà auth, meglio Auth.js/Clerk sopra Neon.
+Scartata per v1: Vercel esporrebbe l'app su Internet pubblico. Poiché la v1 non ha autenticazione, chiunque potrebbe accedere e consumare le quote API LLM (Vercel password protection richiede piano Pro da $20/mese). Rimane come opzione pronta per future evoluzioni (es. se si aggiunge auth in v2).
 
-### Opzione C — Self-host su Raspberry Pi (piano B documentato)
+### Opzione B — Vercel + Supabase (scartata)
 
-Docker Compose: `next` (build standalone) + `postgres` + volume dati + `cron` di backup (`pg_dump` giornaliero). Accesso da fuori casa via **Tailscale** (niente esposizione pubblica, niente certificati da gestire). Più controllo e nessun vincolo di piattaforma, al prezzo di ops (aggiornamenti, backup, SD/SSD affidabile).
+Pro: auth integrata. Contro decisivo: il free tier mette in pausa il progetto dopo ~7 giorni di inattività con riattivazione manuale dalla dashboard — pessimo per un'app usata a cadenza settimanale; il piano Pro (25 $/mese) non è giustificato.
 
-**Anti-pattern esplicito**: app su Vercel + Postgres sul Raspberry di casa (DB esposto a internet o raggiungibile solo in LAN, latenza, fragilità). O tutto su Vercel+Neon, o tutto sul Raspberry.
+**Anti-pattern esplicito**: app su Vercel + Postgres sul Raspberry di casa (DB esposto a internet o raggiungibile solo in LAN, latenza, fragilità). O tutto sul Raspberry, o tutto su cloud.
 
 ---
 

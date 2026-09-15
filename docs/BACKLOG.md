@@ -29,7 +29,7 @@ flowchart TD
     S02 --> D1[S4.1 Consolidamento lista]
     D1 --> D2[S4.2 UI lista spesa]
     C2 --> D2
-    C4 --> E1[S6.1 Deploy Vercel+Neon]
+    C4 --> E1[S6.1 Deploy Raspberry+Tailscale]
     D2 --> E1
 ```
 
@@ -197,16 +197,19 @@ Accettazione: primo avvio forza il wizard; i vincoli arrivano al planner e all'L
 
 ## E6 — Deploy
 
-### S6.1 Vercel + Neon — dipende da S3.4 + S4.2
+### S6.1 Self-host su Raspberry Pi (Docker Compose + Tailscale) — dipende da S3.4 + S4.2
+- [ ] Dockerfile multi-stage (`output: 'standalone'`) compatibile ARM64/AMD64
+- [ ] `docker-compose.prod.yml`: Next.js + Postgres 16 + volume persistente dati + `cron` di backup (`pg_dump` giornaliero con retention 7gg)
+- [ ] Script di migrazione automatica Drizzle all'avvio e smoke test
+- [ ] Configurazione env di produzione (`DATABASE_URL`, `LLM_PROVIDER`, `LLM_MODEL`, chiavi API)
+- [ ] Setup e doc accesso via Tailscale (MagicDNS / IP privato per accesso sicuro da smartphone al supermercato)
+
+Accettazione: flusso completo in produzione dal telefono tramite Tailscale.
+
+### S6.2 (Alternativa) Vercel + Neon — opzionale se si migra al cloud pubblico in v2
 - [ ] Progetto Vercel + integrazione Neon; env (DATABASE_URL, LLM_PROVIDER, LLM_MODEL + chiave API del provider attivo)
-- [ ] Migrazioni in CI/CD (drizzle-kit al deploy); smoke test post-deploy
-- [ ] `maxDuration` sulle route di generazione
-
-Accettazione: flusso completo in produzione dal telefono.
-
-### S6.2 (Alternativa) Self-host Raspberry Pi — opzionale, sostituisce S6.1
-- [ ] `docker-compose.yml`: next standalone + postgres + volume + backup `pg_dump` giornaliero
-- [ ] Accesso via Tailscale; doc di ripristino da backup
+- [ ] Richiede introduzione di un layer di autenticazione/password gate per proteggere le quote LLM
+- [ ] Migrazioni in CI/CD (drizzle-kit al deploy); `maxDuration` sulle route di generazione
 
 ---
 

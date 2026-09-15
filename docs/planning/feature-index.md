@@ -4,10 +4,10 @@ Ordine di esecuzione e mappatura: [`execution-strategy.md`](execution-strategy.m
 
 | # | Title | Status | Date | Plan |
 |---|-------|--------|------|------|
-| 1 | E0 Fondamenta (scaffold, schema DB, UI shell) | todo | — | — |
+| 1 | E0 Fondamenta (scaffold, schema DB, UI shell) | done | 2026-09-15 | feature/feature-1/plan.md |
 | 2 | E1 Motore ricette (LLM adapter, generazione, fixtures) | todo | — | — |
 | 3 | E5 Impostazioni (onboarding e vincoli household) | todo | — | — |
 | 4 | E3 Pianificatore (selezione pesata, piano, swap, UI) | todo | — | — |
 | 5 | E2 Libreria e preferenze (ricetta + ingredienti) | todo | — | — |
 | 6 | E4 Lista della spesa (consolidamento, UI) | todo | — | — |
-| 7 | E6 Deploy (Vercel + Neon) | todo | — | — |
+| 7 | E6 Deploy (Raspberry Pi + Tailscale) | specified | 2026-09-14 | feature/feature-7/spec.md |

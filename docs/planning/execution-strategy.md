@@ -141,15 +141,15 @@
 
 ### Feature 7 — E6 Deploy
 
-**Obiettivo:** v1 in produzione su Vercel + Neon (ADR di `ARCHITECTURE §8`).
+**Obiettivo:** v1 in produzione su Raspberry Pi via Docker Compose e accesso sicuro via Tailscale (ADR di `ARCHITECTURE §8`).
 
 | Wave | Story → WP | Note |
 |---|---|---|
-| 1 | S6.1 Vercel + Neon | Progetto Vercel, integrazione Neon, env (`DATABASE_URL`, `LLM_PROVIDER`, `LLM_MODEL`, chiave del provider attivo), migrazioni in CI/CD, `maxDuration` sulle route di generazione, smoke test post-deploy |
+| 1 | S6.1 Self-host Raspberry Pi | Dockerfile multi-stage standalone, `docker-compose.prod.yml` (Next.js + Postgres 16 + backup cron con rotazione), script di deploy e migrazioni, guida/test connettività Tailscale |
 
-**Nota:** feature intrinsecamente interattiva — account, dashboard e secret li gestisce l'utente; la pipeline prepara configurazione, script e documentazione di deploy. `/feature-plan 7` deve separare esplicitamente "cosa fa l'implementer" da "cosa fa l'utente sulla dashboard".
+**Nota:** feature con componenti operative — setup host e secret sul Raspberry a carico dell'utente; la pipeline prepara configurazione container, Dockerfile, compose, script di backup/deploy e documentazione. `/feature-plan 7` separa esplicitamente "cosa fa l'implementer nel repo" da "cosa fa l'utente sul Raspberry".
 
-**Chiusura:** flusso completo in produzione dal telefono.
+**Chiusura:** flusso completo in produzione dal telefono (anche fuori casa via Tailscale).
 
 ---
 
@@ -170,7 +170,7 @@
 | pnpm (via `corepack enable`) | ✅ bootstrap | Sempre |
 | Postgres locale (`docker-compose.dev.yml` up) | creato in F1 | Gate con test DB, da F1 wave 2 |
 | Chiave API LLM (OpenRouter free / Gemini) | ⏳ da procurare | Smoke test in `/feature-dev 2` |
-| Account Vercel + Neon | ⏳ da procurare | Feature 7 |
+| Raspberry Pi con Docker + Tailscale | ⏳ da preparare | Feature 7 |
 
 ## 6. Cosa questo documento NON copre
 
