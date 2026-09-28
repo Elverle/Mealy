@@ -41,6 +41,8 @@ export const MEAL_TYPE_ENUM = MEAL_TYPE_VALUES;
 export const MealTypeSchema = z.enum(MEAL_TYPE_VALUES);
 export type MealType = z.infer<typeof MealTypeSchema>;
 
+export const MEAL_TYPE_LABELS: Record<MealType, string> = { pranzo: 'Pranzo', cena: 'Cena' };
+
 export const DIET_FLAG_VALUES = [
   'vegetariano',
   'vegano',
@@ -72,6 +74,16 @@ export const MEAL_STYLE_TAG_VALUES = [
 export const MEAL_STYLE_TAG_ENUM = MEAL_STYLE_TAG_VALUES;
 export const MealStyleTagSchema = z.enum(MEAL_STYLE_TAG_VALUES);
 export type MealStyleTag = z.infer<typeof MealStyleTagSchema>;
+
+export const MEAL_STYLE_TAG_LABELS: Record<MealStyleTag, string> = {
+  veloce: 'Veloce',
+  salutare: 'Salutare',
+  proteico: 'Proteico',
+  leggero: 'Leggero',
+  'comfort-food': 'Comfort food',
+  economico: 'Economico',
+  'piatto-unico': 'Piatto unico',
+};
 
 export const APPLIANCE_VALUES = [
   'fornelli',
@@ -164,6 +176,11 @@ export const RecipeSchema = z.object({
 });
 export type Recipe = z.infer<typeof RecipeSchema>;
 
+// Limiti di `persons`: usati da HouseholdSettingsSchema e dai contratti di
+// generazione (Feature 2). `HouseholdSchema.persons` resta senza max (v. sotto).
+export const PERSONS_MIN = 1;
+export const PERSONS_MAX = 12;
+
 export const HouseholdSchema = z.object({
   id: z.string().uuid(),
   persons: z.number().int().min(1),
@@ -171,6 +188,7 @@ export const HouseholdSchema = z.object({
   diet_tags: z.array(DietFlagSchema).default([]),
   meal_style_tags: z.array(MealStyleTagSchema).default([]),
   appliances: z.array(ApplianceSchema).default([]),
+  onboarded_at: z.coerce.date().nullable().default(null),
   created_at: z.coerce.date().default(() => new Date()),
   updated_at: z.coerce.date().default(() => new Date()),
 });
@@ -235,6 +253,7 @@ export const DEFAULT_HOUSEHOLD: Household = {
   diet_tags: [],
   meal_style_tags: ['veloce', 'salutare'],
   appliances: ['fornelli', 'forno', 'microonde', 'friggitrice-ad-aria'],
+  onboarded_at: null,
   created_at: new Date('2026-01-01T00:00:00Z'),
   updated_at: new Date('2026-01-01T00:00:00Z'),
 };
@@ -278,7 +297,7 @@ export type GenerateRecipesOutput = z.infer<typeof GenerateRecipesOutputSchema>;
 // Vincoli passati all'adapter. ingredient_likes/dislikes: canonical_name,
 // vuoti fino alla Feature 5 (S2.3), che li popolerà da ingredient_prefs.
 export const RecipeConstraintsSchema = z.object({
-  persons: z.number().int().min(1).max(12),
+  persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
   meal_type: MealTypeSchema.nullable(),
   diet_tags: z.array(DietFlagSchema),
   meal_style_tags: z.array(MealStyleTagSchema),
@@ -290,7 +309,7 @@ export type RecipeConstraints = z.infer<typeof RecipeConstraintsSchema>;
 
 export const ConstraintOverridesSchema = z
   .object({
-    persons: z.number().int().min(1).max(12),
+    persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
     diet_tags: z.array(DietFlagSchema),
     meal_style_tags: z.array(MealStyleTagSchema),
     appliances: z.array(ApplianceSchema),
@@ -334,3 +353,44 @@ export const FixtureFileSchema = z.object({
 export const IngredientAliasesFileSchema = z.object({
   aliases: z.array(IngredientAliasSchema).min(15),
 });
+
+// ============================================================================
+// Household Settings (Feature 3)
+// ============================================================================
+
+export const HouseholdSettingsSchema = z
+  .object({
+    persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
+    meals: z.array(MealTypeSchema).min(1),
+    meal_style_tags: z.array(MealStyleTagSchema),
+    diet_tags: z.array(DietFlagSchema),
+    appliances: z.array(ApplianceSchema),
+  })
+  .strict();
+export type HouseholdSettings = z.infer<typeof HouseholdSettingsSchema>;
+
+// Body di PUT /api/settings
+export const UpdateSettingsRequestSchema = HouseholdSettingsSchema.extend({
+  complete_onboarding: z.boolean().default(false),
+}).strict();
+export type UpdateSettingsRequest = z.input<typeof UpdateSettingsRequestSchema>;
+
+// Risposta di GET /api/settings. updated_at (ISO) è il riferimento per F4:
+// un piano è superato dai vincoli se updated_at > meal_plans.created_at.
+export const SettingsViewSchema = z.object({
+  persons: z.number().int(),
+  meals: z.array(MealTypeSchema),
+  meal_style_tags: z.array(MealStyleTagSchema),
+  diet_tags: z.array(DietFlagSchema),
+  appliances: z.array(ApplianceSchema),
+  onboarded: z.boolean(),
+  updated_at: z.string().datetime(),
+});
+export type SettingsView = z.infer<typeof SettingsViewSchema>;
+
+// Risposta di PUT /api/settings
+export const SaveSettingsResultSchema = z.object({
+  settings: SettingsViewSchema,
+  changed: z.boolean(),
+});
+export type SaveSettingsResult = z.infer<typeof SaveSettingsResultSchema>;

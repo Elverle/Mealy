@@ -2,7 +2,7 @@
 title: Barra di Navigazione Mobile (bottom-nav)
 type: entity
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-28
 tags: [ui, navigation, bottom-nav, mobile-first, components]
 ---
 
@@ -37,21 +37,23 @@ Le 4 tab principali sono definite nell'array `NAV_ITEMS`:
 
 ## Integrazione nel Layout
 
-Il componente è montato all'interno di `app/layout.tsx`:
+Dalla Feature 3 il componente è montato nel layout del route group `app/(app)/layout.tsx`, dopo la guardia di onboarding ([[onboarding-guard]]); il root layout `app/layout.tsx` non lo contiene più:
 
 ```tsx
-<body className={`${figtree.variable} ${fraunces.variable} antialiased bg-paper text-ink`}>
-  <main className="pb-24 pt-4 px-4 max-w-2xl mx-auto min-h-screen">
-    {children}
-  </main>
-  <BottomNav />
-</body>
+// app/(app)/layout.tsx (estratto)
+return (
+  <>
+    <div className="flex-1 pb-24">{children}</div>
+    <BottomNav />
+  </>
+);
 ```
 
-La classe `pb-24` sul contenitore `<main>` assicura che il contenuto delle pagine non venga mai nascosto dalla barra fissa.
+La classe `pb-24` sul contenitore delle pagine assicura che il contenuto non venga mai nascosto dalla barra fissa. Le rotte fuori dal gruppo (`/benvenuto`) non mostrano la barra. Il componente in sé non è cambiato.
 
 ## Vedi anche
 
 - [[shell-navigation-pattern]] — Pattern concettuale di navigazione dell'app
+- [[onboarding-guard]] — Layout del route group `(app)` che monta la barra
 - [[design-system-and-tokens]] — Palette `basil`, `stone` e accessibilità WCAG
 - [[e0-fondamenta]] — Panoramica della Feature 1

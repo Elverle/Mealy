@@ -15,10 +15,11 @@ import { ChipFilter } from "@/components/filters/chip-filter";
 import { EmptyState } from "@/components/feedback/empty-state";
 
 // Pages
-import Home from "@/app/page";
-import ShoppingListPage from "@/app/lista/page";
-import LibraryPage from "@/app/libreria/page";
-import SettingsPage from "@/app/impostazioni/page";
+import Home from "@/app/(app)/page";
+import ShoppingListPage from "@/app/(app)/lista/page";
+import LibraryPage from "@/app/(app)/libreria/page";
+import { SettingsEditor } from "@/components/settings/settings-editor";
+import { DEFAULT_HOUSEHOLD, type SettingsView } from "@/lib/domain/types";
 
 // Mock next/navigation for BottomNav
 const mockPathname = vi.fn(() => "/");
@@ -30,6 +31,16 @@ vi.mock("next/navigation", () => ({
     prefetch: vi.fn(),
   }),
 }));
+
+const SETTINGS_FIXTURE: SettingsView = {
+  persons: DEFAULT_HOUSEHOLD.persons,
+  meals: DEFAULT_HOUSEHOLD.meals,
+  meal_style_tags: DEFAULT_HOUSEHOLD.meal_style_tags,
+  diet_tags: DEFAULT_HOUSEHOLD.diet_tags,
+  appliances: DEFAULT_HOUSEHOLD.appliances,
+  onboarded: true,
+  updated_at: "2026-01-01T00:00:00.000Z",
+};
 
 describe("WP3 UI Primitives", () => {
   describe("Button", () => {
@@ -399,7 +410,7 @@ describe("Pages Integration", () => {
   });
 
   it("renders Settings page with sections", () => {
-    render(<SettingsPage />);
+    render(<SettingsEditor initialSettings={SETTINGS_FIXTURE} />);
     expect(
       screen.getByRole("heading", { level: 1, name: "Impostazioni" })
     ).toBeInTheDocument();

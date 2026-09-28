@@ -2,7 +2,7 @@
 title: Servizio di Generazione e Route API (recipe-generation)
 type: entity
 created: 2026-09-17
-updated: 2026-09-17
+updated: 2026-09-28
 tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock]
 ---
 
@@ -21,7 +21,7 @@ La composizione e la validazione dei vincoli operano tramite due funzioni pure:
 
 ### `buildConstraints(household, mealType, overrides?): RecipeConstraints`
 Fonde i valori di base configurati nell'anagrafica del nucleo familiare ([[household-repo]]) con eventuali sovrascritture temporanee fornite dall'utente (`ConstraintOverrides`):
-- `persons`: numero di coperti (priorità ad `overrides.persons`, altrimenti `household.persons`).
+- `persons`: numero di coperti (priorità ad `overrides.persons`, altrimenti `household.persons`); ammesso in `[PERSONS_MIN, PERSONS_MAX]` (1..12, costanti condivise con le impostazioni dalla Feature 3).
 - `meal_type`: pasto target (`pranzo` o `cena` o `null` per generazione mista).
 - `diet_tags`: array di regimi dietetici attivi.
 - `meal_style_tags`: stili desiderati (es. `veloce`, `salutare`).
@@ -36,6 +36,8 @@ Esegue un controllo deterministico a posteriori su ciascuna ricetta generata dal
 4. **Ingrediente escluso**: controlla se uno degli ingredienti coincide, per nome canonico normalizzato (`normalizeCanonicalName`), con un elemento di `constraints.ingredient_dislikes`.
 
 Restituisce l'elenco delle violazioni: un array vuoto attesta la piena conformità della ricetta.
+
+I valori base arrivano dai vincoli che l'utente imposta nel wizard di primo avvio e in `/impostazioni` (Feature 3, [[e5-impostazioni]]); `tests/settings/service.test.ts` verifica che un salvataggio si rifletta in `buildConstraints`.
 
 ## Servizio Orchestratore (`generateAndStoreRecipes`)
 
@@ -52,7 +54,7 @@ export async function generateAndStoreRecipes(
 Per preservare le performance del database e prevenire lock prolungati sulle connessioni del pool Postgres, **la chiamata all'LLM (`generateRecipes`) avviene rigorosamente all'esterno di qualsiasi transazione database**.
 
 Il flusso operativo si articola nelle seguenti fasi:
-1. **Risoluzione Household**: carica il nucleo specificato in `input.householdId` o il singleton di sistema (`getDefaultHousehold()`).
+1. **Risoluzione Household**: `loadHousehold(input.householdId)` di [[household-repo]] carica il nucleo indicato o, se l'id è assente, il singleton di sistema; per un id inesistente lancia `Household <id> non trovato`. Dalla Feature 3 la regola, prima scritta in linea qui, è centralizzata nel repository e condivisa con il servizio impostazioni ([[settings-service]]); comportamento e messaggio sono invariati.
 2. **Calcolo Vincoli**: genera l'oggetto `RecipeConstraints` con `buildConstraints`.
 3. **Esclusione Titoli Recenti**: estrae dalla libreria i titoli più recenti associati all'household (`listRecipeTitles` con limite `EXCLUDED_TITLES_IN_PROMPT = 150`), iniettandoli nel prompt dell'LLM per minimizzare alla radice il rischio di ripetizioni.
 4. **Invocazione LLM**: chiama `generateRecipes` ricevendo la lista di candidate normalizzate.
@@ -130,3 +132,5 @@ L'API route in `app/api/recipes/generate/route.ts` espone l'operazione al fronte
 - [[recipe-repo]] — Metodi `insertRecipeWith`, `findSimilarRecipeTitle`, `slugExists`, `acquireRecipeGenerationLock`
 - [[domain-types]] — Schemi di richiesta e risposta `GenerateRecipesRequestSchema` e `GenerationSkipSchema`
 - [[e1-motore-ricette]] — Quadro complessivo dell'iniziativa Feature 2
+- [[household-repo]] — `loadHousehold`, risoluzione dell'household
+- [[e5-impostazioni]] — Feature 3: origine dei vincoli dell'household

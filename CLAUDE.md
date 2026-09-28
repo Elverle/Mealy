@@ -14,7 +14,9 @@ Il principio guida del prodotto: **le ricette generate non sono usa-e-getta, son
 
 ## Stack
 
-Next.js (App Router, TypeScript) · Tailwind CSS + shadcn/ui · PostgreSQL (Docker in dev, Neon in prod) · Drizzle ORM + drizzle-kit · Zod · Vercel AI SDK (provider via env `LLM_PROVIDER` + `LLM_MODEL`) · Vitest · pnpm
+Next.js (App Router, TypeScript) · Tailwind CSS + shadcn/ui · PostgreSQL 16 (Docker in dev e in prod) · Drizzle ORM + drizzle-kit · Zod · Vercel AI SDK (provider via env `LLM_PROVIDER` + `LLM_MODEL`) · Vitest · pnpm
+
+Deploy v1: Raspberry Pi con Docker Compose (Next.js standalone + PostgreSQL 16) raggiungibile solo via LAN/Tailscale, **senza autenticazione** (`ARCHITECTURE §8`, Opzione C). Login e auth sono rinviati a una v2 (Opzione A Vercel + Neon resta l'alternativa cloud futura).
 
 ## Comandi
 

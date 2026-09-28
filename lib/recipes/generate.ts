@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { getHouseholdById, getDefaultHousehold } from '@/lib/db/repositories/household-repo';
+import { loadHousehold } from '@/lib/db/repositories/household-repo';
 import {
   type DbExecutor,
   type RecipeWithDetails,
@@ -12,7 +12,6 @@ import {
 import {
   type ConstraintOverrides,
   type GenerationSkip,
-  type Household,
   type MealType,
 } from '@/lib/domain/types';
 import { normalizeTitle, slugify } from '@/lib/domain/recipe-text';
@@ -67,16 +66,7 @@ export async function generateAndStoreRecipes(
   input: GenerateAndStoreInput,
   deps?: GenerateAndStoreDeps
 ): Promise<GenerateAndStoreResult> {
-  let household: Household;
-  if (input.householdId !== undefined) {
-    const found = await getHouseholdById(input.householdId);
-    if (!found) {
-      throw new Error(`Household ${input.householdId} non trovato`);
-    }
-    household = found;
-  } else {
-    household = await getDefaultHousehold();
-  }
+  const household = await loadHousehold(input.householdId);
 
   const constraints = buildConstraints(household, input.mealType, input.overrides ?? {});
 

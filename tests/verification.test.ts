@@ -14,7 +14,7 @@ describe("Project Structure & Config Verification", () => {
       "lib/utils.ts",
       "app/globals.css",
       "app/layout.tsx",
-      "app/page.tsx",
+      "app/(app)/page.tsx",
       "vitest.config.ts",
       "vitest.setup.ts",
       ".env.example",

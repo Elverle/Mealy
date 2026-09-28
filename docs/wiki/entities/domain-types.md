@@ -2,8 +2,8 @@
 title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-09-17
-tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization]
+updated: 2026-09-28
+tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings]
 ---
 
 ## File e Responsabilità
@@ -28,6 +28,21 @@ Ogni dominio controllato dispone di una costante `as const`, di uno schema Zod `
 | `PLAN_STATUS_VALUES` | `['draft', 'active', 'archived']` | `PlanStatusSchema` | `PlanStatus` |
 | `RECIPE_SOURCE_VALUES` | `['llm', 'manual']` | `RecipeSourceSchema` | `RecipeSource` |
 | `INGREDIENT_PREF_VALUES` | `['like', 'dislike']` | `IngredientPrefSchema` | `IngredientPref` |
+
+### Etichette UI in italiano
+
+Le etichette mostrate nell'interfaccia sono mappe `Record<Enum, string>` accanto agli enum, così i componenti non ridefiniscono testi di dominio:
+
+| Costante | Enum | Origine |
+|---|---|---|
+| `DIET_FLAG_LABELS` | `DietFlag` | Feature 1 |
+| `APPLIANCE_LABELS` | `Appliance` | Feature 1 |
+| `MEAL_TYPE_LABELS` | `MealType` (`Pranzo`, `Cena`) | Feature 3 |
+| `MEAL_STYLE_TAG_LABELS` | `MealStyleTag` (`Veloce`, `Salutare`, `Proteico`, `Leggero`, `Comfort food`, `Economico`, `Piatto unico`) | Feature 3 |
+
+### Limiti di `persons` (Feature 3)
+
+`PERSONS_MIN = 1` e `PERSONS_MAX = 12` sono dichiarati **prima** di `HouseholdSchema` (una `const` letta prima della sua dichiarazione durante l'inizializzazione del modulo produrrebbe `ReferenceError`) e riusati da `RecipeConstraintsSchema`, `ConstraintOverridesSchema` e `HouseholdSettingsSchema`. `HouseholdSchema.persons` resta invece `min(1)` **senza massimo**: un valore fuori range già presente in DB continua a fallire in `buildConstraints` senza rompere anche `GET /api/settings`. `servings_base` delle ricette è un concetto distinto e mantiene i propri letterali.
 
 ## Schemi delle Entità Principali
 
@@ -80,8 +95,9 @@ Configurazione del nucleo domestico.
 - `diet_tags`: `z.array(DietFlagSchema)`
 - `meal_style_tags`: `z.array(MealStyleTagSchema)`
 - `appliances`: `z.array(ApplianceSchema)`
+- `onboarded_at`: `z.coerce.date().nullable().default(null)` (Feature 3) — istante di completamento del wizard; `null` finché l'onboarding non è completato. Un oggetto senza il campo viene parsato con `null`.
 - `created_at`: `z.coerce.date()`
-- `updated_at`: `z.coerce.date()`
+- `updated_at`: `z.coerce.date()` — ultimo cambio dei vincoli o dell'onboarding (contratto U1, v. [[household-repo]])
 
 ### 5. MealPlan (`MealPlanSchema`) & PlanSlot (`PlanSlotSchema`)
 - **MealPlan**: rappresenta un piano settimanale (`id`, `household_id`, `week_start: YYYY-MM-DD`, `status: draft | active | archived`, `created_at`).
@@ -122,8 +138,8 @@ I provider LLM con supporto a structured output (come Gemini o OpenAI) richiedon
 - **`GenerateRecipesOutputSchema`**: radice dell'output strutturato contenente l'array `recipes: z.array(GeneratedRecipeSchema).min(1)`.
 
 ### 2. Vincoli e Sovrascritture
-- **`RecipeConstraintsSchema`**: parametri consolidati passati all'adapter LLM (`persons`, `meal_type: MealType | null`, `diet_tags`, `meal_style_tags`, `appliances`, `ingredient_likes`, `ingredient_dislikes`).
-- **`ConstraintOverridesSchema`**: modifiche temporanee strict e parziali consentite nella richiesta (`persons`, `diet_tags`, `meal_style_tags`, `appliances`).
+- **`RecipeConstraintsSchema`**: parametri consolidati passati all'adapter LLM (`persons` in `[PERSONS_MIN, PERSONS_MAX]`, `meal_type: MealType | null`, `diet_tags`, `meal_style_tags`, `appliances`, `ingredient_likes`, `ingredient_dislikes`).
+- **`ConstraintOverridesSchema`**: modifiche temporanee strict e parziali consentite nella richiesta (`persons` in `[PERSONS_MIN, PERSONS_MAX]`, `diet_tags`, `meal_style_tags`, `appliances`).
 
 ### 3. Contratti API HTTP e Scarti
 - **Costanti Generazione**:
@@ -143,6 +159,19 @@ I provider LLM con supporto a structured output (come Gemini o OpenAI) richiedon
 - **`FixtureRecipeSchema`**: estende `GeneratedRecipeSchema` con `id: z.string().uuid()` e `slug: z.string().min(1)`.
 - **`FixtureFileSchema`**: valida `fixtures/recipes.json` (richiede tra 15 e 20 ricette).
 - **`IngredientAliasesFileSchema`**: valida `fixtures/ingredient-aliases.json` (richiede minimo 15 alias).
+
+## Contratti delle Impostazioni Household (Feature 3)
+
+Sezione `// Household Settings (Feature 3)` in coda a `types.ts`, usata da [[settings-service]], [[settings-fields]], [[settings-editor]] e [[onboarding-wizard]]:
+
+| Schema / Tipo | Forma | Uso |
+|---|---|---|
+| `HouseholdSettingsSchema` / `HouseholdSettings` | strict: `persons` intero in `[PERSONS_MIN, PERSONS_MAX]`, `meals: MealType[]` con **almeno 1** elemento, `meal_style_tags`, `diet_tags`, `appliances` (possono essere vuoti) | I 5 vincoli modificabili dall'utente |
+| `UpdateSettingsRequestSchema` / `UpdateSettingsRequest` | `HouseholdSettingsSchema` + `complete_onboarding: boolean` (default `false`), strict | Body di `PUT /api/settings`. Il tipo usa `z.input` perché `complete_onboarding` è facoltativo in ingresso. |
+| `SettingsViewSchema` / `SettingsView` | i 5 campi + `onboarded: boolean` + `updated_at: string` (ISO datetime) | Risposta di `GET /api/settings` e props iniziali di wizard e form. `updated_at` è il riferimento del contratto U1 per la Feature 4. |
+| `SaveSettingsResultSchema` / `SaveSettingsResult` | `{ settings: SettingsView, changed: boolean }` | Risposta di `PUT /api/settings`, validata anche lato client da `putSettings` |
+
+Le chiavi sconosciute sono rifiutate (`.strict()`), così come diete o elettrodomestici fuori enum.
 
 ## Funzioni Pure di Normalizzazione Testo (`recipe-text.ts`)
 
@@ -198,10 +227,13 @@ export const DEFAULT_HOUSEHOLD: Household = {
   diet_tags: [],
   meal_style_tags: ['veloce', 'salutare'],
   appliances: ['fornelli', 'forno', 'microonde', 'friggitrice-ad-aria'],
+  onboarded_at: null,
   created_at: new Date('2026-01-01T00:00:00Z'),
   updated_at: new Date('2026-01-01T00:00:00Z'),
 };
 ```
+
+Questi valori sono quelli con cui il wizard di primo avvio si presenta precompilato ([[onboarding-wizard]]).
 
 ## Vedi anche
 
@@ -210,3 +242,5 @@ export const DEFAULT_HOUSEHOLD: Household = {
 - [[recipe-generation]] — Servizio di validazione e filtraggio ricette
 - [[fixtures-and-seed]] — Corpus ricette e validazione fixtures
 - [[recipe-repo]] — Persistenza nel database PostgreSQL
+- [[settings-service]] — Uso dei contratti delle impostazioni in servizio, API e client
+- [[e5-impostazioni]] — Panoramica della Feature 3

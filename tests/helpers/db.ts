@@ -40,6 +40,9 @@ export async function createTestHousehold(
   overrides?: Partial<Pick<Household, 'persons' | 'meals' | 'diet_tags' | 'meal_style_tags' | 'appliances'>>
 ): Promise<string> {
   const id = crypto.randomUUID();
+  // created_at/updated_at non impostati: valgono i defaultNow() del DB, così
+  // i test che confrontano istanti (es. tests/settings/service.test.ts) usano
+  // lo stesso orologio di updateHousehold (v. household-repo.ts).
   await db.insert(households).values({
     id,
     persons: overrides?.persons ?? DEFAULT_HOUSEHOLD.persons,
@@ -47,8 +50,6 @@ export async function createTestHousehold(
     diet_tags: [...(overrides?.diet_tags ?? DEFAULT_HOUSEHOLD.diet_tags)],
     meal_style_tags: [...(overrides?.meal_style_tags ?? DEFAULT_HOUSEHOLD.meal_style_tags)],
     appliances: [...(overrides?.appliances ?? DEFAULT_HOUSEHOLD.appliances)],
-    created_at: new Date(),
-    updated_at: new Date(),
   });
   return id;
 }

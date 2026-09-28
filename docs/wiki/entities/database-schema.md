@@ -2,8 +2,8 @@
 title: Schema del Database Relazionale Drizzle (db/schema)
 type: entity
 created: 2026-09-15
-updated: 2026-09-15
-tags: [database, schema, drizzle, tables, relations, postgresql]
+updated: 2026-09-28
+tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding]
 ---
 
 ## File e Responsabilità
@@ -52,8 +52,9 @@ Anagrafica dei nuclei domestici (in v1 contiene il record singleton standard).
   - `diet_tags`: `text[]` array default `[]`
   - `meal_style_tags`: `text[]` array default `[]`
   - `appliances`: `text[]` array default `[]`
+  - `onboarded_at`: `timestamp with time zone` **nullable**, senza default (Feature 3, migrazione `0002`) — istante di completamento del wizard di primo avvio; `null` = onboarding da fare. È il segnale letto dalla guardia di onboarding ([[onboarding-guard]]), necessario perché l'household di default esiste già prima del primo avvio.
   - `created_at`: `timestamp with time zone` default now
-  - `updated_at`: `timestamp with time zone` default now
+  - `updated_at`: `timestamp with time zone` default now — dalla Feature 3 aggiornato da `updateHousehold` con `now()` del DB solo quando i vincoli cambiano davvero o l'onboarding si completa (contratto U1, v. [[household-repo]])
 
 ### 2. `recipes`
 Libreria permanente delle ricette.
@@ -157,9 +158,21 @@ Tabella di mappatura sinonimi ("pelati" -> "pomodori pelati").
   - `alias`: `text` PK
   - `canonical_name`: `text` not null
 
+## Migrazioni Versionate
+
+File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e applicati con `pnpm db:migrate`; snapshot e journal in `lib/db/migrations/meta/`.
+
+| Indice | Tag | Contenuto |
+|---|---|---|
+| `0000` | `0000_init_schema` | Estensione `pg_trgm`, le 9 tabelle e i relativi indici (Feature 1) |
+| `0001` | `0001_unknown_wolf_cub` | DROP e CREATE degli stessi 9 indici (con metodo esplicito `btree`/`gin`); nessuna modifica alle colonne |
+| `0002` | `0002_add_household_onboarded_at` | Solo `ALTER TABLE "households" ADD COLUMN "onboarded_at" timestamp with time zone;` (Feature 3). Le righe esistenti ricevono `null`. |
+
 ## Vedi anche
 
 - [[database-architecture]] — Architettura del database relazionale, pg_trgm e migrazioni
 - [[domain-types]] — Tipi Zod corrispondenti alle tabelle
 - [[recipe-repo]] — Operazioni di inserimento e join con Drizzle
 - [[household-repo]] — Operazioni su `households`
+- [[onboarding-guard]] — Uso di `households.onboarded_at`
+- [[e5-impostazioni]] — Panoramica della Feature 3

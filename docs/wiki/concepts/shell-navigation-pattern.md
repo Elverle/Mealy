@@ -2,8 +2,8 @@
 title: Pattern di Shell e Navigazione Mobile-First
 type: concept
 created: 2026-09-15
-updated: 2026-09-15
-tags: [ui, navigation, shell, mobile-first, layout, app-router]
+updated: 2026-09-28
+tags: [ui, navigation, shell, mobile-first, layout, app-router, route-group]
 ---
 
 ## Il Pattern Shell
@@ -20,7 +20,7 @@ Per offrire un'esperienza affine alle applicazioni native, l'interfaccia adotta 
 |                                                             |
 |                                                             |
 |                  Area di Contenuto Scrollabile              |
-|        <main className="max-w-2xl pb-24 pt-4 px-4">         |
+|        <div className="flex-1 pb-24"> + <main> di pagina    |
 |                                                             |
 |                                                             |
 +-------------------------------------------------------------+
@@ -43,7 +43,17 @@ La barra di navigazione inferiore indirizza l'utente verso le quattro sezioni fo
    - Archivio persistente di tutte le ricette memorizzate nel database.
    - Ricerca rapida con matching trigram e filtri per tag, tempo ed esigenze alimentari.
 4. **Impostazioni (`/impostazioni`)**:
-   - Gestione dei parametri del nucleo domestico: numero di coperti, pasti abituali, vincoli dietetici ed elettrodomestici disponibili.
+   - Gestione dei parametri del nucleo domestico: numero di coperti, pasti abituali, tipo di pasti, vincoli dietetici ed elettrodomestici disponibili. Dalla Feature 3 è un form reale con salvataggio esplicito ([[settings-editor]]).
+
+## Dove Vive la Shell: il Route Group `(app)` (Feature 3)
+
+Dalla Feature 3 la shell non è più montata dal root layout:
+- **`app/layout.tsx`** (root) contiene solo font, metadata e `<body className="… min-h-screen … flex flex-col">{children}</body>`: nessuna `BottomNav`, nessun wrapper.
+- **`app/(app)/layout.tsx`** (layout del route group) rende `<div className="flex-1 pb-24">{children}</div>` seguito da `<BottomNav />`, **dopo** la guardia di onboarding che reindirizza a `/benvenuto` gli household non ancora onboardati ([[onboarding-guard]]).
+- Le 4 pagine sono state spostate in `app/(app)/page.tsx`, `app/(app)/lista/page.tsx`, `app/(app)/libreria/page.tsx`, `app/(app)/impostazioni/page.tsx`. Gli **URL non cambiano**: il segmento tra parentesi non compare nel percorso.
+- Le pagine fuori dal gruppo (oggi solo `/benvenuto`, il wizard di primo avvio) sono a schermo intero, **senza barra di navigazione**.
+
+Regola per le feature successive: ogni schermata che deve mostrare la barra inferiore va creata sotto `app/(app)/`.
 
 ## Risoluzione della Rotta Attiva
 
@@ -54,13 +64,14 @@ Il componente client `BottomNav` rileva la rotta corrente invocando l'hook `useP
 ## Prevenzione di Sovrapposizioni e Padding Dinamico
 
 Un problema frequente nelle layout web mobili con barre fisse è il mascheramento degli elementi inferiori dello scroll. Mealy risolve questo aspetto tramite una combinazione di padding dedicati:
-1. Nel root layout (`app/layout.tsx`), il contenitore `<main>` applica `pb-24` (circa 96px), distanziando abbondantemente l'ultimo elemento della lista dalla barra inferiore.
+1. Nel layout del gruppo (`app/(app)/layout.tsx`; fino alla Feature 2 era il root layout `app/layout.tsx`), il contenitore `<div className="flex-1 pb-24">` che avvolge le pagine applica `pb-24` (circa 96px), distanziando abbondantemente l'ultimo elemento della lista dalla barra inferiore.
 2. In `components/navigation/bottom-nav.tsx`, la barra ha un'altezza base di 64px (`h-16`) combinata con `pb-[env(safe-area-inset-bottom)]` per rispettare la barra di navigazione gestuale degli smartphone moderni.
 3. Lo sfondo della barra sfrutta `bg-paper/95 backdrop-blur-md`, lasciando intravedere con eleganza il passaggio del contenuto retrostante senza compromettere la leggibilità delle icone.
 
 ## Vedi anche
 
 - [[bottom-nav]] — Componente React della barra di navigazione
+- [[onboarding-guard]] — Route group `(app)` e guardia di onboarding che montano la shell
 - [[meal-card]] — Componente visualizzato nella schermata Piano
 - [[shopping-item-row]] — Componente della schermata Lista
 - [[design-system-and-tokens]] — Standard di accessibilità e touch target

@@ -23,6 +23,7 @@ export const households = pgTable('households', {
   diet_tags: text('diet_tags').array().notNull().default(sql`ARRAY[]::text[]`),
   meal_style_tags: text('meal_style_tags').array().notNull().default(sql`ARRAY[]::text[]`),
   appliances: text('appliances').array().notNull().default(sql`ARRAY[]::text[]`),
+  onboarded_at: timestamp('onboarded_at', { withTimezone: true }),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

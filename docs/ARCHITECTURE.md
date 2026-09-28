@@ -66,7 +66,7 @@ flowchart LR
         LLMA[llm-adapter<br/>prompt + parsing Zod + retry]
     end
 
-    DB[(PostgreSQL<br/>Neon)]
+    DB[(PostgreSQL 16<br/>Docker sul Pi)]
     ANT[Provider LLM<br/>OpenRouter · Gemini · Anthropic · …]
 
     UI --> API
@@ -102,7 +102,8 @@ La tabella `ingredient_aliases` assorbe nel tempo i sinonimi residui ("pomodori 
 households                 -- singleton in v1, chiave di partizione futura
   id, persons int, meals text[] ('pranzo','cena'),
   diet_tags text[], meal_style_tags text[], appliances text[],
-  created_at, updated_at
+  onboarded_at timestamptz null,    -- null = wizard di primo avvio non completato
+  created_at, updated_at            -- updated_at = ultimo cambio dei vincoli (now() del DB)
 
 recipes
   id, household_id FK,
