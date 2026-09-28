@@ -1,0 +1,1360 @@
+{
+  "recipes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000101",
+      "slug": "pasta-al-pomodoro-e-basilico",
+      "title": "Pasta al pomodoro e basilico",
+      "description": "Un grande classico italiano semplice e profumato con pomodoro fresco e basilico.",
+      "steps": [
+        "Porta a bollore una pentola d'acqua salata per la pasta.",
+        "In una padella fai dorare lo spicchio d'aglio con un filo di olio extravergine di oliva.",
+        "Aggiungi i pomodori pelati schiacciati con una forchetta e lascia cuocere a fuoco dolce per 15 minuti.",
+        "Cuoci la pasta al dente, scolala e saltala nella padella con il sugo.",
+        "Spegni la fiamma, unisci le foglie di basilico fresco e servi."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "tags": ["veloce", "economico"],
+      "diet_flags": ["vegetariano", "vegano", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 20,
+      "kcal_est": 420,
+      "ingredients": [
+        {
+          "canonical_name": "pasta di semola",
+          "display_name": "pasta di semola",
+          "qty": 160,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pomodoro pelato",
+          "display_name": "pomodori pelati",
+          "qty": 400,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "basilico",
+          "display_name": "basilico fresco",
+          "qty": 6,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "foglie"
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "aglio",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "spicchio"
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000102",
+      "slug": "risotto-alla-zucca",
+      "title": "Risotto alla zucca",
+      "description": "Risotto autunnale cremoso e avvolgente con polpa di zucca dolce e parmigiano.",
+      "steps": [
+        "Pulisci e taglia la zucca a cubetti piccoli.",
+        "In una casseruola fai appassire la cipolla tritata nell'olio extravergine di oliva.",
+        "Aggiungi il riso e tostalo per due minuti prima di sfumare con il vino bianco.",
+        "Unisci la zucca e prosegui la cottura versando brodo vegetale caldo poco alla volta.",
+        "A cottura ultimata spegni il fuoco e manteca con parmigiano reggiano grattugiato."
+      ],
+      "meal_types": ["cena"],
+      "tags": ["comfort-food"],
+      "diet_flags": ["vegetariano", "senza-glutine", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 35,
+      "kcal_est": 450,
+      "ingredients": [
+        {
+          "canonical_name": "riso carnaroli",
+          "display_name": "riso carnaroli",
+          "qty": 160,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "zucca",
+          "display_name": "polpa di zucca",
+          "qty": 300,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "cipolla",
+          "display_name": "cipolla dorata",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "tritata finemente"
+        },
+        {
+          "canonical_name": "vino bianco",
+          "display_name": "vino bianco secco",
+          "qty": 50,
+          "unit": "ml",
+          "category": "bevande",
+          "note": null
+        },
+        {
+          "canonical_name": "brodo vegetale",
+          "display_name": "brodo vegetale",
+          "qty": 600,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "parmigiano reggiano",
+          "display_name": "parmigiano reggiano grattugiato",
+          "qty": 30,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000103",
+      "slug": "pollo-croccante-in-friggitrice-ad-aria",
+      "title": "Pollo croccante in friggitrice ad aria",
+      "description": "Bocconcini di petto di pollo speziati con panatura croccante e dorata.",
+      "steps": [
+        "Taglia il petto di pollo a bocconcini regolari.",
+        "In una ciotola mescola pangrattato, paprika dolce, aglio e una presa di sale.",
+        "Ungi i bocconcini con poco olio extravergine di oliva e passali nella panatura facendola aderire bene.",
+        "Disponi il pollo nel cestello della friggitrice ad aria senza sovrapporre i pezzi.",
+        "Cuoci a 190 gradi per circa 15 minuti scuotendo il cestello a metà cottura."
+      ],
+      "meal_types": ["cena"],
+      "tags": ["proteico", "veloce"],
+      "diet_flags": ["senza-lattosio"],
+      "appliances_required": ["friggitrice-ad-aria"],
+      "servings_base": 2,
+      "prep_minutes": 25,
+      "kcal_est": 380,
+      "ingredients": [
+        {
+          "canonical_name": "petto di pollo",
+          "display_name": "petto di pollo a bocconcini",
+          "qty": 350,
+          "unit": "g",
+          "category": "macelleria",
+          "note": null
+        },
+        {
+          "canonical_name": "pangrattato",
+          "display_name": "pangrattato",
+          "qty": 40,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "paprika dolce",
+          "display_name": "paprika dolce",
+          "qty": 5,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "aglio",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "in polvere o spicchio schiacciato"
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 10,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000104",
+      "slug": "insalata-di-ceci-pomodorini-e-feta",
+      "title": "Insalata di ceci, pomodorini e feta",
+      "description": "Piatto fresco e nutriente ideale per una pausa pranzo estiva senza fornelli.",
+      "steps": [
+        "Sciacqua e scola con cura i ceci lessati.",
+        "Lava i pomodorini e tagliali a spicchi.",
+        "Taglia il cetriolo a rondelle sottili e sbriciola grossolanamente la feta greca.",
+        "Raccogli tutti gli ingredienti in una capiente insalatiera.",
+        "Condisci con olio extravergine di oliva, origano secco e un pizzico di sale prima di mescolare."
+      ],
+      "meal_types": ["pranzo"],
+      "tags": ["veloce", "salutare", "leggero"],
+      "diet_flags": ["vegetariano", "senza-glutine", "pescetariano"],
+      "appliances_required": [],
+      "servings_base": 2,
+      "prep_minutes": 15,
+      "kcal_est": null,
+      "ingredients": [
+        {
+          "canonical_name": "ceci lessati",
+          "display_name": "ceci lessati",
+          "qty": 250,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pomodorino",
+          "display_name": "pomodorini ciliegino",
+          "qty": 150,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "feta",
+          "display_name": "feta greca sbriciolata",
+          "qty": 100,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "cetriolo",
+          "display_name": "cetriolo a rondelle",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "origano secco",
+          "display_name": "origano secco",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000105",
+      "slug": "salmone-al-forno-con-patate",
+      "title": "Salmone al forno con patate",
+      "description": "Tranci di salmone teneri cotti al forno con patate dorate al rosmarino.",
+      "steps": [
+        "Preriscalda il forno a 190 gradi in modalità statica.",
+        "Pela le patate, tagliale a fette sottili e condiscile con olio, sale e rosmarino.",
+        "Disponi le patate su una teglia con carta forno e inforna per 15 minuti.",
+        "Adagia i filetti di salmone sulle patate, insaporisci con pepe nero e prosegui la cottura per altri 15 minuti.",
+        "Sforna quando il pesce risulta morbido e le patate ben dorate."
+      ],
+      "meal_types": ["cena"],
+      "tags": ["proteico", "salutare"],
+      "diet_flags": ["senza-glutine", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["forno"],
+      "servings_base": 2,
+      "prep_minutes": 40,
+      "kcal_est": 520,
+      "ingredients": [
+        {
+          "canonical_name": "filetto di salmone",
+          "display_name": "filetti di salmone fresco",
+          "qty": 300,
+          "unit": "g",
+          "category": "pescheria",
+          "note": null
+        },
+        {
+          "canonical_name": "patata",
+          "display_name": "patate a fette",
+          "qty": 350,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "rosmarino",
+          "display_name": "rosmarino fresco",
+          "qty": 2,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "rametti"
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe nero",
+          "display_name": "pepe nero macinato",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000106",
+      "slug": "frittata-di-zucchine",
+      "title": "Frittata di zucchine",
+      "description": "Seconda portata veloce e saporita con uova fresche, zucchine rosolate e parmigiano.",
+      "steps": [
+        "Lava le zucchine e tagliale a rondelle sottili.",
+        "Scalda l'olio extravergine in una padella antiaderente e fai saltare le zucchine per 8 minuti.",
+        "In una ciotola sbatti le uova con il parmigiano reggiano, un pizzico di sale e pepe.",
+        "Versa il composto di uova sulle zucchine in padella e cuoci a fuoco medio con coperchio.",
+        "Gira la frittata con l'aiuto del coperchio e completa la cottura dall'altro lato."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "tags": ["veloce", "economico"],
+      "diet_flags": ["vegetariano", "senza-glutine", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 20,
+      "kcal_est": 310,
+      "ingredients": [
+        {
+          "canonical_name": "uovo",
+          "display_name": "uova medie",
+          "qty": 4,
+          "unit": "pz",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "zucchina",
+          "display_name": "zucchine medie",
+          "qty": 2,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "parmigiano reggiano",
+          "display_name": "parmigiano reggiano grattugiato",
+          "qty": 25,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe nero",
+          "display_name": "pepe nero macinato",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000107",
+      "slug": "vellutata-di-carote-e-zenzero",
+      "title": "Vellutata di carote e zenzero",
+      "description": "Zuppa calda e vellutata con la dolcezza delle carote unita alla nota fresca dello zenzero.",
+      "steps": [
+        "Pela le carote e tagliale a rondelle; grattugia lo zenzero fresco.",
+        "In una pentola fai rosolare la cipolla tritata nell'olio extravergine di oliva.",
+        "Aggiungi le carote, lo zenzero e copri a filo con il brodo vegetale caldo.",
+        "Lascia sobbollire per 25 minuti finché le carote sono molto tenere.",
+        "Frulla il tutto a immersione fino a ottenere una crema liscia e vellutata."
+      ],
+      "meal_types": ["cena"],
+      "tags": ["leggero", "salutare"],
+      "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli", "frullatore"],
+      "servings_base": 2,
+      "prep_minutes": 35,
+      "kcal_est": 210,
+      "ingredients": [
+        {
+          "canonical_name": "carota",
+          "display_name": "carote fresche",
+          "qty": 400,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "zenzero fresco",
+          "display_name": "zenzero fresco grattugiato",
+          "qty": 15,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "cipolla",
+          "display_name": "cipolla dorata",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "brodo vegetale",
+          "display_name": "brodo vegetale",
+          "qty": 500,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000108",
+      "slug": "polpette-al-sugo",
+      "title": "Polpette al sugo",
+      "description": "Morbide polpette di carne mista cotte lentamente in un ricco sugo di pomodoro.",
+      "steps": [
+        "Ammolla il pane raffermo con poca acqua o latte e strizzalo bene.",
+        "In una terrina amalgama la carne macinata con il pane, l'uovo, il sale e forma polpette grandi come una noce.",
+        "In un tegame fai soffriggere la cipolla tritata nell'olio extravergine di oliva.",
+        "Unisci la passata di pomodoro, regola di sale e porta a leggero bollore.",
+        "Immergi delicatamente le polpette nel sugo e fai cuocere a fiamma bassa con coperchio per 30 minuti."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "tags": ["comfort-food"],
+      "diet_flags": [],
+      "appliances_required": ["fornelli"],
+      "servings_base": 4,
+      "prep_minutes": 45,
+      "kcal_est": 490,
+      "ingredients": [
+        {
+          "canonical_name": "carne macinata di manzo",
+          "display_name": "carne macinata di manzo",
+          "qty": 300,
+          "unit": "g",
+          "category": "macelleria",
+          "note": null
+        },
+        {
+          "canonical_name": "carne macinata di maiale",
+          "display_name": "carne macinata di maiale",
+          "qty": 150,
+          "unit": "g",
+          "category": "macelleria",
+          "note": null
+        },
+        {
+          "canonical_name": "pane raffermo",
+          "display_name": "pane raffermo",
+          "qty": 60,
+          "unit": "g",
+          "category": "pane",
+          "note": "ammollato e strizzato"
+        },
+        {
+          "canonical_name": "uovo",
+          "display_name": "uovo medio",
+          "qty": 1,
+          "unit": "pz",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "passata di pomodoro",
+          "display_name": "passata di pomodoro",
+          "qty": 500,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "cipolla",
+          "display_name": "cipolla dorata",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 20,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000109",
+      "slug": "poke-bowl-di-tonno-e-riso",
+      "title": "Poke bowl di tonno e riso",
+      "description": "Ciotola colorata a base di riso con cubetti di tonno fresco marinato, avocado e verdure.",
+      "steps": [
+        "Sciacqua il riso basmati e cuocilo in acqua salata per assorbimento, quindi lascialo intiepidire.",
+        "Taglia il tonno a cubetti e marinalo per 10 minuti con la salsa di soia e un filo di olio extravergine.",
+        "Pela l'avocado e taglialo a fette; riduci la carota a julienne fine.",
+        "Distribuisci il riso sul fondo di due ciotole e disponi sopra in settori il tonno, l'avocado e la carota.",
+        "Guarnisci con semi di sesamo prima di servire."
+      ],
+      "meal_types": ["pranzo"],
+      "tags": ["salutare", "piatto-unico"],
+      "diet_flags": ["senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 25,
+      "kcal_est": 460,
+      "ingredients": [
+        {
+          "canonical_name": "filetto di tonno fresco",
+          "display_name": "filetto di tonno fresco a cubetti",
+          "qty": 200,
+          "unit": "g",
+          "category": "pescheria",
+          "note": "abbattuto per consumo a crudo"
+        },
+        {
+          "canonical_name": "riso basmati",
+          "display_name": "riso basmati",
+          "qty": 160,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "avocado",
+          "display_name": "avocado maturo a fette",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "carota",
+          "display_name": "carota a julienne",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "salsa di soia",
+          "display_name": "salsa di soia",
+          "qty": 20,
+          "unit": "ml",
+          "category": "altro",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 10,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "semi di sesamo",
+          "display_name": "semi di sesamo tostati",
+          "qty": 10,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000110",
+      "slug": "pasta-e-ceci",
+      "title": "Pasta e ceci",
+      "description": "Primo piatto rustico della tradizione contadina, denso, caldo e confortante.",
+      "steps": [
+        "In una pentola rosola la cipolla tritata nell'olio extravergine con il rametto di rosmarino.",
+        "Aggiungi i ceci lessati scolati e la passata di pomodoro, mescolando per insaporire.",
+        "Versa tre bicchieri d'acqua calda, sala e porta a ebollizione.",
+        "Cala la pasta corta direttamente nel brodetto e porta a cottura mescolando spesso.",
+        "Rimuovi il rosmarino e servi la minestra densa con un filo di olio a crudo."
+      ],
+      "meal_types": ["pranzo"],
+      "tags": ["economico", "comfort-food", "piatto-unico"],
+      "diet_flags": ["vegetariano", "vegano", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 30,
+      "kcal_est": 440,
+      "ingredients": [
+        {
+          "canonical_name": "pasta di semola",
+          "display_name": "pasta corta tipo ditalini",
+          "qty": 140,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "ceci lessati",
+          "display_name": "ceci lessati",
+          "qty": 240,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "passata di pomodoro",
+          "display_name": "passata di pomodoro",
+          "qty": 100,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "cipolla",
+          "display_name": "cipolla dorata",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "rosmarino",
+          "display_name": "rosmarino fresco",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "rametto"
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000111",
+      "slug": "tacchino-alla-piastra-con-insalata",
+      "title": "Tacchino alla piastra con insalata",
+      "description": "Seconda portata leggera e ricca di proteine con fesa di tacchino e insalata fresca.",
+      "steps": [
+        "Fai scaldare molto bene una bistecchiera o padella antiaderente sul fornello.",
+        "Adagia le fette di fesa di tacchino sulla piastra ben calda.",
+        "Cuoci per 3-4 minuti per lato finché la carne risulta dorata e ben cotta al centro.",
+        "Lava e asciuga l'insalata mista, disponendola nei piatti da portata.",
+        "Appoggia il tacchino sull'insalata, condisci con olio extravergine, succo di limone, sale e pepe nero."
+      ],
+      "meal_types": ["pranzo"],
+      "tags": ["proteico", "leggero", "veloce"],
+      "diet_flags": ["senza-glutine", "senza-lattosio"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 15,
+      "kcal_est": 290,
+      "ingredients": [
+        {
+          "canonical_name": "fesa di tacchino",
+          "display_name": "fesa di tacchino a fette",
+          "qty": 300,
+          "unit": "g",
+          "category": "macelleria",
+          "note": null
+        },
+        {
+          "canonical_name": "insalata mista",
+          "display_name": "insalata mista da taglio",
+          "qty": 120,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "limone",
+          "display_name": "limone",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "succo spremuto"
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe nero",
+          "display_name": "pepe nero macinato",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000112",
+      "slug": "lasagne-alla-bolognese",
+      "title": "Lasagne alla bolognese",
+      "description": "Il piatto simbolo del pranzo domenicale con sfoglia all'uovo, ragù di carne e besciamella.",
+      "steps": [
+        "Prepara un ragù corposo rosolando il macinato con olio, cipolla e cuocendo con la passata per 45 minuti.",
+        "In un pentolino prepara una besciamella morbida con burro, farina di grano e latte.",
+        "Preriscalda il forno a 180 gradi ventilato.",
+        "In una pirofila alterna strati di ragù, sfoglie di pasta all'uovo, besciamella e abbondante parmigiano.",
+        "Inforna per 25 minuti finché la superficie forma una crosticina ben dorata."
+      ],
+      "meal_types": ["pranzo"],
+      "tags": ["comfort-food"],
+      "diet_flags": [],
+      "appliances_required": ["fornelli", "forno"],
+      "servings_base": 4,
+      "prep_minutes": 90,
+      "kcal_est": 680,
+      "ingredients": [
+        {
+          "canonical_name": "sfoglia per lasagne all'uovo",
+          "display_name": "sfoglie di pasta all'uovo per lasagne",
+          "qty": 250,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "carne macinata mista",
+          "display_name": "carne macinata di manzo e maiale",
+          "qty": 400,
+          "unit": "g",
+          "category": "macelleria",
+          "note": null
+        },
+        {
+          "canonical_name": "passata di pomodoro",
+          "display_name": "passata di pomodoro",
+          "qty": 500,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "latte intero",
+          "display_name": "latte intero",
+          "qty": 500,
+          "unit": "ml",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "burro",
+          "display_name": "burro",
+          "qty": 40,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "farina di grano tenero",
+          "display_name": "farina di grano tenero tipo 00",
+          "qty": 40,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "parmigiano reggiano",
+          "display_name": "parmigiano reggiano grattugiato",
+          "qty": 60,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 20,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000113",
+      "slug": "patate-e-zucchine-croccanti",
+      "title": "Patate e zucchine croccanti",
+      "description": "Contorno fragrante e leggero dorato alla perfezione nella friggitrice ad aria.",
+      "steps": [
+        "Pela le patate e tagliale a cubetti di circa due centimetri.",
+        "Lava le zucchine e tagliale a rondelle spesse.",
+        "Raccogli le verdure in una ciotola e condisci con olio, rosmarino, paprika dolce e sale.",
+        "Trasferisci nel cestello della friggitrice ad aria preriscaldata a 190 gradi.",
+        "Cuoci per 18 minuti scuotendo a metà tempo per una doratura omogenea."
+      ],
+      "meal_types": ["cena"],
+      "tags": ["veloce", "leggero"],
+      "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["friggitrice-ad-aria"],
+      "servings_base": 2,
+      "prep_minutes": 25,
+      "kcal_est": 260,
+      "ingredients": [
+        {
+          "canonical_name": "patata",
+          "display_name": "patate a cubetti",
+          "qty": 300,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "zucchina",
+          "display_name": "zucchine a rondelle",
+          "qty": 250,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "rosmarino",
+          "display_name": "rosmarino fresco tritato",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "rametto"
+        },
+        {
+          "canonical_name": "paprika dolce",
+          "display_name": "paprika dolce in polvere",
+          "qty": 5,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000114",
+      "slug": "merluzzo-in-padella-con-pomodorini",
+      "title": "Merluzzo in padella con pomodorini",
+      "description": "Filetti di merluzzo saporiti cotti in padella con pomodorini succosi e olive.",
+      "steps": [
+        "In un'ampia padella rosola lo spicchio d'aglio nell'olio extravergine di oliva.",
+        "Aggiungi i pomodorini tagliati a metà e le olive taggiasche, cuocendo a fuoco vivace per 5 minuti.",
+        "Adagia i filetti di merluzzo nella padella, copri con coperchio e cuoci per 8 minuti.",
+        "Togli il coperchio, lascia addensare il sughetto per altri due minuti e regola di sale.",
+        "Completa con una spolverata di prezzemolo fresco tritato prima di servire."
+      ],
+      "meal_types": ["cena"],
+      "tags": ["leggero", "proteico", "veloce"],
+      "diet_flags": ["senza-glutine", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 20,
+      "kcal_est": 280,
+      "ingredients": [
+        {
+          "canonical_name": "filetto di merluzzo",
+          "display_name": "filetti di merluzzo fresco",
+          "qty": 300,
+          "unit": "g",
+          "category": "pescheria",
+          "note": null
+        },
+        {
+          "canonical_name": "pomodorino",
+          "display_name": "pomodorini ciliegino",
+          "qty": 10,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "tagliati a metà"
+        },
+        {
+          "canonical_name": "oliva taggiasca",
+          "display_name": "olive taggiasche denocciolate",
+          "qty": 30,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "aglio",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "spicchio"
+        },
+        {
+          "canonical_name": "prezzemolo",
+          "display_name": "prezzemolo fresco tritato",
+          "qty": 5,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000115",
+      "slug": "uova-e-spinaci-al-microonde",
+      "title": "Uova e spinaci al microonde",
+      "description": "Piatto nutriente ed espresso con spinaci freschi e uova cotte al microonde.",
+      "steps": [
+        "Lava gli spinaci e mettili in una ciotola adatta al microonde con l'aglio schiacciato e un cucchiaio d'acqua.",
+        "Cuoci coperto a 750 watt per 2 minuti finché gli spinaci sono appassiti.",
+        "Crea due incavi negli spinaci e sguscia delicatamente un uovo in ciascuno.",
+        "Spolvera con parmigiano reggiano, fora leggermente i tuorli con uno stecchino e copri con pellicola microonde forata.",
+        "Cuoci per altri 2 minuti a 600 watt, lasciando riposare un minuto prima di servire."
+      ],
+      "meal_types": ["cena"],
+      "tags": ["veloce", "proteico"],
+      "diet_flags": ["vegetariano", "senza-glutine", "pescetariano"],
+      "appliances_required": ["microonde"],
+      "servings_base": 2,
+      "prep_minutes": 10,
+      "kcal_est": 230,
+      "ingredients": [
+        {
+          "canonical_name": "uovo",
+          "display_name": "uova fresche",
+          "qty": 2,
+          "unit": "pz",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "spinaci",
+          "display_name": "spinaci freschi in foglia",
+          "qty": 200,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "parmigiano reggiano",
+          "display_name": "parmigiano reggiano grattugiato",
+          "qty": 15,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "aglio",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "spicchio schiacciato"
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 10,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe nero",
+          "display_name": "pepe nero macinato",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000116",
+      "slug": "couscous-di-verdure",
+      "title": "Couscous di verdure",
+      "description": "Piatto unico speziato con verdure miste saltate e couscous profumato all'olio extravergine.",
+      "steps": [
+        "Taglia zucchina, carota e peperone a cubetti regolari.",
+        "In una padella fai scaldare l'olio extravergine e rosola le verdure con un pizzico di sale per 10 minuti.",
+        "Porta a bollore 150 ml d'acqua salata in un pentolino, spegni la fiamma e versa il couscous.",
+        "Copri il couscous e lascialo gonfiare per 5 minuti, quindi sgranalo con una forchetta.",
+        "Unisci le verdure saltate al couscous, mescola bene e servi caldo o tiepido."
+      ],
+      "meal_types": ["pranzo"],
+      "tags": ["piatto-unico", "salutare"],
+      "diet_flags": ["vegetariano", "vegano", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 25,
+      "kcal_est": null,
+      "ingredients": [
+        {
+          "canonical_name": "couscous di grano",
+          "display_name": "couscous di grano precotto",
+          "qty": 140,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "zucchina",
+          "display_name": "zucchina a cubetti",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "carota",
+          "display_name": "carota a cubetti",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "peperone rosso",
+          "display_name": "peperone rosso a dadini",
+          "qty": 150,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000117",
+      "slug": "hamburger-di-manzo-con-patate-al-forno",
+      "title": "Hamburger di manzo con patate al forno",
+      "description": "Succulenti hamburger di manzo cotti in padella serviti con patate a spicchi croccanti.",
+      "steps": [
+        "Taglia le patate a spicchi, condiscile con olio, sale e rosmarino, e inforna a 200 gradi per 30 minuti.",
+        "Modella la carne macinata di manzo formando due burger compatti dello spessore di due centimetri.",
+        "Scalda molto bene una bistecchiera o padella antiaderente.",
+        "Cuoci gli hamburger a fiamma viva per 4 minuti per lato girandoli una sola volta.",
+        "Servi gli hamburger caldi accompagnati dalle patate al forno ben dorate."
+      ],
+      "meal_types": ["cena"],
+      "tags": ["proteico", "comfort-food"],
+      "diet_flags": ["senza-glutine", "senza-lattosio"],
+      "appliances_required": ["fornelli", "forno"],
+      "servings_base": 2,
+      "prep_minutes": 40,
+      "kcal_est": 580,
+      "ingredients": [
+        {
+          "canonical_name": "carne macinata di manzo",
+          "display_name": "polpa di manzo macinata scelta",
+          "qty": 300,
+          "unit": "g",
+          "category": "macelleria",
+          "note": null
+        },
+        {
+          "canonical_name": "patata",
+          "display_name": "patate da forno a spicchi",
+          "qty": 350,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "rosmarino",
+          "display_name": "rosmarino fresco",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "rametto"
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe nero",
+          "display_name": "pepe nero macinato",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000118",
+      "slug": "crema-di-piselli-e-menta",
+      "title": "Crema di piselli e menta",
+      "description": "Zuppa delicata e fresca di piselli profumata con menta fresca e servita tiepida.",
+      "steps": [
+        "In una casseruola fai stufare la cipolla tritata con l'olio extravergine per 3 minuti.",
+        "Aggiungi i piselli surgelati e versa il brodo vegetale caldo fino a coprirli.",
+        "Cuoci a fuoco dolce per 15 minuti finché i piselli sono teneri.",
+        "Unisci le foglie di menta fresca e frulla con il frullatore a immersione fino a ottenere una crema liscia.",
+        "Regola di sale e servi la crema con un giro di olio a crudo."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "tags": ["leggero"],
+      "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli", "frullatore"],
+      "servings_base": 2,
+      "prep_minutes": 25,
+      "kcal_est": 240,
+      "ingredients": [
+        {
+          "canonical_name": "piselli surgelati",
+          "display_name": "piselli fini surgelati",
+          "qty": 300,
+          "unit": "g",
+          "category": "surgelati",
+          "note": null
+        },
+        {
+          "canonical_name": "cipolla",
+          "display_name": "cipolla dorata",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "brodo vegetale",
+          "display_name": "brodo vegetale",
+          "qty": 400,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "menta",
+          "display_name": "menta fresca in foglie",
+          "qty": 8,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "foglie"
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    }
+  ]
+}

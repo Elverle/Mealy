@@ -1,0 +1,6 @@
+{"recipes":[
+ {"title":"Macedonia di frutta","description":"Una fresca macedonia di frutta di stagione.","meal_types":["colazione"],"tags":[],"diet_flags":[],"appliances_required":[],"servings_base":2,"prep_minutes":10,"kcal_est":null,
+  "steps":["Taglia la mela a pezzetti e mescola."],
+  "ingredients":[
+   {"canonical_name":"mela","display_name":"mele","qty":1,"unit":"kg","category":"frutta","note":null}]}
+]}

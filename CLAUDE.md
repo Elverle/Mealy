@@ -26,6 +26,7 @@ pnpm lint           # ESLint
 pnpm build          # build di produzione
 pnpm db:migrate     # migrazioni drizzle-kit
 pnpm db:seed        # seed idempotente (fixtures + household default + alias)
+pnpm llm:record     # registra una risposta LLM reale in tests/fixtures/llm/recorded/ (richiede chiave API)
 ```
 
 Gate di verifica completo: `lint + typecheck (tsc --noEmit) + test + build` — tutti verdi.

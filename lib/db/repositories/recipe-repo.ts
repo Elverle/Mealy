@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
-import { db } from '../index';
+import { and, arrayContains, desc, eq, sql } from 'drizzle-orm';
+import { db, type Database } from '../index';
 import {
   recipe_ingredients,
   recipe_prefs,
@@ -20,6 +20,11 @@ import {
   RecipeSource,
   Unit,
 } from '@/lib/domain/types';
+
+type DbTransaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+export type DbExecutor = Database | DbTransaction;
+
+export const TITLE_SIMILARITY_THRESHOLD = 0.6;
 
 export interface InsertRecipeInput {
   id?: string;
@@ -45,8 +50,8 @@ export interface InsertIngredientInput {
   canonical_name: string;
   display_name: string;
   qty?: number | string | null;
-  unit: Unit | string;
-  category: Category | string;
+  unit: Unit;
+  category: Category;
   note?: string | null;
 }
 
@@ -92,6 +97,77 @@ function formatRecipe(row: Record<string, unknown>): RecipeWithDetails {
 }
 
 /**
+ * Insert a recipe with its ingredients and preferences using the provided executor.
+ */
+export async function insertRecipeWith(
+  executor: DbExecutor,
+  recipeData: InsertRecipeInput,
+  ingredientsData: InsertIngredientInput[] = [],
+  prefData?: InsertRecipePrefInput
+): Promise<RecipeWithDetails> {
+  const recipeId = recipeData.id ?? crypto.randomUUID();
+
+  const [insertedRecipe] = await executor
+    .insert(recipes)
+    .values({
+      id: recipeId,
+      household_id: recipeData.household_id,
+      title: recipeData.title,
+      slug: recipeData.slug,
+      description: recipeData.description ?? '',
+      steps: recipeData.steps,
+      meal_types: recipeData.meal_types,
+      tags: recipeData.tags ?? [],
+      diet_flags: recipeData.diet_flags ?? [],
+      appliances_required: recipeData.appliances_required ?? [],
+      servings_base: recipeData.servings_base,
+      prep_minutes: recipeData.prep_minutes,
+      kcal_est: recipeData.kcal_est ?? null,
+      macros_est: recipeData.macros_est ?? null,
+      source: recipeData.source ?? 'manual',
+      created_at: recipeData.created_at ?? new Date(),
+    })
+    .returning();
+
+  let insertedIngredients: (typeof recipe_ingredients.$inferSelect)[] = [];
+  if (ingredientsData.length > 0) {
+    insertedIngredients = await executor
+      .insert(recipe_ingredients)
+      .values(
+        ingredientsData.map((ing) => ({
+          id: ing.id ?? crypto.randomUUID(),
+          recipe_id: recipeId,
+          canonical_name: ing.canonical_name,
+          display_name: ing.display_name,
+          qty: ing.qty != null ? String(ing.qty) : null,
+          unit: ing.unit,
+          category: ing.category,
+          note: ing.note ?? null,
+        }))
+      )
+      .returning();
+  }
+
+  const [insertedPref] = await executor
+    .insert(recipe_prefs)
+    .values({
+      recipe_id: recipeId,
+      rating: prefData?.rating ?? null,
+      favorite: prefData?.favorite ?? false,
+      blocked: prefData?.blocked ?? false,
+      times_used: prefData?.times_used ?? 0,
+      last_used_at: prefData?.last_used_at ?? null,
+    })
+    .returning();
+
+  return formatRecipe({
+    ...insertedRecipe,
+    ingredients: insertedIngredients,
+    prefs: insertedPref,
+  });
+}
+
+/**
  * Insert a recipe with its ingredients and default preferences within a transaction.
  */
 export async function insertRecipe(
@@ -99,68 +175,85 @@ export async function insertRecipe(
   ingredientsData: InsertIngredientInput[] = [],
   prefData?: InsertRecipePrefInput
 ): Promise<RecipeWithDetails> {
-  return await db.transaction(async (tx) => {
-    const recipeId = recipeData.id ?? crypto.randomUUID();
+  return await db.transaction((tx) =>
+    insertRecipeWith(tx, recipeData, ingredientsData, prefData)
+  );
+}
 
-    const [insertedRecipe] = await tx
-      .insert(recipes)
-      .values({
-        id: recipeId,
-        household_id: recipeData.household_id,
-        title: recipeData.title,
-        slug: recipeData.slug,
-        description: recipeData.description ?? '',
-        steps: recipeData.steps,
-        meal_types: recipeData.meal_types,
-        tags: recipeData.tags ?? [],
-        diet_flags: recipeData.diet_flags ?? [],
-        appliances_required: recipeData.appliances_required ?? [],
-        servings_base: recipeData.servings_base,
-        prep_minutes: recipeData.prep_minutes,
-        kcal_est: recipeData.kcal_est ?? null,
-        macros_est: recipeData.macros_est ?? null,
-        source: recipeData.source ?? 'manual',
-        created_at: recipeData.created_at ?? new Date(),
-      })
-      .returning();
+/**
+ * List recipe titles for a household, optionally filtered by mealType and limited.
+ * Ordered by created_at desc.
+ */
+export async function listRecipeTitles(
+  executor: DbExecutor,
+  householdId: string,
+  options?: { mealType?: MealType; limit?: number }
+): Promise<string[]> {
+  const conditions = [eq(recipes.household_id, householdId)];
+  if (options?.mealType) {
+    conditions.push(arrayContains(recipes.meal_types, [options.mealType]));
+  }
 
-    let insertedIngredients: (typeof recipe_ingredients.$inferSelect)[] = [];
-    if (ingredientsData.length > 0) {
-      insertedIngredients = await tx
-        .insert(recipe_ingredients)
-        .values(
-          ingredientsData.map((ing) => ({
-            id: ing.id ?? crypto.randomUUID(),
-            recipe_id: recipeId,
-            canonical_name: ing.canonical_name,
-            display_name: ing.display_name,
-            qty: ing.qty != null ? String(ing.qty) : null,
-            unit: ing.unit,
-            category: ing.category,
-            note: ing.note ?? null,
-          }))
-        )
-        .returning();
-    }
+  const baseQuery = executor
+    .select({ title: recipes.title })
+    .from(recipes)
+    .where(and(...conditions))
+    .orderBy(desc(recipes.created_at));
 
-    const [insertedPref] = await tx
-      .insert(recipe_prefs)
-      .values({
-        recipe_id: recipeId,
-        rating: prefData?.rating ?? null,
-        favorite: prefData?.favorite ?? false,
-        blocked: prefData?.blocked ?? false,
-        times_used: prefData?.times_used ?? 0,
-        last_used_at: prefData?.last_used_at ?? null,
-      })
-      .returning();
+  const rows =
+    options?.limit !== undefined
+      ? await baseQuery.limit(options.limit)
+      : await baseQuery;
 
-    return formatRecipe({
-      ...insertedRecipe,
-      ingredients: insertedIngredients,
-      prefs: insertedPref,
-    });
-  });
+  return rows.map((r) => r.title);
+}
+
+/**
+ * Finds the most similar recipe title in the household using trigram similarity.
+ * Returns null if no title exceeds the threshold.
+ */
+export async function findSimilarRecipeTitle(
+  executor: DbExecutor,
+  householdId: string,
+  title: string,
+  threshold: number = TITLE_SIMILARITY_THRESHOLD
+): Promise<string | null> {
+  const rows = await executor
+    .select({ title: recipes.title })
+    .from(recipes)
+    .where(
+      and(
+        eq(recipes.household_id, householdId),
+        sql`similarity(${recipes.title}, ${title}) > ${threshold}`
+      )
+    )
+    .orderBy(sql`similarity(${recipes.title}, ${title}) desc`)
+    .limit(1);
+
+  return rows[0]?.title ?? null;
+}
+
+/**
+ * Checks if a recipe slug already exists globally across any household.
+ */
+export async function slugExists(executor: DbExecutor, slug: string): Promise<boolean> {
+  const rows = await executor
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(eq(recipes.slug, slug))
+    .limit(1);
+
+  return rows.length > 0;
+}
+
+/**
+ * Acquires a transaction-level advisory lock for recipe generation.
+ *
+ * NOTE: Must only be called within an active database transaction.
+ * The lock is automatically released upon transaction commit or rollback.
+ */
+export async function acquireRecipeGenerationLock(executor: DbExecutor): Promise<void> {
+  await executor.execute(sql`select pg_advisory_xact_lock(hashtext('mealy:recipes:generate'))`);
 }
 
 /**

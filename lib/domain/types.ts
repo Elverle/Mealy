@@ -238,3 +238,99 @@ export const DEFAULT_HOUSEHOLD: Household = {
   created_at: new Date('2026-01-01T00:00:00Z'),
   updated_at: new Date('2026-01-01T00:00:00Z'),
 };
+
+// ============================================================================
+// Recipe Generation Contracts (Feature 2)
+// ============================================================================
+
+// Output LLM (ARCHITECTURE §5.1). Nessun .optional()/.default(): i provider
+// con structured output gestiscono male i campi opzionali.
+export const GeneratedIngredientSchema = z.object({
+  canonical_name: z.string().min(1),
+  display_name: z.string().min(1),
+  qty: z.number().positive().nullable(),
+  unit: UnitSchema,
+  category: CategorySchema,
+  note: z.string().nullable(),
+});
+export type GeneratedIngredient = z.infer<typeof GeneratedIngredientSchema>;
+
+export const GeneratedRecipeSchema = z.object({
+  title: z.string().min(3).max(120),
+  description: z.string(),
+  meal_types: z.array(MealTypeSchema).min(1),
+  tags: z.array(MealStyleTagSchema),
+  diet_flags: z.array(DietFlagSchema),
+  appliances_required: z.array(ApplianceSchema),
+  servings_base: z.number().int().min(1).max(12),
+  prep_minutes: z.number().int().min(1).max(600),
+  kcal_est: z.number().int().positive().nullable(),
+  steps: z.array(z.string().min(1)).min(1),
+  ingredients: z.array(GeneratedIngredientSchema).min(1),
+});
+export type GeneratedRecipe = z.infer<typeof GeneratedRecipeSchema>;
+
+export const GenerateRecipesOutputSchema = z.object({
+  recipes: z.array(GeneratedRecipeSchema).min(1),
+});
+export type GenerateRecipesOutput = z.infer<typeof GenerateRecipesOutputSchema>;
+
+// Vincoli passati all'adapter. ingredient_likes/dislikes: canonical_name,
+// vuoti fino alla Feature 5 (S2.3), che li popolerà da ingredient_prefs.
+export const RecipeConstraintsSchema = z.object({
+  persons: z.number().int().min(1).max(12),
+  meal_type: MealTypeSchema.nullable(),
+  diet_tags: z.array(DietFlagSchema),
+  meal_style_tags: z.array(MealStyleTagSchema),
+  appliances: z.array(ApplianceSchema),
+  ingredient_likes: z.array(z.string().min(1)),
+  ingredient_dislikes: z.array(z.string().min(1)),
+});
+export type RecipeConstraints = z.infer<typeof RecipeConstraintsSchema>;
+
+export const ConstraintOverridesSchema = z
+  .object({
+    persons: z.number().int().min(1).max(12),
+    diet_tags: z.array(DietFlagSchema),
+    meal_style_tags: z.array(MealStyleTagSchema),
+    appliances: z.array(ApplianceSchema),
+  })
+  .partial()
+  .strict();
+export type ConstraintOverrides = z.infer<typeof ConstraintOverridesSchema>;
+
+// Body di POST /api/recipes/generate
+export const GENERATE_COUNT_MIN = 1;
+export const GENERATE_COUNT_MAX = 10;
+export const GENERATE_COUNT_DEFAULT = 5;
+export const GenerateRecipesRequestSchema = z
+  .object({
+    count: z.number().int().min(GENERATE_COUNT_MIN).max(GENERATE_COUNT_MAX).default(GENERATE_COUNT_DEFAULT),
+    meal_type: MealTypeSchema.nullable().default(null),
+    overrides: ConstraintOverridesSchema.default({}),
+  })
+  .strict();
+export type GenerateRecipesRequest = z.infer<typeof GenerateRecipesRequestSchema>;
+
+export const GENERATION_SKIP_REASON_VALUES = ['duplicate', 'constraint_violation'] as const;
+export const GenerationSkipReasonSchema = z.enum(GENERATION_SKIP_REASON_VALUES);
+export type GenerationSkipReason = z.infer<typeof GenerationSkipReasonSchema>;
+export const GenerationSkipSchema = z.object({
+  title: z.string(),
+  reason: GenerationSkipReasonSchema,
+  detail: z.string(),
+});
+export type GenerationSkip = z.infer<typeof GenerationSkipSchema>;
+
+// Fixtures (fixtures/recipes.json, fixtures/ingredient-aliases.json)
+export const FixtureRecipeSchema = GeneratedRecipeSchema.extend({
+  id: z.string().uuid(),
+  slug: z.string().min(1),
+});
+export type FixtureRecipe = z.infer<typeof FixtureRecipeSchema>;
+export const FixtureFileSchema = z.object({
+  recipes: z.array(FixtureRecipeSchema).min(15).max(20),
+});
+export const IngredientAliasesFileSchema = z.object({
+  aliases: z.array(IngredientAliasSchema).min(15),
+});

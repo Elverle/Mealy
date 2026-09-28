@@ -1,0 +1,83 @@
+{"recipes":[
+ {
+  "title":"Pasta al Pomodoro!",
+  "description":"Un grande classico della tradizione italiana.",
+  "meal_types":["cena"],
+  "tags":[],
+  "diet_flags":[],
+  "appliances_required":["fornelli"],
+  "servings_base":2,
+  "prep_minutes":20,
+  "kcal_est":null,
+  "steps":["Lessa la pasta in abbondante acqua salata.","Condisci con passata di pomodoro e servi."],
+  "ingredients":[
+   {"canonical_name":"pasta","display_name":"pasta","qty":160,"unit":"g","category":"dispensa","note":null},
+   {"canonical_name":"passata di pomodoro","display_name":"passata di pomodoro","qty":200,"unit":"ml","category":"dispensa","note":null}
+  ]
+ },
+ {
+  "title":"Pasta al pomodoro fresco",
+  "description":"Pasta veloce con pomodorini freschi e basilico.",
+  "meal_types":["cena"],
+  "tags":[],
+  "diet_flags":[],
+  "appliances_required":["fornelli"],
+  "servings_base":2,
+  "prep_minutes":20,
+  "kcal_est":null,
+  "steps":["Taglia i pomodorini e saltali in padella.","Scola la pasta e uniscila al condimento."],
+  "ingredients":[
+   {"canonical_name":"pasta","display_name":"pasta","qty":160,"unit":"g","category":"dispensa","note":null},
+   {"canonical_name":"pomodoro","display_name":"pomodorini","qty":200,"unit":"g","category":"ortofrutta","note":null}
+  ]
+ },
+ {
+  "title":"Lasagne vegetali al forno",
+  "description":"Piatto ricco a strati con verdure di stagione.",
+  "meal_types":["cena"],
+  "tags":[],
+  "diet_flags":[],
+  "appliances_required":["forno"],
+  "servings_base":2,
+  "prep_minutes":20,
+  "kcal_est":null,
+  "steps":["Componi gli strati di sfoglia e verdure.","Inforna fino a doratura."],
+  "ingredients":[
+   {"canonical_name":"sfoglia per lasagne","display_name":"sfoglie per lasagne","qty":200,"unit":"g","category":"dispensa","note":null},
+   {"canonical_name":"zucchina","display_name":"zucchine","qty":2,"unit":"pz","category":"ortofrutta","note":null}
+  ]
+ },
+ {
+  "title":"Ceci croccanti in friggitrice ad aria",
+  "description":"Uno snack speziato o contorno proteico e croccante.",
+  "meal_types":["cena"],
+  "tags":[],
+  "diet_flags":[],
+  "appliances_required":["friggitrice-ad-aria"],
+  "servings_base":2,
+  "prep_minutes":20,
+  "kcal_est":null,
+  "steps":["Asciuga i ceci, condisci con olio e paprika.","Cuoci in friggitrice ad aria scuotendo il cestello a metà cottura."],
+  "ingredients":[
+   {"canonical_name":"ceci lessati","display_name":"ceci lessati","qty":240,"unit":"g","category":"dispensa","note":null},
+   {"canonical_name":"olio extravergine di oliva","display_name":"olio extravergine d'oliva","qty":10,"unit":"ml","category":"dispensa","note":null},
+   {"canonical_name":"paprika","display_name":"paprika dolce","qty":null,"unit":"qb","category":"dispensa","note":null}
+  ]
+ },
+ {
+  "title":"ceci croccanti in friggitrice ad aria",
+  "description":"Seconda variante di ceci sfiziosi cotti in friggitrice ad aria.",
+  "meal_types":["cena"],
+  "tags":[],
+  "diet_flags":[],
+  "appliances_required":["friggitrice-ad-aria"],
+  "servings_base":2,
+  "prep_minutes":20,
+  "kcal_est":null,
+  "steps":["Mescola i ceci con un filo d'olio e spezie.","Cuoci per circa 15 minuti."],
+  "ingredients":[
+   {"canonical_name":"ceci lessati","display_name":"ceci precotti","qty":240,"unit":"g","category":"dispensa","note":null},
+   {"canonical_name":"olio extravergine di oliva","display_name":"olio","qty":10,"unit":"ml","category":"dispensa","note":null}
+  ]
+ }
+]}

@@ -4,7 +4,8 @@ Benvenuto nella documentazione tecnica interna del progetto **Mealy**. Questo in
 
 ## Topics (Aggregati Tematici)
 
-- [[e0-fondamenta]] — Panoramica dell'architettura fondamentale (Feature 1), dallo scaffold Next.js 16 al layer DB e alla shell UI. (2026-09-15)
+- [[e0-fondamenta]] — Panoramica dell'architettura fondamentale (Feature 1), dallo scaffold Next.js 15.5 al layer DB e alla shell UI. (2026-09-15)
+- [[e1-motore-ricette]] — Pipeline di generazione ricette assistita da LLM, deduplicazione trigrammi, fixtures offline e seed idempotente (Feature 2). (2026-09-17)
 
 ## Concetti Architetturali & Design
 
@@ -15,10 +16,13 @@ Benvenuto nella documentazione tecnica interna del progetto **Mealy**. Questo in
 
 ## Entità di Dominio, Dati & UI
 
-- [[domain-types]] — Schemi Zod di validazione runtime, tipi TypeScript inferiti e 9 liste chiuse enum di dominio (`lib/domain/types.ts`). (2026-09-15)
+- [[domain-types]] — Schemi Zod di validazione runtime, tipi TypeScript inferiti, contratti di generazione LLM e funzioni pure di normalizzazione (`lib/domain/`). (2026-09-17)
 - [[database-schema]] — Modello dati relazionale a 9 tabelle Drizzle con indici GIN, trigram e vincoli a cascata (`lib/db/schema.ts`). (2026-09-15)
 - [[household-repo]] — Repository per l'accesso e la gestione idempotente del singleton nucleo familiare (`lib/db/repositories/household-repo.ts`). (2026-09-15)
-- [[recipe-repo]] — Repository transazionale per inserimento atomico, recupero e cancellazione in cascata delle ricette (`lib/db/repositories/recipe-repo.ts`). (2026-09-15)
+- [[recipe-repo]] — Repository per persistenza atomica, ricerca similarità trigrammi `findSimilarRecipeTitle`, advisory lock e collisioni slug (`lib/db/repositories/recipe-repo.ts`). (2026-09-17)
+- [[llm-adapter]] — Adapter multi-provider per Vercel AI SDK 7 con repair loop a 2 fasi, prompt vincoli ed errori tipizzati `LlmError` (`lib/llm/`). (2026-09-17)
+- [[recipe-generation]] — Servizio orchestratore di vincoli, cascata di deduplicazione, persistenza protetta da advisory lock ed endpoint HTTP (`lib/recipes/`, `app/api/recipes/generate/`). (2026-09-17)
+- [[fixtures-and-seed]] — Corpus statico di 18 ricette casalinghe normalizzate, 24 alias, loader in memoria `fixtureRecipesAsDomain` e seed database idempotente (`fixtures/`, `lib/db/seed*.ts`). (2026-09-17)
 - [[bottom-nav]] — Barra di navigazione fissa inferiore mobile-first a 4 tab con safe-area padding (`components/navigation/bottom-nav.tsx`). (2026-09-15)
 - [[meal-card]] — Scheda del pasto pianificato con eyebrow, titolo Fraunces, pulsante swap tomato e stella saffron (`components/cards/meal-card.tsx`). (2026-09-15)
 - [[recipe-sheet]] — Pannello modale scorrevole dal basso per dettaglio ricetta, scala porzioni, gradimento ingredienti e voto (`components/sheets/recipe-sheet.tsx`). (2026-09-15)

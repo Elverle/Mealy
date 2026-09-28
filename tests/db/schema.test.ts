@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  isDbAvailable,
+  assertDbMigrated,
+  createTestHousehold,
+  deleteTestHousehold,
+} from '@/tests/helpers/db';
 import {
   UNIT_VALUES,
   CATEGORY_VALUES,
@@ -397,110 +403,93 @@ describe('WP2 Repository Pattern Integration & CRUD', () => {
     expect(typeof recipeRepo.deleteRecipe).toBe('function');
     expect(typeof recipeRepo.listRecipes).toBe('function');
   });
+});
 
-  it('executes live CRUD on PostgreSQL when connected, or skips if unavailable', async (ctx) => {
-    const { client } = await import('@/lib/db/index');
+const dbUp = await isDbAvailable();
+
+describe.skipIf(!dbUp)('WP2 PostgreSQL Live CRUD', () => {
+  beforeAll(async () => {
+    await assertDbMigrated();
+  });
+
+  it('executes live CRUD on PostgreSQL', async () => {
     const householdRepo = await import('@/lib/db/repositories/household-repo');
     const recipeRepo = await import('@/lib/db/repositories/recipe-repo');
-
-    let isDbAvailable = false;
-    try {
-      await Promise.race([
-        client`SELECT 1`,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000)),
-      ]);
-      isDbAvailable = true;
-
-      const migrationsDir = path.resolve(__dirname, '../../lib/db/migrations');
-      const sqlFiles = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
-      if (sqlFiles.length > 0) {
-        const sqlContent = fs.readFileSync(path.join(migrationsDir, sqlFiles[0]), 'utf-8');
-        const statements = sqlContent.split('--> statement-breakpoint');
-        for (const stmt of statements) {
-          const trimmed = stmt.trim();
-          if (trimmed) {
-            await client.unsafe(trimmed);
-          }
-        }
-      }
-    } catch {
-      isDbAvailable = false;
-    }
-
-    if (!isDbAvailable) {
-      console.log('PostgreSQL container not reachable — skipping live CRUD test.');
-      ctx.skip();
-      return;
-    }
 
     // 1. Ensure default household
     const household = await householdRepo.ensureDefaultHousehold();
     expect(household.id).toBe(DEFAULT_HOUSEHOLD_ID);
 
-    // 2. Update household
-    const updated = await householdRepo.updateHousehold({ persons: 4 });
-    expect(updated.persons).toBe(4);
+    // 2. Update household using an isolated test household
+    const testId = await createTestHousehold();
+    try {
+      const updated = await householdRepo.updateHousehold({ persons: 4 }, testId);
+      expect(updated.persons).toBe(4);
 
-    // 3. Insert recipe with ingredients and preferences
-    const testRecipeId = crypto.randomUUID();
-    const recipe = await recipeRepo.insertRecipe(
-      {
-        id: testRecipeId,
-        household_id: DEFAULT_HOUSEHOLD_ID,
-        title: 'Risotto ai funghi test',
-        slug: `risotto-ai-funghi-${Date.now()}`,
-        description: 'Risotto cremoso ai funghi',
-        steps: ['Tostare il riso', 'Aggiungere brodo', 'Mantecare con burro e parmigiano'],
-        meal_types: ['cena'],
-        tags: ['comfort-food'],
-        diet_flags: ['vegetariano'],
-        appliances_required: ['fornelli'],
-        servings_base: 2,
-        prep_minutes: 30,
-        kcal_est: 480,
-        source: 'manual',
-      },
-      [
+      // 3. Insert recipe with ingredients and preferences
+      const testRecipeId = crypto.randomUUID();
+      const recipe = await recipeRepo.insertRecipe(
         {
-          canonical_name: 'riso carnaroli',
-          display_name: 'riso carnaroli',
-          qty: 160,
-          unit: 'g',
-          category: 'dispensa',
+          id: testRecipeId,
+          household_id: testId,
+          title: 'Risotto ai funghi test',
+          slug: `risotto-ai-funghi-${Date.now()}`,
+          description: 'Risotto cremoso ai funghi',
+          steps: ['Tostare il riso', 'Aggiungere brodo', 'Mantecare con burro e parmigiano'],
+          meal_types: ['cena'],
+          tags: ['comfort-food'],
+          diet_flags: ['vegetariano'],
+          appliances_required: ['fornelli'],
+          servings_base: 2,
+          prep_minutes: 30,
+          kcal_est: 480,
+          source: 'manual',
         },
+        [
+          {
+            canonical_name: 'riso carnaroli',
+            display_name: 'riso carnaroli',
+            qty: 160,
+            unit: 'g',
+            category: 'dispensa',
+          },
+          {
+            canonical_name: 'funghi porcini',
+            display_name: 'funghi porcini secchi',
+            qty: 30,
+            unit: 'g',
+            category: 'ortofrutta',
+          },
+        ],
         {
-          canonical_name: 'funghi porcini',
-          display_name: 'funghi porcini secchi',
-          qty: 30,
-          unit: 'g',
-          category: 'ortofrutta',
-        },
-      ],
-      {
-        rating: 5,
-        favorite: true,
-      }
-    );
+          rating: 5,
+          favorite: true,
+        }
+      );
 
-    expect(recipe.id).toBe(testRecipeId);
-    expect(recipe.ingredients.length).toBe(2);
-    expect(recipe.prefs?.rating).toBe(5);
-    expect(recipe.prefs?.favorite).toBe(true);
+      expect(recipe.id).toBe(testRecipeId);
+      expect(recipe.ingredients.length).toBe(2);
+      expect(recipe.prefs?.rating).toBe(5);
+      expect(recipe.prefs?.favorite).toBe(true);
 
-    // 4. Retrieve by ID
-    const fetchedById = await recipeRepo.getRecipeById(testRecipeId);
-    expect(fetchedById?.title).toBe('Risotto ai funghi test');
-    expect(fetchedById?.ingredients.length).toBe(2);
+      // 4. Retrieve by ID
+      const fetchedById = await recipeRepo.getRecipeById(testRecipeId);
+      expect(fetchedById?.title).toBe('Risotto ai funghi test');
+      expect(fetchedById?.ingredients.length).toBe(2);
 
-    // 5. Retrieve by Slug
-    const fetchedBySlug = await recipeRepo.getRecipeBySlug(recipe.slug);
-    expect(fetchedBySlug?.id).toBe(testRecipeId);
+      // 5. Retrieve by Slug
+      const fetchedBySlug = await recipeRepo.getRecipeBySlug(recipe.slug);
+      expect(fetchedBySlug?.id).toBe(testRecipeId);
 
-    // 6. Delete recipe and verify cascade delete
-    const deleted = await recipeRepo.deleteRecipe(testRecipeId);
-    expect(deleted).toBe(true);
+      // 6. Delete recipe and verify cascade delete
+      const deleted = await recipeRepo.deleteRecipe(testRecipeId);
+      expect(deleted).toBe(true);
 
-    const afterDelete = await recipeRepo.getRecipeById(testRecipeId);
-    expect(afterDelete).toBeNull();
+      const afterDelete = await recipeRepo.getRecipeById(testRecipeId);
+      expect(afterDelete).toBeNull();
+    } finally {
+      await deleteTestHousehold(testId);
+    }
   });
 });
+

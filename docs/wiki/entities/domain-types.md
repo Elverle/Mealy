@@ -1,15 +1,17 @@
 ---
-title: Modello di Dominio e Schemi Zod (domain/types)
+title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-09-15
-tags: [domain, zod, types, schemas, enums, single-source-of-truth]
+updated: 2026-09-17
+tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization]
 ---
 
 ## File e Responsabilità
 
-- **Percorso file**: `lib/domain/types.ts`
-- **Scopo**: Definire la totalità degli schemi di validazione runtime (Zod) e i tipi statici TypeScript dell'applicazione. È la **single source of truth** del modello dati; nessun tipo viene ridefinito localmente nei moduli.
+- **Percorsi file**:
+  - `lib/domain/types.ts`: definizione degli schemi di validazione runtime (Zod), tipi statici TypeScript inferiti e liste enum chiuse.
+  - `lib/domain/recipe-text.ts`: funzioni pure per la normalizzazione di titoli, slug, nomi canonici, diete transitive e sanitizzazione delle ricette generate.
+- **Scopo**: Costituire la **single source of truth** del modello dati dell'intera applicazione (`CLAUDE.md § Regole di architettura`). Nessun tipo di dominio viene ridefinito localmente nei moduli applicativi.
 
 ## Costanti Enum Chiuse
 
@@ -55,7 +57,7 @@ Modella una ricetta memorizzata nella libreria permanente.
 - `servings_base`: `z.number().int().min(1)`
 - `prep_minutes`: `z.number().int().min(1)`
 - `kcal_est`: `z.number().int().nullable().optional()`
-- `macros_est`: `MacrosEstSchema` (`carbs`, `protein`, `fat`) o record flessibile
+- `macros_est`: `MacrosEstSchema` o record flessibile
 - `source`: `RecipeSourceSchema` (`llm` o `manual`)
 - `created_at`: `z.coerce.date()`
 - `ingredients`: `z.array(IngredientSchema).optional()`
@@ -92,6 +94,96 @@ Configurazione del nucleo domestico.
 ### 7. IngredientAlias (`IngredientAliasSchema`)
 Dizionario per il mapping sinonimi (`alias` -> `canonical_name`).
 
+## Contratti di Generazione Ricette (Feature 2)
+
+Questi schemi governano la comunicazione con l'LLM, la validazione delle richieste HTTP e il controllo dei vincoli:
+
+### 1. Contratti di Output LLM
+I provider LLM con supporto a structured output (come Gemini o OpenAI) richiedono schemi espliciti privi di `.optional()` o `.default()`:
+- **`GeneratedIngredientSchema`**:
+  - `canonical_name`: `z.string().min(1)`
+  - `display_name`: `z.string().min(1)`
+  - `qty`: `z.number().positive().nullable()`
+  - `unit`: `UnitSchema`
+  - `category`: `CategorySchema`
+  - `note`: `z.string().nullable()`
+- **`GeneratedRecipeSchema`**:
+  - `title`: `z.string().min(3).max(120)`
+  - `description`: `z.string()`
+  - `meal_types`: `z.array(MealTypeSchema).min(1)`
+  - `tags`: `z.array(MealStyleTagSchema)`
+  - `diet_flags`: `z.array(DietFlagSchema)`
+  - `appliances_required`: `z.array(ApplianceSchema)`
+  - `servings_base`: `z.number().int().min(1).max(12)`
+  - `prep_minutes`: `z.number().int().min(1).max(600)`
+  - `kcal_est`: `z.number().int().positive().nullable()`
+  - `steps`: `z.array(z.string().min(1)).min(1)`
+  - `ingredients`: `z.array(GeneratedIngredientSchema).min(1)`
+- **`GenerateRecipesOutputSchema`**: radice dell'output strutturato contenente l'array `recipes: z.array(GeneratedRecipeSchema).min(1)`.
+
+### 2. Vincoli e Sovrascritture
+- **`RecipeConstraintsSchema`**: parametri consolidati passati all'adapter LLM (`persons`, `meal_type: MealType | null`, `diet_tags`, `meal_style_tags`, `appliances`, `ingredient_likes`, `ingredient_dislikes`).
+- **`ConstraintOverridesSchema`**: modifiche temporanee strict e parziali consentite nella richiesta (`persons`, `diet_tags`, `meal_style_tags`, `appliances`).
+
+### 3. Contratti API HTTP e Scarti
+- **Costanti Generazione**:
+  - `GENERATE_COUNT_MIN = 1`
+  - `GENERATE_COUNT_MAX = 10`
+  - `GENERATE_COUNT_DEFAULT = 5`
+- **`GenerateRecipesRequestSchema`**: schema del body per `POST /api/recipes/generate`:
+  - `count`: intero tra 1 e 10 (default 5).
+  - `meal_type`: `MealType | null` (default `null`).
+  - `overrides`: `ConstraintOverridesSchema` (default `{}`).
+- **`GenerationSkipSchema`**: descrive le ricette candidate generate ma scartate:
+  - `title`: stringa del titolo.
+  - `reason`: `'duplicate' | 'constraint_violation'`.
+  - `detail`: spiegazione specifica dello scarto.
+
+### 4. Contratti Fixtures
+- **`FixtureRecipeSchema`**: estende `GeneratedRecipeSchema` con `id: z.string().uuid()` e `slug: z.string().min(1)`.
+- **`FixtureFileSchema`**: valida `fixtures/recipes.json` (richiede tra 15 e 20 ricette).
+- **`IngredientAliasesFileSchema`**: valida `fixtures/ingredient-aliases.json` (richiede minimo 15 alias).
+
+## Funzioni Pure di Normalizzazione Testo (`recipe-text.ts`)
+
+Il modulo `lib/domain/recipe-text.ts` fornisce funzioni pure senza effetti collaterali:
+
+### `normalizeTitle(title: string): string`
+Normalizza un titolo culinario per confronti e deduplicazione:
+- Decompone i caratteri Unicode via NFD ed elimina i segni diacritici/accenti (`\p{M}`).
+- Converte in minuscolo.
+- Rimpiazza ogni sequenza di caratteri non alfanumerici con un singolo spazio.
+- Esegue il trim dei bordi.
+
+### `slugify(title: string): string`
+Genera uno slug leggibile per URL:
+- Applica `normalizeTitle`.
+- Converte gli spazi in trattini `-`.
+- Tronca la lunghezza a un massimo di 80 caratteri e rimuove eventuali trattini finali.
+- Ritorna `'ricetta'` come fallback in caso di stringa vuota.
+
+### `normalizeCanonicalName(name: string): string`
+Normalizza il nome canonico di un ingrediente:
+- Rimuove spazi iniziali/finali e collassa spazi multipli interni.
+- Converte in caratteri minuscoli.
+- **Preserva i caratteri accentati** (es. "Caffè" → "caffè"), necessari per la correttezza grammaticale italiana.
+
+### `expandDietFlags(flags: readonly DietFlag[]): DietFlag[]`
+Calcola la chiusura transitiva delle implicazioni logiche dei regimi dietetici:
+- `vegano` $\implies$ `vegetariano` + `senza-lattosio`.
+- `vegetariano` $\implies$ `pescetariano`.
+Restituisce l'array deduplicato ordinato rigorosamente secondo la sequenza in `DIET_FLAG_VALUES`.
+
+### `normalizeGeneratedRecipe(recipe: GeneratedRecipe): GeneratedRecipe`
+Sanitizza una ricetta prodotta dall'LLM ritornando un nuovo oggetto (immutabilità):
+- Pulisce e collassa gli spazi bianchi in titolo e descrizione.
+- Rimuove passi vuoti e ne effettua il trim.
+- Deduplica array di `meal_types`, `tags` e `appliances_required`.
+- Espande i flag dietetici con `expandDietFlags`.
+- Normalizza ciascun ingrediente: applica `normalizeCanonicalName`, effettua il trim di display name e note (convertendo stringhe vuote in `null`), e garantisce la coerenza tra `qty` e `unit`:
+  - Se `unit === 'qb'`, forza `qty = null`.
+  - Se `qty === null` e `unit !== 'qb'`, imposta `unit = 'qb'`.
+
 ## Singleton Default Household
 
 Per la modalità v1 a utente singolo, è esportata la costante:
@@ -114,6 +206,7 @@ export const DEFAULT_HOUSEHOLD: Household = {
 ## Vedi anche
 
 - [[single-source-of-truth-types]] — Approfondimento concettuale sulla filosofia Zod
-- [[database-schema]] — Traduzione dei tipi nelle tabelle PostgreSQL con Drizzle
-- [[household-repo]] — Repository per il salvataggio del nucleo familiare
-- [[recipe-repo]] — Repository per la gestione ricette tipate
+- [[llm-adapter]] — Utilizzo degli schemi generati nell'adapter AI SDK
+- [[recipe-generation]] — Servizio di validazione e filtraggio ricette
+- [[fixtures-and-seed]] — Corpus ricette e validazione fixtures
+- [[recipe-repo]] — Persistenza nel database PostgreSQL

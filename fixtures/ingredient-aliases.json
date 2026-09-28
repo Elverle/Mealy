@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    { "alias": "pelati", "canonical_name": "pomodoro pelato" },
+    { "alias": "pomodori pelati", "canonical_name": "pomodoro pelato" },
+    { "alias": "passata", "canonical_name": "passata di pomodoro" },
+    { "alias": "salsa di pomodoro", "canonical_name": "passata di pomodoro" },
+    { "alias": "olio evo", "canonical_name": "olio extravergine di oliva" },
+    { "alias": "olio d'oliva", "canonical_name": "olio extravergine di oliva" },
+    { "alias": "olio extravergine", "canonical_name": "olio extravergine di oliva" },
+    { "alias": "parmigiano", "canonical_name": "parmigiano reggiano" },
+    { "alias": "grana", "canonical_name": "grana padano" },
+    { "alias": "zucchine", "canonical_name": "zucchina" },
+    { "alias": "uova", "canonical_name": "uovo" },
+    { "alias": "patate", "canonical_name": "patata" },
+    { "alias": "cipolle", "canonical_name": "cipolla" },
+    { "alias": "cipolla dorata", "canonical_name": "cipolla" },
+    { "alias": "carote", "canonical_name": "carota" },
+    { "alias": "spicchio d'aglio", "canonical_name": "aglio" },
+    { "alias": "pepe", "canonical_name": "pepe nero" },
+    { "alias": "sale fino", "canonical_name": "sale" },
+    { "alias": "prezzemolo fresco", "canonical_name": "prezzemolo" },
+    { "alias": "basilico fresco", "canonical_name": "basilico" },
+    { "alias": "ceci in scatola", "canonical_name": "ceci lessati" },
+    { "alias": "ceci precotti", "canonical_name": "ceci lessati" },
+    { "alias": "tonno sott'olio", "canonical_name": "tonno in scatola" },
+    { "alias": "fettine di pollo", "canonical_name": "petto di pollo" }
+  ]
+}
