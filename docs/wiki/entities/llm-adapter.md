@@ -24,7 +24,7 @@ Il provider e il modello da utilizzare sono definiti come pura configurazione d'
 
 - `readLlmConfig(env = process.env): LlmConfig`: valida le variabili d'ambiente `LLM_PROVIDER` (uno tra `google`, `openrouter`, `anthropic`, `openai-compatible`, con default a `google`) e `LLM_MODEL`.
 - `getModel(env = process.env): LanguageModel`: istanzia l'istanza `LanguageModel` appropriata in base al provider configurato:
-  - **Google Generative AI**: utilizza `@ai-sdk/google` con `GOOGLE_GENERATIVE_AI_API_KEY` (modello predefinito `gemini-2.5-flash`).
+  - **Google Generative AI**: utilizza `@ai-sdk/google` con `GOOGLE_GENERATIVE_AI_API_KEY` (modello di esempio in `.env.example`: `gemini-3.1-flash-lite`; `gemini-2.5-flash` non è più disponibile per i nuovi account). Alternativa consigliata: OpenRouter con `z-ai/glm-5.3-flash`, entro il timeout di 50 s nello smoke test del 2026-09-28.
   - **OpenRouter**: utilizza `@openrouter/ai-sdk-provider` con `OPENROUTER_API_KEY`.
   - **Anthropic**: utilizza `@ai-sdk/anthropic` con `ANTHROPIC_API_KEY`.
   - **OpenAI-compatible**: utilizza `@ai-sdk/openai-compatible` con `LLM_BASE_URL` e `LLM_API_KEY` (attivando la proprietà `supportsStructuredOutputs: true`).

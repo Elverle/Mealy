@@ -776,3 +776,14 @@ Wave 3:  WP4 (repo + servizio + route)                        — dopo WP2 (usa 
 **Chiusura feature** (`execution-strategy.md §3`): accettazioni S1.1–S1.3 verificate; gate verde (`lint + typecheck + test + build`); due chiamate consecutive senza duplicati; smoke test su Gemini e OpenRouter solo cambiando l'env; code-review `high` gestita; wiki aggiornata dal `feature-documenter` (nuove entità: `llm-adapter`, `recipe-generation`, `fixtures-and-seed`; aggiornamento di `recipe-repo`); riga di `feature-index.md` aggiornata; commit su conferma.
 
 **Debito aperto alla chiusura (2026-09-28):** lo smoke test reale su Gemini e OpenRouter non è stato eseguito (`tests/fixtures/llm/recorded/` contiene solo `.gitkeep`). Da fare con `pnpm llm:record` appena disponibili le chiavi API, prima che la Feature 4 (pianificatore) dipenda dalla generazione su provider reale.
+
+**Debito chiuso (2026-09-28):** smoke test eseguito con `pnpm llm:record --count 3 --meal cena --diet vegano --appliance friggitrice-ad-aria --appliance fornelli`, cambiando solo `LLM_PROVIDER` / `LLM_MODEL`. Tutte le risposte superano lo schema Zod e hanno 0 violazioni di vincoli (`findConstraintViolations`); sono registrate in `tests/fixtures/llm/recorded/`.
+
+| Provider / modello | Tempo | Entro `LLM_TIMEOUT_MS=50000` | File |
+|---|---|---|---|
+| google `gemini-3.1-flash-lite` | n.d. (registrato dopo ~70 min di 503 "high demand" sul piano gratuito) | — | `gemini-cena-vegano.txt` |
+| openrouter `z-ai/glm-5.3-flash` (consigliato) | 38 s | sì | `openrouter-glm-cena-vegano.txt` |
+| openrouter `deepseek/deepseek-v4.1-flash` | 47 s (un tentativo oltre 50 s) | al limite | `openrouter-deepseek-cena-vegano.txt` |
+| openrouter `nvidia/nemotron-3-super-120b-a12b:free` | 89 s | no | `openrouter-cena-vegano.txt` |
+
+Note per F4: con modelli lenti `LLM_TIMEOUT_MS` va alzato (tetto 120 s della route); la generazione durante la creazione del piano deve tenere conto di latenze di 40–90 s. `gemini-2.5-flash` (vecchio default di `.env.example`) non è più disponibile per i nuovi account.

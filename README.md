@@ -39,7 +39,7 @@ Variabili in `.env` (i nomi completi e i commenti sono in `.env.example`):
 |---|---|
 | `DATABASE_URL` | Connessione Postgres; il default punta al container di sviluppo (`postgresql://mealy:mealy@localhost:5432/mealy_dev`) |
 | `LLM_PROVIDER` | `google` \| `openrouter` \| `anthropic` \| `openai-compatible` |
-| `LLM_MODEL` | Modello del provider scelto (es. `gemini-2.5-flash`) |
+| `LLM_MODEL` | Modello del provider scelto (es. `gemini-3.1-flash-lite`; alternativa consigliata `z-ai/glm-5.3-flash` su OpenRouter) |
 | `LLM_TIMEOUT_MS` | Timeout di una chiamata LLM in millisecondi |
 | `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` | Chiave del provider attivo: serve solo quella |
 | `LLM_BASE_URL`, `LLM_API_KEY` | Solo per `LLM_PROVIDER=openai-compatible` |

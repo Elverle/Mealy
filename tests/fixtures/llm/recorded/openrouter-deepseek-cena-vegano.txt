@@ -1,0 +1,226 @@
+{
+  "recipes": [
+    {
+      "title": "Spaghetti al pomodoro e basilico",
+      "description": "Un classico primo piatto vegano, veloce e saporito, perfetto per una cena semplice e gustosa.",
+      "meal_types": ["cena"],
+      "tags": ["veloce", "economico", "comfort-food"],
+      "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 20,
+      "kcal_est": 400,
+      "steps": [
+        "Metti a bollire l'acqua per la pasta.",
+        "In una padella, scalda l'olio e aggiungi l'aglio schiacciato, fai soffriggere.",
+        "Aggiungi la passata di pomodoro e cuoci a fuoco medio per 10 minuti.",
+        "Cuoci gli spaghetti in acqua salata, scolali al dente.",
+        "Condisci la pasta con il sugo, aggiungi basilico fresco e un filo d'olio.",
+        "Servi caldo."
+      ],
+      "ingredients": [
+        {
+          "canonical_name": "pasta",
+          "display_name": "spaghetti",
+          "qty": 180,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "passata di pomodoro",
+          "display_name": "passata di pomodoro",
+          "qty": 400,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "spicchio d'aglio",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine d'oliva",
+          "display_name": "olio extravergine d'oliva",
+          "qty": 30,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "basilico",
+          "display_name": "basilico fresco",
+          "qty": null,
+          "unit": "qb",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "title": "Tofu e verdure croccanti in friggitrice ad aria con riso basmati",
+      "description": "Un piatto unico vegano ricco di proteine, con verdure croccanti cotte in friggitrice ad aria e riso basmati.",
+      "meal_types": ["cena"],
+      "tags": ["proteico", "salutare", "veloce"],
+      "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio", "senza-glutine"],
+      "appliances_required": ["fornelli", "friggitrice-ad-aria"],
+      "servings_base": 2,
+      "prep_minutes": 30,
+      "kcal_est": 500,
+      "steps": [
+        "Cuoci il riso basmati secondo le istruzioni (circa 15 minuti in acqua bollente salata).",
+        "Taglia il tofu a cubetti e le verdure a pezzi.",
+        "In una ciotola, condisci tofu e verdure con olio, paprika e sale.",
+        "Metti tutto nel cestello della friggitrice ad aria e cuoci a 200°C per 15 minuti, scuotendo a metà cottura.",
+        "Scola il riso e servilo con tofu e verdure croccanti."
+      ],
+      "ingredients": [
+        {
+          "canonical_name": "tofu",
+          "display_name": "tofu",
+          "qty": 200,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "riso basmati",
+          "display_name": "riso basmati",
+          "qty": 150,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "zucchina",
+          "display_name": "zucchine",
+          "qty": 2,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "peperone",
+          "display_name": "peperone",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine d'oliva",
+          "display_name": "olio extravergine d'oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "paprika",
+          "display_name": "paprika dolce",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "title": "Polpette di lenticchie al sugo",
+      "description": "Polpette vegane di lenticchie, morbide e saporite, cotte in un ricco sugo di pomodoro. Un comfort food economico e proteico.",
+      "meal_types": ["cena"],
+      "tags": ["proteico", "comfort-food", "economico"],
+      "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 35,
+      "kcal_est": 450,
+      "steps": [
+        "In una ciotola, schiaccia le lenticchie con una forchetta.",
+        "Aggiungi pangrattato, prezzemolo, sale e un po' d'olio. Mescola fino ad ottenere un composto omogeneo.",
+        "Forma delle polpette con le mani.",
+        "In una padella, scalda un po' d'olio e rosola le polpette su tutti i lati.",
+        "Aggiungi la passata di pomodoro e cuoci a fuoco medio per 15 minuti.",
+        "Servi caldo."
+      ],
+      "ingredients": [
+        {
+          "canonical_name": "lenticchia",
+          "display_name": "lenticchie cotte",
+          "qty": 250,
+          "unit": "g",
+          "category": "dispensa",
+          "note": "lessate"
+        },
+        {
+          "canonical_name": "pangrattato",
+          "display_name": "pangrattato",
+          "qty": 50,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "passata di pomodoro",
+          "display_name": "passata di pomodoro",
+          "qty": 400,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "spicchio d'aglio",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "prezzemolo",
+          "display_name": "prezzemolo tritato",
+          "qty": null,
+          "unit": "qb",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine d'oliva",
+          "display_name": "olio extravergine d'oliva",
+          "qty": 30,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    }
+  ]
+}

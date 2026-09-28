@@ -2,6 +2,9 @@
 
 Append-only operation log per le modifiche alla documentazione tecnica di Mealy.
 
+## [2026-09-28] fix | Smoke test LLM reale (debito F2)
+- Aggiornata l'entità [[llm-adapter]]: `gemini-2.5-flash` non è più disponibile per i nuovi account; modello di esempio `gemini-3.1-flash-lite`, alternativa consigliata OpenRouter `z-ai/glm-5.3-flash` (38 s per 3 ricette, entro `LLM_TIMEOUT_MS`). Esiti completi nel piano della Feature 2 e risposte registrate in `tests/fixtures/llm/recorded/`.
+
 ## [2026-09-28] feat-3 | Documentazione Feature 3 (E5 Impostazioni)
 - Documentato il topic aggregato [[e5-impostazioni]] (onboarding obbligatorio e vincoli household: flusso guardia → wizard/form → `PUT /api/settings` → `saveSettings`, decisioni U1–U3, innesti P1–P3 della review architetturale e contratto U1 per la Feature 4).
 - Creato il concetto [[onboarding-guard]]: route group `app/(app)/` con layout server-side che reindirizza a `/benvenuto` gli household non onboardati, `await connection()`, `BottomNav` montata per gruppo, conseguenze per F4 (percorso `app/(app)/page.tsx`, doppia lettura `getSettings` da valutare con `React.cache()`).
