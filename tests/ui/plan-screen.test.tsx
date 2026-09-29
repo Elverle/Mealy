@@ -1,16 +1,22 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtureRecipesAsDomain } from "@/fixtures";
 import { PlanScreen, discardPendingPlanToast } from "@/components/plan/plan-screen";
 import type {
   GeneratePlanResult,
   PlanScreenView,
+  PlanMutationResult,
   PlanStatus,
   PlanView,
   PlanWeekView,
 } from "@/lib/domain/types";
 
-const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }));
+const router = vi.hoisted(() => ({
+  push: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  prefetch: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => router,
   usePathname: () => "/",
@@ -36,6 +42,7 @@ import {
   requestGeneratePlan,
   requestRepeatPlan,
   requestSlotLock,
+  requestSwapSlot,
 } from "@/lib/plans/client";
 
 const RECIPES = fixtureRecipesAsDomain();
@@ -154,6 +161,19 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+/** Con i timer finti `findBy`/`waitFor` non avanzano: si fa avanzare il tempo a passi. */
+async function advanceUntil(check: () => boolean, stepMs = 1_000, maxMs = 15 * 60_000): Promise<void> {
+  for (let elapsed = 0; elapsed <= maxMs; elapsed += stepMs) {
+    if (check()) return;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(stepMs);
+    });
+  }
+  throw new Error("condizione mai verificata");
+}
+
+const RECOVERY_WAIT_TEXT = "La connessione si è interrotta: controllo se il piano è pronto…";
+
 describe("PlanScreen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -249,35 +269,132 @@ describe("PlanScreen", () => {
       expect(screen.getByText("Piano generato")).toBeInTheDocument();
     });
 
-    it("shows the network error when the stored plan is not newer than the one shown", async () => {
-      vi.mocked(requestGeneratePlan).mockRejectedValueOnce(networkError());
-      vi.mocked(fetchPlanScreen).mockResolvedValueOnce(makeScreen({ plan: { recipeOffset: 2 } }));
-      render(<PlanScreen initialScreen={makeScreen()} />);
+    describe("waiting for the server (fake timers)", () => {
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+      afterEach(() => {
+        vi.useRealTimers();
+      });
 
-      fireEvent.click(screen.getByRole("button", { name: "Rigenera" }));
+      const alertText = () => screen.queryByRole("alert")?.textContent ?? "";
 
-      expect(await screen.findByRole("alert")).toHaveTextContent("Connessione non disponibile.");
-      expect(screen.getByText(RECIPES[0].title)).toBeInTheDocument();
-    });
+      it("keeps checking with backoff and adopts the plan once the server has saved it", async () => {
+        vi.mocked(requestGeneratePlan).mockRejectedValueOnce(networkError());
+        vi.mocked(fetchPlanScreen)
+          .mockResolvedValueOnce(makeScreen({ plan: null }))
+          .mockRejectedValueOnce(networkError())
+          .mockResolvedValueOnce(makeScreen());
+        render(<PlanScreen initialScreen={makeScreen({ plan: null })} />);
 
-    it("shows the network error when there is still no plan after the failure", async () => {
-      vi.mocked(requestGeneratePlan).mockRejectedValueOnce(networkError());
-      vi.mocked(fetchPlanScreen).mockResolvedValueOnce(makeScreen({ plan: null }));
-      render(<PlanScreen initialScreen={makeScreen({ plan: null })} />);
+        fireEvent.click(screen.getAllByRole("button", { name: "Genera piano" })[0]);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
 
-      fireEvent.click(screen.getAllByRole("button", { name: "Genera piano" })[0]);
+        expect(screen.getByText(RECOVERY_WAIT_TEXT)).toBeInTheDocument();
+        expect(screen.queryByRole("alert")).toBeNull();
+        expect(fetchPlanScreen).toHaveBeenCalledTimes(1);
 
-      expect(await screen.findByRole("alert")).toHaveTextContent("Connessione non disponibile.");
-    });
+        await advanceUntil(() => screen.queryByText(RECIPES[0].title) !== null);
 
-    it("shows the original error when the recovery request fails too", async () => {
-      vi.mocked(requestGeneratePlan).mockRejectedValueOnce(networkError());
-      vi.mocked(fetchPlanScreen).mockRejectedValueOnce(networkError());
-      render(<PlanScreen initialScreen={makeScreen({ plan: null })} />);
+        expect(fetchPlanScreen).toHaveBeenCalledTimes(3);
+        expect(screen.getByText("Piano generato")).toBeInTheDocument();
+        expect(screen.queryByText(RECOVERY_WAIT_TEXT)).toBeNull();
+        expect(screen.queryByRole("alert")).toBeNull();
+      });
 
-      fireEvent.click(screen.getAllByRole("button", { name: "Genera piano" })[0]);
+      it("shows the network error when the stored plan never gets newer than the one shown", async () => {
+        vi.mocked(requestGeneratePlan).mockRejectedValueOnce(networkError());
+        vi.mocked(fetchPlanScreen).mockResolvedValue(makeScreen({ plan: { recipeOffset: 2 } }));
+        render(<PlanScreen initialScreen={makeScreen()} />);
 
-      expect(await screen.findByRole("alert")).toHaveTextContent("Connessione non disponibile.");
+        fireEvent.click(screen.getByRole("button", { name: "Rigenera" }));
+        await advanceUntil(() => alertText().includes("Connessione non disponibile."));
+
+        expect(screen.getByText(RECIPES[0].title)).toBeInTheDocument();
+        expect(vi.mocked(fetchPlanScreen).mock.calls.length).toBeGreaterThan(3);
+      });
+
+      it("shows the network error when there is still no plan once the wait is over", async () => {
+        vi.mocked(requestGeneratePlan).mockRejectedValueOnce(networkError());
+        vi.mocked(fetchPlanScreen).mockResolvedValue(makeScreen({ plan: null }));
+        render(<PlanScreen initialScreen={makeScreen({ plan: null })} />);
+        const startedAt = Date.now();
+
+        fireEvent.click(screen.getAllByRole("button", { name: "Genera piano" })[0]);
+        await advanceUntil(() => alertText().includes("Connessione non disponibile."));
+
+        // Fino al caso peggiore della rotta (maxDuration 500 s), non oltre l'ultima attesa.
+        const waitedMs = Date.now() - startedAt;
+        expect(waitedMs).toBeGreaterThanOrEqual(500_000);
+        expect(waitedMs).toBeLessThan(540_000);
+        expect(screen.queryByText(RECOVERY_WAIT_TEXT)).toBeNull();
+      });
+
+      it("shows the original error when every recovery request fails too", async () => {
+        vi.mocked(requestGeneratePlan).mockRejectedValueOnce(networkError());
+        vi.mocked(fetchPlanScreen).mockRejectedValue(networkError());
+        render(<PlanScreen initialScreen={makeScreen({ plan: null })} />);
+
+        fireEvent.click(screen.getAllByRole("button", { name: "Genera piano" })[0]);
+        await advanceUntil(() => alertText().includes("Connessione non disponibile."));
+      });
+
+      it("stops waiting on 'Smetti di aspettare' and shows the error", async () => {
+        vi.mocked(requestGeneratePlan).mockRejectedValueOnce(networkError());
+        vi.mocked(fetchPlanScreen).mockResolvedValue(makeScreen({ plan: null }));
+        render(<PlanScreen initialScreen={makeScreen({ plan: null })} />);
+
+        fireEvent.click(screen.getAllByRole("button", { name: "Genera piano" })[0]);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Smetti di aspettare" }));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(alertText()).toContain("Connessione non disponibile.");
+        const calls = vi.mocked(fetchPlanScreen).mock.calls.length;
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(120_000);
+        });
+        expect(fetchPlanScreen).toHaveBeenCalledTimes(calls);
+      });
+
+      it("compares a hidden target draft with its generated_at read before repeating", async () => {
+        vi.mocked(fetchPlanScreen)
+          .mockResolvedValueOnce(makeScreen()) // base: bozza obiettivo generata alle 10
+          .mockResolvedValueOnce(makeScreen()) // dopo l'errore: ancora la bozza vecchia
+          .mockResolvedValueOnce(makeScreen({ plan: { generatedAt: LATER_GENERATED_AT } }));
+        vi.mocked(requestRepeatPlan).mockRejectedValueOnce(networkError());
+        render(<PlanScreen initialScreen={makePastScreen({ target_plan_status: "draft" })} />);
+
+        fireEvent.click(screen.getByRole("button", { name: "Ripeti questo piano" }));
+        await advanceUntil(() => router.replace.mock.calls.length > 0);
+
+        expect(vi.mocked(fetchPlanScreen).mock.invocationCallOrder[0]).toBeLessThan(
+          vi.mocked(requestRepeatPlan).mock.invocationCallOrder[0]
+        );
+        expect(fetchPlanScreen).toHaveBeenCalledTimes(3);
+        expect(router.replace).toHaveBeenCalledWith("/?settimana=2026-09-28");
+      });
+
+      it("does not recover when the hidden target draft could not be read before repeating", async () => {
+        vi.mocked(fetchPlanScreen).mockRejectedValueOnce(networkError());
+        vi.mocked(requestRepeatPlan).mockRejectedValueOnce(networkError());
+        render(<PlanScreen initialScreen={makePastScreen({ target_plan_status: "draft" })} />);
+
+        fireEvent.click(screen.getByRole("button", { name: "Ripeti questo piano" }));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(screen.getByText("Connessione non disponibile.")).toBeInTheDocument();
+        expect(fetchPlanScreen).toHaveBeenCalledTimes(1);
+        expect(router.replace).not.toHaveBeenCalled();
+      });
     });
 
     it("does not try to recover from errors other than network_error", async () => {
@@ -587,6 +704,161 @@ describe("PlanScreen", () => {
       render(<PlanScreen initialScreen={past} />);
 
       expect(screen.queryByText(/impostazioni/)).toBeNull();
+    });
+  });
+
+  describe("results arriving late (M2, m5)", () => {
+    it("shows a fresh initialScreen passed again with the same key", () => {
+      const { rerender } = render(<PlanScreen initialScreen={makeScreen({ plan: null })} />);
+      expect(screen.getByRole("heading", { name: "Nessun piano in programma" })).toBeInTheDocument();
+
+      rerender(<PlanScreen initialScreen={makeScreen()} />);
+
+      expect(screen.getByText(RECIPES[0].title)).toBeInTheDocument();
+    });
+
+    it("disables the week arrows while generating", async () => {
+      const pending = deferred<GeneratePlanResult>();
+      vi.mocked(requestGeneratePlan).mockReturnValueOnce(pending.promise);
+      render(<PlanScreen initialScreen={makeScreen({ plan: null, prev_week_start: "2026-09-21" })} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Genera piano" })[0]);
+
+      const prev = screen.getByRole("link", { name: "Settimana precedente" });
+      expect(prev).toHaveAttribute("aria-disabled", "true");
+      expect(prev).not.toHaveAttribute("href");
+      fireEvent.click(prev);
+      expect(router.push).not.toHaveBeenCalled();
+
+      await act(async () =>
+        pending.resolve(makeResult(makeScreen({ prev_week_start: "2026-09-21" })))
+      );
+
+      expect(screen.getByRole("link", { name: "Settimana precedente" })).toHaveAttribute(
+        "href",
+        "/?settimana=2026-09-21"
+      );
+    });
+
+    it("refreshes the route when a generation ends after the screen was left", async () => {
+      const pending = deferred<GeneratePlanResult>();
+      vi.mocked(requestGeneratePlan).mockReturnValueOnce(pending.promise);
+      const { unmount } = render(<PlanScreen initialScreen={makeScreen({ plan: null })} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Genera piano" })[0]);
+      unmount();
+      await act(async () => pending.resolve(makeResult(makeScreen())));
+
+      expect(router.refresh).toHaveBeenCalledTimes(1);
+      expect(router.replace).not.toHaveBeenCalled();
+      render(<PlanScreen initialScreen={makeScreen()} />);
+      expect(screen.queryByText("Piano generato")).toBeNull();
+    });
+
+    it("neither navigates nor leaves a toast when a repeat ends after the screen was left", async () => {
+      const pending = deferred<GeneratePlanResult>();
+      vi.mocked(requestRepeatPlan).mockReturnValueOnce(pending.promise);
+      const { unmount } = render(<PlanScreen initialScreen={makePastScreen()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Ripeti questo piano" }));
+      unmount();
+      await act(async () => pending.resolve(makeResult(makeScreen())));
+
+      expect(router.refresh).toHaveBeenCalledTimes(1);
+      expect(router.replace).not.toHaveBeenCalled();
+      render(<PlanScreen initialScreen={makeScreen()} />);
+      expect(screen.queryByText("Piano ripetuto")).toBeNull();
+    });
+
+    it("drops the pending toast when the next screen is not the target week", async () => {
+      vi.mocked(requestRepeatPlan).mockResolvedValueOnce(makeResult(makeScreen()));
+      const first = render(<PlanScreen initialScreen={makePastScreen()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Ripeti questo piano" }));
+      await waitFor(() => expect(router.replace).toHaveBeenCalled());
+      first.unmount();
+
+      const second = render(<PlanScreen initialScreen={makePastScreen()} />);
+      expect(screen.queryByText("Piano ripetuto")).toBeNull();
+      second.unmount();
+
+      render(<PlanScreen initialScreen={makeScreen()} />);
+      expect(screen.queryByText("Piano ripetuto")).toBeNull();
+    });
+
+    it("keeps Ripeti disabled while moving to the target week", async () => {
+      vi.mocked(requestRepeatPlan).mockResolvedValue(makeResult(makeScreen()));
+      render(<PlanScreen initialScreen={makePastScreen()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Ripeti questo piano" }));
+      await waitFor(() => expect(router.replace).toHaveBeenCalled());
+
+      const repeat = screen.getByRole("button", { name: "Ripeti questo piano" });
+      expect(repeat).toBeDisabled();
+      fireEvent.click(repeat);
+      expect(requestRepeatPlan).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("past days of the current week (Q1)", () => {
+    it("offers the lock but no Cambia on the meals of past days", () => {
+      render(<PlanScreen initialScreen={makeScreen({ today: "2026-10-01" })} />);
+
+      expect(screen.queryByRole("button", { name: /^Cambia/ })).toBeNull();
+      expect(screen.getAllByRole("button", { name: "Blocca pasto" })).toHaveLength(2);
+    });
+  });
+
+  describe("out-of-order responses (m9)", () => {
+    it("keeps a lock applied while a swap of another slot was pending", async () => {
+      const swap = deferred<PlanMutationResult>();
+      vi.mocked(requestSwapSlot).mockReturnValueOnce(swap.promise);
+      const lockedPlan = makePlan();
+      lockedPlan.slots[1] = { ...lockedPlan.slots[1], locked: true };
+      vi.mocked(requestSlotLock).mockResolvedValueOnce({ plan: lockedPlan });
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPES[0].title}` }));
+      fireEvent.click(screen.getAllByRole("button", { name: "Blocca pasto" })[1]);
+      await waitFor(() => expect(requestSlotLock).toHaveBeenCalled());
+
+      // Istantanea dello swap presa prima del blocco: slot 1 ancora sbloccato.
+      const swapped = makePlan();
+      swapped.slots[0] = { ...swapped.slots[0], recipe: RECIPES[2] };
+      swapped.shopping_list = { exists: true, needs_regeneration: true };
+      await act(async () =>
+        swap.resolve({ plan: swapped, generation: { rounds: 0, created: 0, failed: false } })
+      );
+
+      expect(screen.getByText(RECIPES[2].title)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Sblocca pasto" })).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+    });
+
+    it("keeps the recipe of a swap that ended while a lock of another slot was pending", async () => {
+      const lock = deferred<{ plan: PlanView }>();
+      vi.mocked(requestSlotLock).mockReturnValueOnce(lock.promise);
+      const swapped = makePlan();
+      swapped.slots[0] = { ...swapped.slots[0], recipe: RECIPES[2] };
+      vi.mocked(requestSwapSlot).mockResolvedValueOnce({
+        plan: swapped,
+        generation: { rounds: 0, created: 0, failed: false },
+      });
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Blocca pasto" })[1]);
+      fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPES[0].title}` }));
+      expect(await screen.findByText(RECIPES[2].title)).toBeInTheDocument();
+
+      // Istantanea del blocco presa prima dello swap: slot 0 con la ricetta vecchia.
+      const lockedPlan = makePlan();
+      lockedPlan.slots[1] = { ...lockedPlan.slots[1], locked: true };
+      await act(async () => lock.resolve({ plan: lockedPlan }));
+
+      expect(screen.getByText(RECIPES[2].title)).toBeInTheDocument();
+      expect(screen.queryByText(RECIPES[0].title)).toBeNull();
     });
   });
 

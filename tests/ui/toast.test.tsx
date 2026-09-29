@@ -37,14 +37,34 @@ describe('Toast', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it('renders nothing and schedules nothing when message is null', () => {
+  it('keeps an empty live region mounted and schedules nothing when message is null', () => {
     const onDismiss = vi.fn();
-    const { container } = render(<Toast message={null} onDismiss={onDismiss} />);
-    expect(container).toBeEmptyDOMElement();
+    render(<Toast message={null} onDismiss={onDismiss} />);
+    // Regione sempre presente: VoiceOver iOS annuncia male le live region inserite già piene.
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
     act(() => {
       vi.advanceTimersByTime(5000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it('announces a message set after mount inside the same live region', () => {
+    const { rerender } = render(<Toast message={null} onDismiss={vi.fn()} />);
+    const region = screen.getByRole('status');
+    rerender(<Toast message="Piano confermato" onDismiss={vi.fn()} />);
+    expect(screen.getByRole('status')).toBe(region);
+    expect(region).toHaveTextContent('Piano confermato');
+  });
+
+  it('never intercepts taps on what lies below (it has no actions)', () => {
+    render(<Toast message="Piano confermato" onDismiss={vi.fn()} />);
+    expect(screen.getByText('Piano confermato')).toHaveClass('pointer-events-none');
+  });
+
+  it('can be raised above a sticky footer', () => {
+    render(<Toast message="Ciao" onDismiss={vi.fn()} className="bottom-40" />);
+    expect(screen.getByRole('status')).toHaveClass('bottom-40');
+    expect(screen.getByRole('status')).not.toHaveClass('bottom-24');
   });
 
   it('does not dismiss after unmount', () => {

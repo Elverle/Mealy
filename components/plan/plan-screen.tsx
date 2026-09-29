@@ -41,6 +41,8 @@ export interface PlanScreenProps {
 }
 
 type TargetRequestKind = "generate" | "repeat";
+/** generated_at del piano obiettivo prima della richiesta; null se non c'era; undefined se ignoto. */
+type TargetBaseline = string | null | undefined;
 
 const NETWORK_ERROR_CODE = "network_error";
 const FALLBACK_ERROR_MESSAGE = "Qualcosa è andato storto. Riprova.";
@@ -51,9 +53,20 @@ const TOAST_GENERATED_FALLBACK = "Piano generato con le ricette della libreria."
 const TOAST_REPEATED = "Piano ripetuto";
 const TOAST_CONFIRMED = "Piano confermato";
 
+const RECOVERY_WAIT_MESSAGE = "La connessione si è interrotta: controllo se il piano è pronto…";
+// Dopo un `network_error` il server di solito sta ancora generando: si ricontrolla con
+// backoff fino al caso peggiore della rotta (`maxDuration`), contato dall'invio.
+const RECOVERY_FIRST_DELAY_MS = 2_000;
+const RECOVERY_MAX_DELAY_MS = 30_000;
+const RECOVERY_WINDOW_MS: Record<TargetRequestKind, number> = {
+  generate: 500_000,
+  repeat: 250_000,
+};
+
 // Quando dopo Genera/Ripeti si passa alla settimana obiettivo la pagina viene
-// rimontata (nuova `key`): il toast attraversa il rimontaggio tramite questo slot.
-let pendingToast: string | null = null;
+// rimontata (nuova `key`): il toast attraversa il rimontaggio tramite questo slot,
+// e vale solo per la settimana verso cui si è navigato.
+let pendingToast: { message: string; weekStart: string } | null = null;
 
 /** Scarta il toast in attesa di rimontaggio (usato dai test per isolarsi). */
 export function discardPendingPlanToast(): void {
@@ -66,6 +79,10 @@ function errorMessage(err: unknown): string {
 
 function weekHref(weekStart: string): string {
   return `/?settimana=${weekStart}`;
+}
+
+function recoveryDelayMs(attempt: number): number {
+  return Math.min(RECOVERY_FIRST_DELAY_MS * 2 ** (attempt - 1), RECOVERY_MAX_DELAY_MS);
 }
 
 /** Aggiorna il piano della settimana mostrata, allineando azione e stato dell'obiettivo. */
@@ -82,6 +99,27 @@ function withPlan(screen: PlanScreenView, plan: PlanView): PlanScreenView {
   };
 }
 
+/**
+ * Applica solo i campi `pick` dello slot `slotId` presi dall'istantanea del server. Le
+ * risposte di swap e blocco possono arrivare fuori ordine: sostituire l'intero piano
+ * annullerebbe le modifiche degli altri slot applicate nel frattempo.
+ */
+function withSlotFrom(
+  screen: PlanScreenView,
+  serverPlan: PlanView,
+  slotId: string,
+  pick: (serverSlot: PlanSlotView) => Partial<PlanSlotView>,
+  planFields: Partial<Pick<PlanView, "shopping_list">> = {}
+): PlanScreenView {
+  const plan = screen.view.plan;
+  const serverSlot = serverPlan.slots.find((slot) => slot.id === slotId);
+  if (!plan || plan.id !== serverPlan.id || !serverSlot) return screen;
+  const slots = plan.slots.map((slot) =>
+    slot.id === slotId ? { ...slot, ...pick(serverSlot) } : slot
+  );
+  return { ...screen, view: { ...screen.view, plan: { ...plan, ...planFields, slots } } };
+}
+
 function groupByDay(slots: readonly PlanSlotView[]): { day: string; slots: PlanSlotView[] }[] {
   const groups: { day: string; slots: PlanSlotView[] }[] = [];
   for (const slot of slots) {
@@ -94,6 +132,8 @@ function groupByDay(slots: readonly PlanSlotView[]): { day: string; slots: PlanS
 
 interface WeekNavLinkProps {
   href: string | null;
+  /** Durante la generazione: l'esito va applicato alla settimana che l'ha chiesta. */
+  disabled?: boolean;
   direction: "prev" | "next";
   onNavigate: (href: string) => void;
 }
@@ -101,11 +141,16 @@ interface WeekNavLinkProps {
 const NAV_LINK_CLASS =
   "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ink transition-colors";
 
-function WeekNavLink({ href, direction, onNavigate }: WeekNavLinkProps): React.JSX.Element {
+function WeekNavLink({
+  href,
+  disabled = false,
+  direction,
+  onNavigate,
+}: WeekNavLinkProps): React.JSX.Element {
   const label = direction === "prev" ? "Settimana precedente" : "Settimana successiva";
   const Icon = direction === "prev" ? ChevronLeft : ChevronRight;
 
-  if (href === null) {
+  if (href === null || disabled) {
     return (
       <span
         role="link"
@@ -142,18 +187,37 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
   const router = useRouter();
   const [isNavigating, startNavigation] = React.useTransition();
   const [screen, setScreen] = React.useState<PlanScreenView>(initialScreen);
+  // Stessa `key` ma dati nuovi dal server (es. `router.refresh()`): si riallinea lo stato.
+  const [syncedInitialScreen, setSyncedInitialScreen] = React.useState(initialScreen);
+  if (syncedInitialScreen !== initialScreen) {
+    setSyncedInitialScreen(initialScreen);
+    setScreen(initialScreen);
+  }
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isRecovering, setIsRecovering] = React.useState(false);
   const [generateError, setGenerateError] = React.useState<string | null>(null);
   const [isConfirming, setIsConfirming] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
   const [sheetSlotId, setSheetSlotId] = React.useState<string | null>(null);
 
-  // Recupera il toast lasciato dalla pagina che ha navigato verso la settimana obiettivo.
+  // Le richieste lunghe possono finire dopo lo smontaggio (cambio di settimana o di pagina).
+  const mountedRef = React.useRef(false);
+  const stopRecoveryRef = React.useRef<(() => void) | null>(null);
   React.useEffect(() => {
-    if (pendingToast !== null) {
-      setToast(pendingToast);
-      pendingToast = null;
-    }
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopRecoveryRef.current?.();
+    };
+  }, []);
+
+  // Recupera il toast lasciato dalla pagina che ha navigato verso questa settimana;
+  // se si è finiti altrove, lo scarta.
+  const mountedWeekStart = React.useRef(initialScreen.view.week.week_start);
+  React.useEffect(() => {
+    const pending = pendingToast;
+    pendingToast = null;
+    if (pending && pending.weekStart === mountedWeekStart.current) setToast(pending.message);
   }, []);
 
   const { view, target } = screen;
@@ -180,33 +244,82 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     [sheetSlot]
   );
 
-  /** Adotta l'esito di Genera/Rigenera/Ripeti: cambia settimana o aggiorna lo stato. */
-  const adoptTargetScreen = (next: PlanScreenView, message: string): void => {
+  /**
+   * Adotta l'esito di Genera/Rigenera/Ripeti: aggiorna lo stato o passa alla settimana
+   * obiettivo. Restituisce `true` se naviga (il rimontaggio azzererà lo stato).
+   */
+  const adoptTargetScreen = (next: PlanScreenView, message: string): boolean => {
+    if (!mountedRef.current) {
+      // L'utente ha già lasciato questa schermata: si rilegge quella che sta guardando.
+      router.refresh();
+      return false;
+    }
     setToast(message);
     if (isTargetShown) {
       setScreen(next);
-      return;
+      return false;
     }
-    pendingToast = message;
+    pendingToast = { message, weekStart: target.week_start };
     navigate(weekHref(target.week_start), "replace");
+    return true;
   };
 
-  /** Dopo un errore di rete il server può aver comunque salvato il piano (R1). */
-  const recoverTargetScreen = async (
-    startedAtMs: number,
-    baselineGeneratedAt: string | null | undefined
-  ): Promise<PlanScreenView | null> => {
+  /** Bozza obiettivo esistente ma non mostrata: la base si legge dal server (il suo orologio). */
+  const readHiddenTargetBaseline = async (): Promise<TargetBaseline> => {
+    try {
+      return (await fetchPlanScreen(target.week_start)).view.plan?.generated_at ?? null;
+    } catch {
+      return undefined;
+    }
+  };
+
+  /** Il piano obiettivo attuale, se più recente della base; altrimenti `null`. */
+  const checkTargetScreen = async (baseline: string | null): Promise<PlanScreenView | null> => {
     try {
       const fresh = await fetchPlanScreen(target.week_start);
       const freshPlan = fresh.view.plan;
       if (!freshPlan) return null;
-      if (baselineGeneratedAt === null) return fresh;
-      const thresholdMs =
-        baselineGeneratedAt === undefined ? startedAtMs : Date.parse(baselineGeneratedAt);
-      return Date.parse(freshPlan.generated_at) > thresholdMs ? fresh : null;
+      if (baseline === null) return fresh;
+      return Date.parse(freshPlan.generated_at) > Date.parse(baseline) ? fresh : null;
     } catch {
-      // Recupero impossibile: si mostra l'errore originale.
       return null;
+    }
+  };
+
+  /** Dopo un errore di rete il server può aver salvato il piano, anche più tardi (R1). */
+  const recoverTargetScreen = async (
+    kind: TargetRequestKind,
+    startedAtMs: number,
+    baseline: TargetBaseline
+  ): Promise<PlanScreenView | null> => {
+    if (baseline === undefined) return null;
+    let stopped = false;
+    let wake: (() => void) | null = null;
+    stopRecoveryRef.current = () => {
+      stopped = true;
+      wake?.();
+    };
+    setIsRecovering(true);
+    try {
+      for (let attempt = 0; ; attempt++) {
+        if (attempt > 0) {
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, recoveryDelayMs(attempt));
+            wake = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+          });
+        }
+        if (stopped) return null;
+        const fresh = await checkTargetScreen(baseline);
+        if (stopped) return null;
+        if (fresh) return fresh;
+        if (Date.now() - startedAtMs >= RECOVERY_WINDOW_MS[kind]) return null;
+      }
+    } finally {
+      stopRecoveryRef.current = null;
+      if (mountedRef.current) setIsRecovering(false);
     }
   };
 
@@ -217,32 +330,38 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     setIsGenerating(true);
     setGenerateError(null);
     const startedAtMs = Date.now();
-    // null: nessun piano prima; undefined: piano esistente ma non visibile in questa settimana.
-    const baselineGeneratedAt = isTargetShown
+    // Base per riconoscere il piano salvato dal server dopo un errore di rete (R1).
+    let baseline: TargetBaseline = isTargetShown
       ? (screen.view.plan?.generated_at ?? null)
       : screen.target_plan_status === null
         ? null
         : undefined;
+    if (baseline === undefined) baseline = await readHiddenTargetBaseline();
     const successMessage = kind === "generate" ? TOAST_GENERATED : TOAST_REPEATED;
+    let navigating = false;
     try {
       const result = await request();
       const message =
         kind === "generate" && result.generation.failed ? TOAST_GENERATED_FALLBACK : successMessage;
-      adoptTargetScreen(result.screen, message);
+      navigating = adoptTargetScreen(result.screen, message);
     } catch (err) {
       const recovered =
         err instanceof PlanRequestError && err.code === NETWORK_ERROR_CODE
-          ? await recoverTargetScreen(startedAtMs, baselineGeneratedAt)
+          ? await recoverTargetScreen(kind, startedAtMs, baseline)
           : null;
       if (recovered) {
-        adoptTargetScreen(recovered, successMessage);
+        navigating = adoptTargetScreen(recovered, successMessage);
+      } else if (!mountedRef.current) {
+        return;
       } else if (kind === "generate") {
         setGenerateError(errorMessage(err));
       } else {
         setToast(errorMessage(err));
       }
     } finally {
-      setIsGenerating(false);
+      // Se si naviga, la vecchia settimana resta visibile finché arriva la nuova: niente
+      // doppio invio (il rimontaggio azzera lo stato).
+      if (mountedRef.current && !navigating) setIsGenerating(false);
     }
   };
 
@@ -285,7 +404,9 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     setSlotLocked(slotId, nextLocked);
     try {
       const result = await requestSlotLock(plan.id, slotId, nextLocked);
-      setScreen((prev) => withPlan(prev, result.plan));
+      setScreen((prev) =>
+        withSlotFrom(prev, result.plan, slotId, (serverSlot) => ({ locked: serverSlot.locked }))
+      );
     } catch (err) {
       setSlotLocked(slotId, !nextLocked);
       setToast(errorMessage(err));
@@ -326,7 +447,18 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
                 planId={plan.id}
                 slot={slot}
                 editable={view.editable}
-                onPlanChange={(next) => setScreen((prev) => withPlan(prev, next))}
+                swappable={slot.day >= screen.today}
+                onPlanChange={(next) =>
+                  setScreen((prev) =>
+                    withSlotFrom(
+                      prev,
+                      next,
+                      slot.id,
+                      (serverSlot) => ({ recipe: serverSlot.recipe, servings: serverSlot.servings }),
+                      { shopping_list: next.shopping_list }
+                    )
+                  )
+                }
                 onToggleLock={(slotId) => void handleToggleLock(slotId)}
                 onSelectRecipe={(selected) => setSheetSlotId(selected.id)}
                 onError={setToast}
@@ -394,6 +526,7 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
       <nav aria-label="Settimane" className="mb-4 flex items-center justify-between gap-1">
         <WeekNavLink
           href={screen.prev_week_start ? weekHref(screen.prev_week_start) : null}
+          disabled={isGenerating}
           direction="prev"
           onNavigate={navigate}
         />
@@ -407,6 +540,7 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
         </div>
         <WeekNavLink
           href={screen.next_week_start ? weekHref(screen.next_week_start) : null}
+          disabled={isGenerating}
           direction="next"
           onNavigate={navigate}
         />
@@ -438,6 +572,15 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
             {plan.status === "draft" && view.action === "regenerate"
               ? "Hai cambiato le impostazioni: rigenera il piano per applicarle."
               : "Le nuove impostazioni varranno dal prossimo piano."}
+          </div>
+        )}
+
+        {isRecovering && (
+          <div className="mb-4 flex flex-col items-start gap-2 rounded-xl border border-stone/30 bg-stone/10 p-3 text-sm text-ink">
+            <p>{RECOVERY_WAIT_MESSAGE}</p>
+            <Button variant="outline" size="sm" onClick={() => stopRecoveryRef.current?.()}>
+              Smetti di aspettare
+            </Button>
           </div>
         )}
 
@@ -484,7 +627,12 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
         onClose={() => setSheetSlotId(null)}
       />
 
-      <Toast message={toast} onDismiss={() => setToast(null)} />
+      <Toast
+        message={toast}
+        onDismiss={() => setToast(null)}
+        // Sopra il footer sticky (4rem di tab bar + 4.5rem di footer).
+        className={showFooter ? "bottom-[calc(9.5rem+env(safe-area-inset-bottom))]" : undefined}
+      />
     </main>
   );
 }

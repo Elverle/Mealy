@@ -43,6 +43,7 @@ function makeResult(recipe: Recipe): PlanMutationResult {
 interface HarnessProps {
   initial: PlanSlotView;
   editable?: boolean;
+  swappable?: boolean;
   onPlanChange?: (plan: PlanView) => void;
   onError?: (message: string) => void;
   onToggleLock?: (slotId: string) => void;
@@ -52,6 +53,7 @@ interface HarnessProps {
 function Harness({
   initial,
   editable = true,
+  swappable,
   onPlanChange = vi.fn(),
   onError = vi.fn(),
   onToggleLock = vi.fn(),
@@ -62,6 +64,7 @@ function Harness({
       planId={PLAN_ID}
       slot={slot}
       editable={editable}
+      swappable={swappable}
       onPlanChange={(plan) => {
         onPlanChange(plan);
         setSlot(plan.slots[0]);
@@ -215,6 +218,81 @@ describe("PlanSlotCard", () => {
     expect(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Sblocca pasto" }));
     expect(onToggleLock).toHaveBeenCalledWith(SLOT_ID);
+  });
+
+  it("offers the lock but no Cambia on a slot that cannot be swapped (past day)", () => {
+    const onToggleLock = vi.fn();
+    render(<Harness initial={makeSlot(RECIPE_A)} swappable={false} onToggleLock={onToggleLock} />);
+
+    expect(screen.queryByRole("button", { name: /^Cambia/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Blocca pasto" }));
+    expect(onToggleLock).toHaveBeenCalledWith(SLOT_ID);
+  });
+
+  describe("focus", () => {
+    it("moves the focus to Tieni when the swapped recipe is shown", async () => {
+      vi.mocked(requestSwapSlot).mockResolvedValueOnce(makeResult(RECIPE_B));
+      render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+      const cambia = screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` });
+      cambia.focus();
+      fireEvent.click(cambia);
+
+      const tieni = await screen.findByRole("button", { name: "Tieni" });
+      await waitFor(() => expect(document.activeElement).toBe(tieni));
+    });
+
+    it("brings the focus back to Cambia after Tieni", async () => {
+      vi.mocked(requestSwapSlot).mockResolvedValueOnce(makeResult(RECIPE_B));
+      render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+      fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+      const tieni = await screen.findByRole("button", { name: "Tieni" });
+      tieni.focus();
+      fireEvent.click(tieni);
+
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          screen.getByRole("button", { name: `Cambia ${RECIPE_B.title}` })
+        )
+      );
+    });
+
+    it("brings the focus back to Cambia after a rejected swap", async () => {
+      vi.mocked(requestSwapSlot).mockRejectedValueOnce(
+        new PlanRequestError(422, "no_alternatives", "Nessuna alternativa.")
+      );
+      render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+      const cambia = screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` });
+      cambia.focus();
+      fireEvent.click(cambia);
+
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` })
+        )
+      );
+    });
+
+    it("does not steal the focus when the user moved elsewhere during the swap", async () => {
+      const pending = deferred<PlanMutationResult>();
+      vi.mocked(requestSwapSlot).mockReturnValueOnce(pending.promise);
+      render(
+        <>
+          <Harness initial={makeSlot(RECIPE_A)} />
+          <button type="button">Altrove</button>
+        </>
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+      const elsewhere = screen.getByRole("button", { name: "Altrove" });
+      elsewhere.focus();
+      await act(async () => pending.resolve(makeResult(RECIPE_B)));
+
+      expect(screen.getByRole("button", { name: "Tieni" })).toBeInTheDocument();
+      expect(document.activeElement).toBe(elsewhere);
+    });
   });
 
   it("uses only the weekday name as day label and a placeholder for a missing recipe", () => {
