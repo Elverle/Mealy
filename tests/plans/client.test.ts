@@ -21,6 +21,8 @@ const SCREEN = {
   view: { week: TARGET, plan: null, action: 'generate', editable: false, can_repeat: false },
   prev_week_start: null,
   next_week_start: null,
+  target_plan_status: null,
+  current_plan_id: null,
 };
 
 const PLAN = {

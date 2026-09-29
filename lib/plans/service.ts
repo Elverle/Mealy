@@ -205,6 +205,18 @@ export async function getPlanScreen(
   const prev = reachable.filter((weekStart) => weekStart < shownWeekStart).at(-1) ?? null;
   const next = reachable.find((weekStart) => weekStart > shownWeekStart) ?? null;
 
+  // Sorgente di "Ripeti questa settimana" (weekend: obiettivo = settimana successiva).
+  let currentPlanId: string | null = null;
+  if (currentWeekStart !== target.week_start && !targetBlocksRepeat) {
+    const currentPlan =
+      shownWeekStart === currentWeekStart
+        ? shownPlan
+        : await findPlanByWeek(db, household.id, currentWeekStart);
+    if (currentPlan && currentPlan.slots.some((slot) => slot.recipe_id !== null)) {
+      currentPlanId = currentPlan.id;
+    }
+  }
+
   return {
     today,
     current_week_start: currentWeekStart,
@@ -212,6 +224,8 @@ export async function getPlanScreen(
     view,
     prev_week_start: prev,
     next_week_start: next,
+    target_plan_status: targetPlan?.status ?? null,
+    current_plan_id: currentPlanId,
   };
 }
 

@@ -497,17 +497,26 @@ describe.skipIf(!dbUp)('plan service', () => {
     // Sabato: la settimana corrente (28/09) è ripetibile sull'obiettivo (05/10) senza piano.
     const noTarget = await getPlanScreen({ ...opts(householdId, SAT), week: '2026-09-28' });
     expect(noTarget.view.can_repeat).toBe(true);
+    expect(noTarget.target_plan_status).toBeNull();
+    expect(noTarget.current_plan_id).toBe(shownPlan(noTarget).id);
+    // Dalla settimana obiettivo vuota il piano corrente resta la sorgente di "Ripeti questa settimana".
+    const targetEmpty = await getPlanScreen({ ...opts(householdId, SAT), week: '2026-10-05' });
+    expect(targetEmpty.view.plan).toBeNull();
+    expect(targetEmpty.current_plan_id).toBe(shownPlan(noTarget).id);
 
     // L'obiettivo non ripete se stesso; con l'obiettivo in bozza resta ripetibile.
     const generated = await generatePlan(opts(householdId, SAT));
     expect(generated.screen.view.can_repeat).toBe(false);
     const draftTarget = await getPlanScreen({ ...opts(householdId, SAT), week: '2026-09-28' });
     expect(draftTarget.view.can_repeat).toBe(true);
+    expect(draftTarget.target_plan_status).toBe('draft');
 
     // Con l'obiettivo confermato non si può più ripetere.
     await confirmPlan(shownPlan(generated.screen).id, opts(householdId, SAT));
     const confirmedTarget = await getPlanScreen({ ...opts(householdId, SAT), week: '2026-09-28' });
     expect(confirmedTarget.view.can_repeat).toBe(false);
+    expect(confirmedTarget.target_plan_status).toBe('active');
+    expect(confirmedTarget.current_plan_id).toBeNull();
 
     // Un piano senza ricette non è ripetibile.
     const empty = await insertPlan(db, householdId, '2026-09-21');

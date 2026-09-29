@@ -459,6 +459,8 @@ export const PlanScreenViewSchema = z.object({
   view: PlanWeekViewSchema, // settimana mostrata
   prev_week_start: IsoDateSchema.nullable(),
   next_week_start: IsoDateSchema.nullable(),
+  target_plan_status: PlanStatusSchema.nullable(), // stato del piano della settimana obiettivo; null se non esiste
+  current_plan_id: z.string().uuid().nullable(), // piano della settimana corrente ripetibile sull'obiettivo (weekend); null altrimenti
 });
 export type PlanScreenView = z.infer<typeof PlanScreenViewSchema>;
 
