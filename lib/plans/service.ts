@@ -13,8 +13,10 @@ import {
   insertPlan,
   insertSlots,
   listPlanWeeks,
+  markShoppingListStale,
   setSlotLocked,
   touchPlanGeneratedAt,
+  updateSlotRecipe,
   updateSlotsServings,
   type PlanSlotRecord,
   type PlanWithSlots,
@@ -39,14 +41,16 @@ import {
   type Household,
   type MealType,
   type PlanAction,
+  type PlanMutationResult,
   type PlanResult,
   type PlanScreenView,
   type PlanStatus,
   type PlanView,
   type PlanWeek,
   type PlanWeekView,
+  type SwapSlotRequest,
 } from '@/lib/domain/types';
-import { addDays, listDays, mondayOf, resolveTargetWeek, todayInTimeZone } from '@/lib/domain/week';
+import { addDays, isoWeekday, listDays, mondayOf, resolveTargetWeek, todayInTimeZone } from '@/lib/domain/week';
 import { isLlmError, type LlmError } from '@/lib/llm/errors';
 import { loadIngredientPreferences } from '@/lib/prefs/ingredient-prefs';
 import {
@@ -559,4 +563,152 @@ export async function setSlotLock(
     return fresh;
   });
   return { plan: toPlanView(updated, household) };
+}
+
+// ============================================================================
+// Swap di uno slot
+// ============================================================================
+
+/** Slot sostituibile del piano, oppure l'errore di dominio corrispondente. */
+function findSwappableSlot(plan: PlanWithSlots, slotId: string): PlanSlotRecord {
+  const slot = plan.slots.find((candidate) => candidate.id === slotId);
+  if (!slot) throw new PlanError('slot_not_found');
+  if (slot.locked) throw new PlanError('slot_locked');
+  return slot;
+}
+
+/**
+ * Sostituisce la ricetta di uno slot senza riproporre ricette del piano o già scartate.
+ * L'LLM interviene (fuori da transazioni) solo se la libreria non offre alternative; la
+ * scelta definitiva si rifà dentro il lock sullo stato riletto, così due swap concorrenti
+ * non assegnano la stessa ricetta a due slot.
+ */
+export async function swapSlot(
+  planId: string,
+  slotId: string,
+  request: SwapSlotRequest,
+  options: PlanServiceOptions = {}
+): Promise<PlanMutationResult> {
+  const household = await loadHousehold(options.householdId);
+  const { now, currentWeekStart } = resolveClock(options);
+  const rng = options.rng ?? createRng(randomSeed());
+  const config = options.config ?? PLANNER_CONFIG;
+  const generate = options.generate ?? ((input) => generateAndStoreRecipes(input));
+  const prefs = await loadIngredientPreferences(household.id);
+
+  /** Ricetta scelta per lo slot dato piano e libreria letti nello stesso istante. */
+  const pickRecipe = (
+    plan: PlanWithSlots,
+    slot: PlanSlotRecord,
+    library: readonly RecipeWithDetails[]
+  ): string | null => {
+    const exclude = new Set<string>(request.exclude_recipe_ids);
+    for (const planSlot of plan.slots) {
+      if (planSlot.recipe_id !== null) exclude.add(planSlot.recipe_id);
+    }
+    const { assignments } = selectRecipes({
+      slots: [{ key: slot.id, day: slot.day, meal: slot.meal }],
+      candidates: library,
+      household,
+      ingredientPrefs: prefs,
+      excludeRecipeIds: exclude,
+      now,
+      rng,
+      config,
+    });
+    return assignments[0]?.recipeId ?? null;
+  };
+  const loadLibrary = (executor: DbExecutor) =>
+    listRecipesWith(executor, { household_id: household.id });
+
+  // Fase 1 (fuori dalla transazione): decide solo se generare.
+  const plan = await loadOpenOwnedPlan(db, planId, household, currentWeekStart);
+  const slot = findSwappableSlot(plan, slotId);
+
+  let rounds = 0;
+  let created = 0;
+  let llmError: LlmError | null = null;
+
+  if (pickRecipe(plan, slot, await loadLibrary(db)) === null) {
+    if (config.maxGenerationRoundsSwap > 0) {
+      rounds = 1;
+      try {
+        const result = await generate({
+          householdId: household.id,
+          count: config.generationMin,
+          mealType: slot.meal,
+        });
+        created = result.created.length;
+      } catch (err) {
+        if (!isLlmError(err)) throw err;
+        llmError = err;
+      }
+    }
+    // Uscita rapida: niente da scrivere se non c'è alternativa nemmeno dopo la generazione.
+    const refreshed = await loadOpenOwnedPlan(db, planId, household, currentWeekStart);
+    const refreshedSlot = findSwappableSlot(refreshed, slotId);
+    if (pickRecipe(refreshed, refreshedSlot, await loadLibrary(db)) === null) {
+      throw llmError ?? new PlanError('no_alternatives');
+    }
+  }
+
+  // Fase 2 (sotto lock): rilegge tutto, rifà la scelta e scrive.
+  const updated = await db.transaction(async (tx) => {
+    await acquirePlanLock(tx, household.id);
+    const current = await loadOpenOwnedPlan(tx, planId, household, currentWeekStart);
+    const currentSlot = findSwappableSlot(current, slotId);
+
+    const recipeId = pickRecipe(current, currentSlot, await loadLibrary(tx));
+    if (recipeId === null) throw llmError ?? new PlanError('no_alternatives');
+
+    await updateSlotRecipe(tx, slotId, recipeId);
+    if (current.status === 'active') {
+      await incrementRecipeUsage(tx, [{ recipeId, day: currentSlot.day }]);
+    }
+    await markShoppingListStale(tx, planId);
+
+    const fresh = await getPlanById(tx, planId);
+    if (!fresh) throw new PlanError('plan_not_found');
+    return fresh;
+  });
+
+  return {
+    plan: toPlanView(updated, household),
+    generation: { rounds, created, failed: llmError !== null },
+  };
+}
+
+// ============================================================================
+// Ripeti un piano sulla settimana da pianificare
+// ============================================================================
+
+/**
+ * Copia un piano (anche di una settimana conclusa) sulla settimana obiettivo: per ogni
+ * pasto la ricetta dello stesso giorno della settimana, se ancora ammessa. Il resto lo
+ * riempie il planner; l'LLM interviene solo se resta uno slot vuoto.
+ */
+export async function repeatPlan(
+  sourcePlanId: string,
+  options: PlanServiceOptions = {}
+): Promise<GeneratePlanResult> {
+  const ctx = await resolvePlanContext(options);
+
+  const source = await getPlanById(db, sourcePlanId);
+  if (!source || source.household_id !== ctx.household.id) throw new PlanError('plan_not_found');
+  if (source.week_start === ctx.target.week_start) throw new PlanError('repeat_same_week');
+
+  const preassigned = new Map<string, string>();
+  for (const slot of source.slots) {
+    if (slot.recipe_id === null) continue;
+    const day = addDays(ctx.target.week_start, isoWeekday(slot.day) - 1);
+    preassigned.set(slotKey(day, slot.meal), slot.recipe_id);
+  }
+
+  const generation = await buildTargetPlan(ctx, {
+    preassigned,
+    generation: 'unfilledOnly',
+    maxRounds: ctx.config.maxGenerationRoundsSwap,
+  });
+  const screen = await getPlanScreen({ ...options, week: ctx.target.week_start });
+  return { screen, generation };
 }
