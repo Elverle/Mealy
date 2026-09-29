@@ -1,0 +1,144 @@
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LONG_PRESS_MS, MealCard } from '@/components/cards/meal-card';
+
+// jsdom has no PointerEvent: without it fireEvent.pointer* drops button/clientX/clientY.
+if (typeof window.PointerEvent === 'undefined') {
+  class PointerEventPolyfill extends MouseEvent {}
+  Object.defineProperty(window, 'PointerEvent', {
+    value: PointerEventPolyfill,
+    configurable: true,
+  });
+}
+
+const base = {
+  id: 'meal-1',
+  day: 'Lunedì',
+  mealType: 'Cena',
+  title: 'Salmone al forno',
+};
+
+describe('MealCard (plan behaviours)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('exposes a data-testid on the root', () => {
+    render(<MealCard {...base} />);
+    expect(screen.getByTestId('meal-card-meal-1')).toBeInTheDocument();
+  });
+
+  it('renders no favorite button without onToggleFavorite', () => {
+    render(<MealCard {...base} onSwap={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Aggiungi ai preferiti' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Cambia Salmone al forno' })).toBeInTheDocument();
+  });
+
+  it('renders no Cambia button without onSwap', () => {
+    render(<MealCard {...base} onToggleFavorite={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /^Cambia/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Aggiungi ai preferiti' })).toBeInTheDocument();
+  });
+
+  it('renders no footer at all without handlers or actions', () => {
+    const { container } = render(<MealCard {...base} onToggleLock={vi.fn()} />);
+    expect(container.querySelector('.border-t')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Cambia/ })).toBeNull();
+  });
+
+  it('actions replace the whole footer', () => {
+    render(
+      <MealCard
+        {...base}
+        onSwap={vi.fn()}
+        onToggleFavorite={vi.fn()}
+        actions={<button>Tieni</button>}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Tieni' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Cambia/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /preferiti/ })).toBeNull();
+  });
+
+  it('long-press fires onLongPress and suppresses the following click', () => {
+    const onLongPress = vi.fn();
+    const onSelect = vi.fn();
+    render(<MealCard {...base} onLongPress={onLongPress} onSelect={onSelect} />);
+    const card = screen.getByTestId('meal-card-meal-1');
+    fireEvent.pointerDown(card, { button: 0, clientX: 10, clientY: 10 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onLongPress).toHaveBeenCalledWith('meal-1');
+    fireEvent.pointerUp(card);
+    fireEvent.click(screen.getByText('Salmone al forno'));
+    expect(onSelect).not.toHaveBeenCalled();
+    // the suppression is consumed: the next click selects
+    fireEvent.click(screen.getByText('Salmone al forno'));
+    expect(onSelect).toHaveBeenCalledWith('meal-1');
+  });
+
+  it('a short press does not long-press and the click selects', () => {
+    const onLongPress = vi.fn();
+    const onSelect = vi.fn();
+    render(<MealCard {...base} onLongPress={onLongPress} onSelect={onSelect} />);
+    const card = screen.getByTestId('meal-card-meal-1');
+    fireEvent.pointerDown(card, { button: 0 });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    fireEvent.pointerUp(card);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(onLongPress).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Salmone al forno'));
+    expect(onSelect).toHaveBeenCalledWith('meal-1');
+  });
+
+  it('moving more than 10px cancels the long-press', () => {
+    const onLongPress = vi.fn();
+    render(<MealCard {...base} onLongPress={onLongPress} />);
+    const card = screen.getByTestId('meal-card-meal-1');
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(card, { clientX: 0, clientY: 20 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onLongPress).not.toHaveBeenCalled();
+  });
+
+  it('ignores non-primary buttons', () => {
+    const onLongPress = vi.fn();
+    render(<MealCard {...base} onLongPress={onLongPress} />);
+    fireEvent.pointerDown(screen.getByTestId('meal-card-meal-1'), { button: 2 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onLongPress).not.toHaveBeenCalled();
+  });
+
+  it('pointerDown on the lock button does not start a long-press', () => {
+    const onLongPress = vi.fn();
+    render(<MealCard {...base} onLongPress={onLongPress} onToggleLock={vi.fn()} />);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Blocca pasto' }), { button: 0 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onLongPress).not.toHaveBeenCalled();
+  });
+
+  it('clears the timer on unmount', () => {
+    const onLongPress = vi.fn();
+    const { unmount } = render(<MealCard {...base} onLongPress={onLongPress} />);
+    fireEvent.pointerDown(screen.getByTestId('meal-card-meal-1'), { button: 0 });
+    unmount();
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onLongPress).not.toHaveBeenCalled();
+  });
+});
