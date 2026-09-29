@@ -154,6 +154,7 @@ Accettazione: da DB quasi vuoto, una chiamata produce un piano completo (con gen
 ### S3.3 Swap slot — dipende da S3.2
 - [ ] `POST /api/plans/:id/slots/:slotId/swap` con exclude-list (attuale + resto del piano)
 - [ ] Se la lista spesa esiste → flag "da rigenerare"
+- [ ] Ripeti un piano (anche passato) sulla settimana da pianificare
 
 Accettazione: swap ripetuti non ripropongono mai la stessa ricetta nella settimana.
 

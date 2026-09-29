@@ -85,12 +85,13 @@ export function getModel(env: Env = process.env): LanguageModel {
 }
 
 /**
- * Returns the configured LLM timeout in milliseconds, falling back to 50000.
+ * Returns the configured LLM timeout in milliseconds, falling back to 90000 (per one batch of 3 recipes;
+ * with the repair call a generation can last up to twice this value).
  */
 export function getLlmTimeoutMs(env: Env = process.env): number {
   const val = Number(env.LLM_TIMEOUT_MS);
   if (!Number.isInteger(val) || val <= 0) {
-    return 50000;
+    return 90000;
   }
   return val;
 }

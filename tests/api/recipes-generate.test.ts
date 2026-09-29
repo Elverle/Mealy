@@ -16,7 +16,7 @@ describe('POST /api/recipes/generate', () => {
   it('exports correct route segment configurations', () => {
     expect(runtime).toBe('nodejs');
     expect(dynamic).toBe('force-dynamic');
-    expect(maxDuration).toBe(120);
+    expect(maxDuration).toBe(300);
   });
 
   it('returns 400 invalid_request on malformed JSON body', async () => {

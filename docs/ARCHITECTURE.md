@@ -217,16 +217,22 @@ peso(r) = ratingFactor × favoriteBoost × recencyDecay × noveltyBonus × ingre
 ratingFactor  = 1                       se rating assente
               = 0.25 + rating / 4       → 0.5 … 1.5
 favoriteBoost = 1.5 se favorite, altrimenti 1
-recencyDecay  = 0                        se last_used_at < 10 giorni fa
-              = lineare 0 → 1            tra 10 e 28 giorni
-              = 1                        oltre 28 giorni o mai usata
+recencyDecay  = 1                        se mai usata
+              = 0.15                     se last_used_at < 10 giorni fa   (recencyFloor)
+              = lineare 0.15 → 1         tra 10 e 28 giorni
+              = 1                        oltre 28 giorni
+              (le preferite non hanno pausa: recencyDecay = max(favoriteRecencyFloor = 1, decadimento))
 noveltyBonus  = 1.2 se times_used = 0    (fa ruotare le ricette nuove)
 ingredientAffinity = 1 + 0.15 × min(2, n° ingredienti con pref like)   → 1 … 1.3
 ```
 
-Se il pool valido per uno slot è `< soglia` (default 3), il planner chiede a `recipes` di generare nuove ricette per quel `meal_type` con i vincoli correnti, poi riprova. Alla conferma del piano si aggiornano `times_used` e `last_used_at`.
+Ogni candidata idonea ha quindi peso > 0: una ricetta usata da poco resta sorteggiabile, ma molto meno probabile. `last_used_at` è il **giorno del pasto** (mezzogiorno UTC dello slot più recente in cui la ricetta è stata confermata), non l'istante della conferma; una ricetta pianificata nel futuro pesa `recencyFloor`.
 
-I parametri (10/28 giorni, boost, soglia) sono costanti in `lib/domain/planner-config.ts`: tarabili senza toccare la logica.
+**Quando serve la generazione (`needMore`).** Per ogni tipo di pasto si contano le candidate idonee e **fresche** (mai usate, usate da almeno 10 giorni, oppure preferite): se sono meno di `slot + soglia − 1` (soglia di default 3), o se resta uno slot senza candidata, il planner segnala la carenza e `plans` chiede a `recipes` nuove ricette per quel `meal_type` con i vincoli correnti, poi riprova (al più `maxGenerationRoundsPlan` giri). Il numero richiesto è il deficit più 2 (min 3, max 10) e viene **suddiviso in lotti da 3** (`generationBatchSize`, es. 10 → 3+3+3+1): tutti i lotti di tutti i tipi di pasto partono in parallelo in un solo giro, così la durata di un giro resta quella di una chiamata da 3 ricette. Alla conferma del piano si aggiornano `times_used` e `last_used_at`.
+
+**Concorrenza.** La chiamata LLM sta sempre fuori dalle transazioni; la selezione che decide cosa scrivere gira invece **dentro** la transazione, dopo l'advisory lock del piano, sullo stato riletto (piano e libreria). La selezione fuori dalla transazione serve solo a decidere se generare. La conferma è una transizione condizionata `draft → active`: `times_used` si incrementa una volta sola anche con richieste sovrapposte.
+
+I parametri (10/28 giorni, `recencyFloor`, boost, soglia, lotti) sono costanti in `lib/domain/planner-config.ts`: tarabili senza toccare la logica.
 
 ### 5.3 Swap di uno slot
 
@@ -263,15 +269,20 @@ Route Handlers sotto `/api` (o Server Actions equivalenti — scelta implementat
 | PUT | `/api/recipes/:id/pref` | Rating / preferita / bloccata |
 | GET | `/api/ingredient-prefs` | Elenco like/dislike sugli ingredienti |
 | PUT | `/api/ingredient-prefs/:canonicalName` | Imposta o rimuove like/dislike (con conteggio ricette impattate) |
-| POST | `/api/plans` | Genera piano per `week_start` |
-| GET | `/api/plans/current` | Piano attivo |
+| POST | `/api/plans` | Genera (o rigenera) il piano della settimana da pianificare (calcolata dal server) |
+| GET | `/api/plans/current` | Schermata del Piano: piano mostrato, settimana da pianificare e azione disponibile |
+| GET | `/api/plans/current?settimana=YYYY-MM-DD` | Come sopra, sulla settimana indicata (navigatore; valori non validi o oltre la settimana da pianificare sono ignorati) |
 | POST | `/api/plans/:id/slots/:slotId/swap` | Sostituisce la ricetta dello slot |
+| PATCH | `/api/plans/:id/slots/:slotId` | Blocca/sblocca lo slot (`{ locked }`) |
+| POST | `/api/plans/:id/repeat` | Ripete un piano (anche passato) sulla settimana da pianificare, come bozza |
 | POST | `/api/plans/:id/confirm` | Conferma piano (aggiorna prefs usage) |
 | POST | `/api/plans/:id/shopping-list` | (Ri)genera lista |
 | GET | `/api/plans/:id/shopping-list` | Lista raggruppata |
 | PATCH | `/api/shopping-items/:id` | Spunta / modifica / aggiunta manuale |
 
-Tutte le request/response validate con gli stessi schemi Zod del dominio.
+Tutte le request/response validate con gli stessi schemi Zod del dominio. Gli errori hanno sempre la forma `{ error: { code, message, details? } }`. I piani **chiusi** (archiviati o di una settimana conclusa) si possono solo consultare: blocco, conferma e swap rispondono `409 plan_archived`.
+
+**Durata di `POST /api/plans`.** La generazione avviene a lotti da 3 ricette, in parallelo (un solo `Promise.allSettled` per giro), con `maxDuration = 300`. Il caso peggiore è `maxGenerationRoundsPlan × 2 × LLM_TIMEOUT_MS` (ogni lotto può includere la chiamata di riparazione), circa 6 minuti con i default (2 × 2 × 90 s). È tollerabile perché, se la connessione cade (`network_error`), la UI rilegge la schermata e adotta il piano che il server ha comunque salvato.
 
 ---
 

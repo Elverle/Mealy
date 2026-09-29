@@ -162,12 +162,12 @@ describe('lib/llm/model', () => {
   });
 
   describe('getLlmTimeoutMs', () => {
-    it('returns default 50000 when env variable is missing, non-numeric, or non-positive', () => {
-      expect(getLlmTimeoutMs({})).toBe(50000);
-      expect(getLlmTimeoutMs({ LLM_TIMEOUT_MS: 'abc' })).toBe(50000);
-      expect(getLlmTimeoutMs({ LLM_TIMEOUT_MS: '-5' })).toBe(50000);
-      expect(getLlmTimeoutMs({ LLM_TIMEOUT_MS: '0' })).toBe(50000);
-      expect(getLlmTimeoutMs({ LLM_TIMEOUT_MS: '12.5' })).toBe(50000);
+    it('returns default 90000 when env variable is missing, non-numeric, or non-positive', () => {
+      expect(getLlmTimeoutMs({})).toBe(90000);
+      expect(getLlmTimeoutMs({ LLM_TIMEOUT_MS: 'abc' })).toBe(90000);
+      expect(getLlmTimeoutMs({ LLM_TIMEOUT_MS: '-5' })).toBe(90000);
+      expect(getLlmTimeoutMs({ LLM_TIMEOUT_MS: '0' })).toBe(90000);
+      expect(getLlmTimeoutMs({ LLM_TIMEOUT_MS: '12.5' })).toBe(90000);
     });
 
     it('returns parsed integer timeout when valid', () => {
