@@ -1,5 +1,5 @@
 import { eq, sql, type SQL } from 'drizzle-orm';
-import { db } from '../index';
+import { db, type DbExecutor } from '../index';
 import { households } from '../schema';
 import {
   DEFAULT_HOUSEHOLD,
@@ -10,9 +10,13 @@ import {
 
 /**
  * Get household by ID. Returns null if not found.
+ * `executor`: una transazione, per rileggere le impostazioni sotto un lock.
  */
-export async function getHouseholdById(id: string): Promise<Household | null> {
-  const result = await db.query.households.findFirst({
+export async function getHouseholdById(
+  id: string,
+  executor: DbExecutor = db
+): Promise<Household | null> {
+  const result = await executor.query.households.findFirst({
     where: eq(households.id, id),
   });
 

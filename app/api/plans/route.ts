@@ -5,8 +5,9 @@ import { generatePlan } from '@/lib/plans/service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// Caso peggiore: maxGenerationRoundsPlan x 2 x LLM_TIMEOUT_MS (v. ARCHITECTURE §6).
-export const maxDuration = 300;
+// Caso peggiore: maxGenerationRoundsPlan x 2 x LLM_TIMEOUT_MS = 2 x 2 x 120 s (massimo ammesso
+// in .env.example), più un margine per le scritture (v. ARCHITECTURE §6).
+export const maxDuration = 500;
 
 export async function POST(request: Request): Promise<Response> {
   const body = await readJsonBody(request, { allowEmpty: true });

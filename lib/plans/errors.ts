@@ -6,6 +6,7 @@ export const PLAN_ERROR_CODES = [
   'plan_confirmed',
   'plan_archived',
   'slot_locked',
+  'slot_past',
   'insufficient_recipes',
   'no_alternatives',
   'repeat_same_week',
@@ -24,6 +25,7 @@ export const PLAN_ERROR_HTTP: Record<PlanErrorCode, { status: number; message: s
     message: 'Questa settimana è conclusa: il piano si può solo consultare.',
   },
   slot_locked: { status: 409, message: 'Sblocca il pasto per cambiarlo.' },
+  slot_past: { status: 409, message: 'Questo pasto è già passato.' },
   insufficient_recipes: {
     status: 422,
     message:

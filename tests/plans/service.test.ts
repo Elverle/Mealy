@@ -1,18 +1,20 @@
 // @vitest-environment node
 
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
-import { db } from '@/lib/db';
+import { client, db, shopping_lists, type DbExecutor } from '@/lib/db';
 import {
+  acquirePlanLock,
   archivePlansBefore,
   findPlanByWeek,
   insertPlan,
   insertSlots,
+  setSlotLocked,
 } from '@/lib/db/repositories/plan-repo';
 import { getRecipeById } from '@/lib/db/repositories/recipe-repo';
 import { updateHousehold } from '@/lib/db/repositories/household-repo';
 import { PLANNER_CONFIG } from '@/lib/domain/planner-config';
 import { createRng } from '@/lib/domain/rng';
-import type { MealType } from '@/lib/domain/types';
+import type { GeneratePlanResult, MealType } from '@/lib/domain/types';
 import { LlmError } from '@/lib/llm/errors';
 import {
   confirmPlan,
@@ -42,6 +44,9 @@ const BOTH_MEALS: MealType[] = ['pranzo', 'cena'];
 
 // Pool minimo enorme: il planner chiede sempre nuove ricette, così l'LLM (finto) gira davvero.
 const FORCE_GENERATION_CONFIG = { ...PLANNER_CONFIG, minPoolSize: 20 };
+
+const LOCK_WAIT_ATTEMPTS = 100;
+const LOCK_WAIT_POLL_MS = 20;
 
 const dbUp = await isDbAvailable();
 
@@ -553,57 +558,122 @@ describe.skipIf(!dbUp)('plan service', () => {
     expect(shownPlan(regenerated.screen).superseded).toBe(false);
   });
 
-  it('writes no hole when a slot is unlocked while the LLM is generating (selection re-run inside the lock)', async () => {
+  it('flags the shopping list of a regenerated draft as needing regeneration', async () => {
+    const householdId = await richHousehold();
+    const first = shownPlan((await generatePlan(opts(householdId, WED))).screen);
+    await db.insert(shopping_lists).values({ plan_id: first.id });
+
+    const regenerated = shownPlan((await generatePlan(opts(householdId, WED))).screen);
+
+    expect(regenerated.id).toBe(first.id);
+    expect(regenerated.shopping_list).toEqual({ exists: true, needs_regeneration: true });
+  });
+
+  it('applies settings saved while the LLM is generating (household re-read inside the lock)', async () => {
     const householdId = await newHousehold(['cena']);
     await insertTestRecipes(householdId, 10, { meal_types: ['cena'] });
+
+    let saved = false;
+    const generate = vi.fn<GenerateRecipesFn>(async (input) => {
+      if (!saved) {
+        saved = true;
+        await updateHousehold({ diet_tags: ['vegetariano'], persons: 4 }, householdId);
+        await insertTestRecipes(householdId, 8, {
+          meal_types: ['cena'],
+          diet_flags: ['vegetariano'],
+        });
+      }
+      return { requested: input.count, created: [], skipped: [] };
+    });
+
+    const { screen } = await generatePlan(
+      opts(householdId, MON, generate, { config: FORCE_GENERATION_CONFIG })
+    );
+
+    expect(generate).toHaveBeenCalled();
+    const plan = shownPlan(screen);
+    expect(plan.slots).toHaveLength(7);
+    expect(plan.slots.every((s) => s.recipe!.diet_flags.includes('vegetariano'))).toBe(true);
+    expect(plan.slots.every((s) => s.servings === 4)).toBe(true);
+    expect(plan.superseded).toBe(false);
+  });
+
+  /**
+   * Esegue `change` in una transazione che tiene il lock dei piani, mentre `generatePlan`
+   * ha già fatto l'ultima selezione esterna ed è in attesa dello stesso lock: il cambiamento
+   * cade nella finestra fra la selezione fuori e la transazione (R2).
+   */
+  async function generateWhileLockHeld(
+    householdId: string,
+    change: (tx: DbExecutor) => Promise<void>
+  ) {
+    let pending!: Promise<{ ok: true; value: GeneratePlanResult } | { ok: false; error: unknown }>;
+    await db.transaction(async (tx) => {
+      await acquirePlanLock(tx, householdId);
+      pending = generatePlan(opts(householdId, MON)).then(
+        (value) => ({ ok: true as const, value }),
+        (error: unknown) => ({ ok: false as const, error })
+      );
+      await waitForPlanLockWaiter(householdId);
+      await change(tx);
+    });
+    const outcome = await pending;
+    if (!outcome.ok) throw outcome.error;
+    return outcome.value;
+  }
+
+  /** Attende (polling) che un'altra sessione sia in coda sul lock dei piani dell'household. */
+  async function waitForPlanLockWaiter(householdId: string): Promise<void> {
+    const key = `mealy:plans:${householdId}`;
+    for (let attempt = 0; attempt < LOCK_WAIT_ATTEMPTS; attempt++) {
+      const [row] = await client<[{ waiting: boolean }]>`
+        select exists(
+          select 1 from pg_locks
+          where locktype = 'advisory' and not granted
+            and objid = (hashtext(${key})::bigint & 4294967295)::oid
+        ) as waiting
+      `;
+      if (row?.waiting) return;
+      await new Promise((resolve) => setTimeout(resolve, LOCK_WAIT_POLL_MS));
+    }
+    throw new Error('generatePlan non è arrivato ad attendere il lock');
+  }
+
+  it('regenerates a slot unlocked right before the write (selection re-run inside the lock)', async () => {
+    const householdId = await newHousehold(['cena']);
+    await insertTestRecipes(householdId, 12, { meal_types: ['cena'] });
     const first = shownPlan((await generatePlan(opts(householdId, MON))).screen);
     expect(first.slots).toHaveLength(7);
     const lockedSlot = first.slots[3];
     await setSlotLock(first.id, lockedSlot.id, true, opts(householdId, MON));
 
-    const inner = fakeGenerate();
-    let unlocked = false;
-    const generate = vi.fn<GenerateRecipesFn>(async (input) => {
-      if (!unlocked) {
-        unlocked = true;
-        await setSlotLock(first.id, lockedSlot.id, false, opts(householdId, MON));
-      }
-      return inner(input);
+    const { screen } = await generateWhileLockHeld(householdId, async (tx) => {
+      await setSlotLocked(tx, lockedSlot.id, false);
     });
 
-    const { screen, generation } = await generatePlan(opts(householdId, MON, generate, { config: FORCE_GENERATION_CONFIG }));
-
-    expect(generate).toHaveBeenCalled();
-    expect(generation.failed).toBe(false);
     const plan = shownPlan(screen);
     expect(plan.slots).toHaveLength(7);
     expect(plan.slots.every((s) => s.recipe !== null)).toBe(true);
     expect(new Set(recipeIds(plan)).size).toBe(7);
+    // Sbloccato prima della scrittura: rigenerato come gli altri, non conservato.
+    expect(plan.slots.some((s) => s.id === lockedSlot.id)).toBe(false);
   });
 
-  it('never repeats a recipe when a slot is locked while the LLM is generating', async () => {
+  it('keeps a slot locked right before the write and never repeats its recipe', async () => {
     const householdId = await newHousehold(['cena']);
-    await insertTestRecipes(householdId, 10, { meal_types: ['cena'] });
+    await insertTestRecipes(householdId, 12, { meal_types: ['cena'] });
     const first = shownPlan((await generatePlan(opts(householdId, MON))).screen);
     const slotToLock = first.slots[2];
 
-    const inner = fakeGenerate();
-    let locked = false;
-    const generate = vi.fn<GenerateRecipesFn>(async (input) => {
-      if (!locked) {
-        locked = true;
-        await setSlotLock(first.id, slotToLock.id, true, opts(householdId, MON));
-      }
-      return inner(input);
+    const { screen } = await generateWhileLockHeld(householdId, async (tx) => {
+      await setSlotLocked(tx, slotToLock.id, true);
     });
-
-    const { screen } = await generatePlan(opts(householdId, MON, generate, { config: FORCE_GENERATION_CONFIG }));
 
     const plan = shownPlan(screen);
     expect(plan.slots).toHaveLength(7);
     expect(new Set(recipeIds(plan)).size).toBe(7);
-    const keptSlot = plan.slots.find((s) => s.id === slotToLock.id)!;
-    expect(keptSlot.locked).toBe(true);
-    expect(keptSlot.recipe!.id).toBe(slotToLock.recipe!.id);
+    const keptSlot = plan.slots.find((s) => s.id === slotToLock.id);
+    expect(keptSlot?.locked).toBe(true);
+    expect(keptSlot?.recipe!.id).toBe(slotToLock.recipe!.id);
   });
 });

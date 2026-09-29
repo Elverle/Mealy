@@ -165,6 +165,37 @@ describe.skipIf(!dbUp)('repeatPlan', { timeout: DB_TEST_TIMEOUT_MS }, () => {
     expect(shownPlan(screen).slots.every((s) => s.recipe !== null)).toBe(true);
   });
 
+  it('applies settings saved while the LLM is generating (household re-read inside the lock)', async () => {
+    const householdId = await richHousehold(7);
+    const source = await sourcePlan(householdId);
+    const blockedSlot = source.slots.find((s) => s.meal === 'pranzo')!;
+    await db
+      .update(recipe_prefs)
+      .set({ blocked: true })
+      .where(eq(recipe_prefs.recipe_id, blockedSlot.recipe!.id));
+
+    let saved = false;
+    const generate = vi.fn<GenerateRecipesFn>(async (input: GenerateAndStoreInput) => {
+      if (!saved) {
+        saved = true;
+        await updateHousehold({ diet_tags: ['vegetariano'], persons: 4 }, householdId);
+        for (const meal of BOTH_MEALS) {
+          await insertTestRecipes(householdId, 8, { meal_types: [meal], diet_flags: ['vegetariano'] });
+        }
+      }
+      return { requested: input.count, created: [], skipped: [] };
+    });
+
+    const { screen } = await repeatPlan(source.id, opts(householdId, SAT, generate));
+
+    expect(generate).toHaveBeenCalled();
+    const target = shownPlan(screen);
+    expect(target.slots).toHaveLength(14);
+    expect(target.slots.every((s) => s.recipe!.diet_flags.includes('vegetariano'))).toBe(true);
+    expect(target.slots.every((s) => s.servings === 4)).toBe(true);
+    expect(target.superseded).toBe(false);
+  });
+
   it('throws insufficient_recipes and writes nothing when a slot cannot be filled', async () => {
     const householdId = await richHousehold(7);
     const source = await sourcePlan(householdId);

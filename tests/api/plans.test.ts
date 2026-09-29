@@ -82,10 +82,10 @@ describe('GET /api/plans/current', () => {
 });
 
 describe('POST /api/plans', () => {
-  it('exports runtime, dynamic and maxDuration 300', () => {
+  it('exports runtime, dynamic and maxDuration 500', () => {
     expect(plansRoute.runtime).toBe('nodejs');
     expect(plansRoute.dynamic).toBe('force-dynamic');
-    expect(plansRoute.maxDuration).toBe(300);
+    expect(plansRoute.maxDuration).toBe(500);
   });
 
   it('calls the service with an empty body and returns 200', async () => {

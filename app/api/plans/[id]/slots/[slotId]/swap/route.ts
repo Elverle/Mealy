@@ -7,8 +7,9 @@ import { swapSlot } from '@/lib/plans/service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// Un lotto di generazione con chiamata di riparazione (2 x LLM_TIMEOUT_MS) sta nei 200 s.
-export const maxDuration = 200;
+// Un lotto di generazione con chiamata di riparazione: 2 x LLM_TIMEOUT_MS = 2 x 120 s (massimo
+// ammesso in .env.example), più un margine per le scritture (v. ARCHITECTURE §6).
+export const maxDuration = 250;
 
 const TAG = '[api/plans/swap]';
 const UuidSchema = z.string().uuid();

@@ -10,6 +10,7 @@ import {
   insertPlan,
 } from '@/lib/db/repositories/plan-repo';
 import { getRecipeById } from '@/lib/db/repositories/recipe-repo';
+import { updateHousehold } from '@/lib/db/repositories/household-repo';
 import { createRng } from '@/lib/domain/rng';
 import type { MealType } from '@/lib/domain/types';
 import { LlmError } from '@/lib/llm/errors';
@@ -30,6 +31,7 @@ import {
 } from '@/tests/helpers/db';
 import { insertTestRecipes } from '@/tests/helpers/plans';
 
+const MON = () => new Date('2026-09-28T08:00:00Z'); // settimana 28/09 completa
 const WED = () => new Date('2026-09-30T10:00:00Z'); // settimana 28/09, dal 30/09: 5 giorni
 const SAT = () => new Date('2026-10-03T09:00:00Z'); // obiettivo: settimana 05/10
 const MON2 = () => new Date('2026-10-05T08:00:00Z'); // lunedì dopo SAT
@@ -212,6 +214,51 @@ describe.skipIf(!dbUp)('swapSlot', { timeout: DB_TEST_TIMEOUT_MS }, () => {
     ).rejects.toMatchObject({ code: 'plan_archived' });
   });
 
+  it('refuses to swap a slot of a past day, while still allowing to lock it', async () => {
+    const householdId = await dinnerHousehold(12);
+    const plan = await createPlan(householdId, MON);
+    const pastSlot = plan.slots.find((s) => s.day === '2026-09-28')!;
+    const todaySlot = plan.slots.find((s) => s.day === '2026-09-30')!;
+
+    await expect(
+      swapSlot(plan.id, pastSlot.id, NO_EXCLUSIONS, opts(householdId, WED))
+    ).rejects.toMatchObject({ code: 'slot_past' });
+    expect((await getPlanById(db, plan.id))!.slots.find((s) => s.id === pastSlot.id)!.recipe_id).toBe(
+      pastSlot.recipe!.id
+    );
+
+    const locked = await setSlotLock(plan.id, pastSlot.id, true, opts(householdId, WED));
+    expect(locked.plan.slots.find((s) => s.id === pastSlot.id)!.locked).toBe(true);
+
+    const swapped = await swapSlot(plan.id, todaySlot.id, NO_EXCLUSIONS, opts(householdId, WED));
+    expect(swapped.plan.slots.find((s) => s.id === todaySlot.id)!.recipe!.id).not.toBe(
+      todaySlot.recipe!.id
+    );
+  });
+
+  it('applies settings saved while the LLM is generating (household re-read inside the lock)', async () => {
+    const householdId = await dinnerHousehold(5);
+    const plan = await createPlan(householdId);
+    const slot = plan.slots[0];
+
+    let vegetarianId = '';
+    const generate = vi.fn<GenerateRecipesFn>(async (input: GenerateAndStoreInput) => {
+      await updateHousehold({ diet_tags: ['vegetariano'] }, householdId);
+      const meat = await insertTestRecipes(householdId, 10, { meal_types: ['cena'] });
+      const [veg] = await insertTestRecipes(householdId, 1, {
+        meal_types: ['cena'],
+        diet_flags: ['vegetariano'],
+      });
+      vegetarianId = veg.id;
+      return { requested: input.count, created: [...meat, veg], skipped: [] };
+    });
+
+    const result = await swapSlot(plan.id, slot.id, NO_EXCLUSIONS, opts(householdId, WED, generate));
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(result.plan.slots.find((s) => s.id === slot.id)!.recipe!.id).toBe(vegetarianId);
+  });
+
   it('on a confirmed plan counts the usage of the new recipe at the slot day, not of the replaced one', async () => {
     const householdId = await dinnerHousehold(12);
     const plan = await createPlan(householdId);
@@ -292,9 +339,11 @@ describe.skipIf(!dbUp)('swapSlot', { timeout: DB_TEST_TIMEOUT_MS }, () => {
     await generatePlan(opts(householdId, SAT, emptyGenerate()));
     expect((await findPlanByWeek(db, householdId, '2026-10-05'))!.status).toBe('draft');
 
+    // Sabato: modificabili solo i pasti da oggi in poi (i giorni passati sono immutabili).
+    const upcoming = weekPlan.slots.find((s) => s.day >= '2026-10-03')!;
     const onSaturday = await swapSlot(
       weekPlan.id,
-      weekPlan.slots[0].id,
+      upcoming.id,
       NO_EXCLUSIONS,
       opts(householdId, SAT)
     );

@@ -5,8 +5,8 @@ import { repeatPlan } from '@/lib/plans/service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// Come lo swap: al più un lotto di generazione con chiamata di riparazione.
-export const maxDuration = 200;
+// Come lo swap: al più un giro di generazione con chiamata di riparazione (v. ARCHITECTURE §6).
+export const maxDuration = 250;
 
 const TAG = '[api/plans/repeat]';
 

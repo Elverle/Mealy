@@ -280,9 +280,9 @@ Route Handlers sotto `/api` (o Server Actions equivalenti — scelta implementat
 | GET | `/api/plans/:id/shopping-list` | Lista raggruppata |
 | PATCH | `/api/shopping-items/:id` | Spunta / modifica / aggiunta manuale |
 
-Tutte le request/response validate con gli stessi schemi Zod del dominio. Gli errori hanno sempre la forma `{ error: { code, message, details? } }`. I piani **chiusi** (archiviati o di una settimana conclusa) si possono solo consultare: blocco, conferma e swap rispondono `409 plan_archived`.
+Tutte le request/response validate con gli stessi schemi Zod del dominio. Gli errori hanno sempre la forma `{ error: { code, message, details? } }`. I piani **chiusi** (archiviati o di una settimana conclusa) si possono solo consultare: blocco, conferma e swap rispondono `409 plan_archived`. Nei piani aperti i pasti dei giorni già passati non si cambiano (`409 slot_past`), come nella rigenerazione; il blocco resta consentito.
 
-**Durata di `POST /api/plans`.** La generazione avviene a lotti da 3 ricette, in parallelo (un solo `Promise.allSettled` per giro), con `maxDuration = 300`. Il caso peggiore è `maxGenerationRoundsPlan × 2 × LLM_TIMEOUT_MS` (ogni lotto può includere la chiamata di riparazione), circa 6 minuti con i default (2 × 2 × 90 s). È tollerabile perché, se la connessione cade (`network_error`), la UI rilegge la schermata e adotta il piano che il server ha comunque salvato.
+**Durata di `POST /api/plans`.** La generazione avviene a lotti da 3 ricette, in parallelo (un solo `Promise.allSettled` per giro), con `maxDuration = 500`. Il caso peggiore è `maxGenerationRoundsPlan × 2 × LLM_TIMEOUT_MS` (ogni lotto può includere la chiamata di riparazione): 6 minuti con i default (2 × 2 × 90 s), 8 con il massimo ammesso di `LLM_TIMEOUT_MS` (120 s); `maxDuration` copre quest'ultimo con un margine per le scritture. Swap e *Ripeti* fanno al più un giro (2 × `LLM_TIMEOUT_MS`) e hanno `maxDuration = 250`. Sul Raspberry (Next standalone) `maxDuration` non è applicato: conta solo per l'opzione Vercel. Il caso peggiore è tollerabile perché, se la connessione cade (`network_error`), la UI rilegge la schermata e adotta il piano che il server ha comunque salvato.
 
 ---
 

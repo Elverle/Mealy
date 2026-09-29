@@ -33,10 +33,10 @@ afterEach(() => {
 });
 
 describe('POST /api/plans/:id/slots/:slotId/swap', () => {
-  it('exports runtime, dynamic and maxDuration 200', () => {
+  it('exports runtime, dynamic and maxDuration 250', () => {
     expect(swapRoute.runtime).toBe('nodejs');
     expect(swapRoute.dynamic).toBe('force-dynamic');
-    expect(swapRoute.maxDuration).toBe(200);
+    expect(swapRoute.maxDuration).toBe(250);
   });
 
   it('returns 200 with the service result', async () => {
@@ -105,6 +105,17 @@ describe('POST /api/plans/:id/slots/:slotId/swap', () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
       error: { code: 'slot_locked', message: PLAN_ERROR_HTTP.slot_locked.message },
+    });
+  });
+
+  it('maps PlanError(slot_past) to 409 with the table message', async () => {
+    vi.mocked(swapSlot).mockRejectedValueOnce(new PlanError('slot_past'));
+
+    const response = await swapRoute.POST(post(), params(PLAN_ID, SLOT_ID));
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: { code: 'slot_past', message: 'Questo pasto è già passato.' },
     });
   });
 

@@ -1,7 +1,7 @@
 // Solo lato server: importa il DB e il modulo recipes. I componenti client usano client.ts, format.ts ed errors.ts.
 
 import { db, type DbExecutor } from '@/lib/db';
-import { loadHousehold } from '@/lib/db/repositories/household-repo';
+import { getHouseholdById, loadHousehold } from '@/lib/db/repositories/household-repo';
 import {
   acquirePlanLock,
   activateDraftPlan,
@@ -265,6 +265,16 @@ async function resolvePlanContext(options: PlanServiceOptions): Promise<PlanCont
   };
 }
 
+/** Household e preferenze riletti con `executor`: dentro il lock vedono le impostazioni salvate nel frattempo. */
+async function loadConstraints(
+  householdId: string,
+  executor: DbExecutor
+): Promise<{ household: Household; prefs: IngredientPreferenceSets }> {
+  const household = await getHouseholdById(householdId, executor);
+  if (!household) throw new Error(`Household ${householdId} non trovato`);
+  return { household, prefs: await loadIngredientPreferences(householdId, executor) };
+}
+
 interface BuildTargetPlanOptions {
   /** Chiave slot `${day}|${meal}` -> id ricetta da assegnare in anticipo (validata qui). */
   preassigned?: ReadonlyMap<string, string>;
@@ -373,8 +383,9 @@ function needsGeneration(selection: Selection, mode: BuildTargetPlanOptions['gen
  *
  * 1. Fuori dalla transazione: selezione e generazione LLM (a lotti, in parallelo) servono
  *    solo a decidere se e quanto generare.
- * 2. Dentro la transazione, dopo il lock: si rilegge piano e libreria e si rifà la
- *    selezione sullo stato riletto, poi si scrive. Se resta uno slot vuoto, rollback.
+ * 2. Dentro la transazione, dopo il lock: si rileggono piano, libreria e impostazioni
+ *    (salvate magari durante la generazione) e si rifà la selezione sullo stato riletto,
+ *    poi si scrive. Se resta uno slot vuoto, rollback.
  */
 async function buildTargetPlan(
   ctx: PlanContext,
@@ -440,7 +451,17 @@ async function buildTargetPlan(
     const current = await findPlanByWeek(tx, household.id, target.week_start);
     assertTargetPlanWritable(current);
 
-    const finalSelection = computeSelection(ctx, current, await loadLibrary(tx), build.preassigned);
+    // `generated_at` (now() della transazione) coprirà solo le impostazioni lette qui.
+    const constraints = await loadConstraints(household.id, tx);
+    const finalCtx: PlanContext = { ...ctx, ...constraints };
+    const persons = constraints.household.persons;
+
+    const finalSelection = computeSelection(
+      finalCtx,
+      current,
+      await loadLibrary(tx),
+      build.preassigned
+    );
     if (hasGap(finalSelection)) throw llmError ?? new PlanError('insufficient_recipes');
 
     let planId: string;
@@ -451,6 +472,8 @@ async function buildTargetPlan(
     } else {
       planId = current.id;
       await touchPlanGeneratedAt(tx, current.id);
+      // Le liste sono legate al piano (`/lista?piano=`): anche quella di una bozza va rifatta.
+      await markShoppingListStale(tx, current.id);
       const keptIds = new Set(finalSelection.kept.map((slot) => slot.id));
       await deleteSlots(
         tx,
@@ -459,7 +482,7 @@ async function buildTargetPlan(
       await updateSlotsServings(
         tx,
         finalSelection.kept.filter((slot) => slot.day >= target.first_day).map((slot) => slot.id),
-        household.persons
+        persons
       );
     }
 
@@ -470,7 +493,7 @@ async function buildTargetPlan(
         day: slot.day,
         meal: slot.meal,
         recipe_id: recipeId,
-        servings: household.persons,
+        servings: persons,
         locked: false,
       }))
     );
@@ -569,11 +592,15 @@ export async function setSlotLock(
 // Swap di uno slot
 // ============================================================================
 
-/** Slot sostituibile del piano, oppure l'errore di dominio corrispondente. */
-function findSwappableSlot(plan: PlanWithSlots, slotId: string): PlanSlotRecord {
+/**
+ * Slot sostituibile del piano, oppure l'errore di dominio corrispondente. I giorni passati
+ * sono immutabili come nella rigenerazione (bloccarli resta consentito).
+ */
+function findSwappableSlot(plan: PlanWithSlots, slotId: string, today: string): PlanSlotRecord {
   const slot = plan.slots.find((candidate) => candidate.id === slotId);
   if (!slot) throw new PlanError('slot_not_found');
   if (slot.locked) throw new PlanError('slot_locked');
+  if (slot.day < today) throw new PlanError('slot_past');
   return slot;
 }
 
@@ -590,17 +617,17 @@ export async function swapSlot(
   options: PlanServiceOptions = {}
 ): Promise<PlanMutationResult> {
   const household = await loadHousehold(options.householdId);
-  const { now, currentWeekStart } = resolveClock(options);
+  const { now, today, currentWeekStart } = resolveClock(options);
   const rng = options.rng ?? createRng(randomSeed());
   const config = options.config ?? PLANNER_CONFIG;
   const generate = options.generate ?? ((input) => generateAndStoreRecipes(input));
-  const prefs = await loadIngredientPreferences(household.id);
 
-  /** Ricetta scelta per lo slot dato piano e libreria letti nello stesso istante. */
+  /** Ricetta scelta per lo slot dato piano, libreria e impostazioni letti nello stesso istante. */
   const pickRecipe = (
     plan: PlanWithSlots,
     slot: PlanSlotRecord,
-    library: readonly RecipeWithDetails[]
+    library: readonly RecipeWithDetails[],
+    { household, prefs }: Awaited<ReturnType<typeof loadConstraints>>
   ): string | null => {
     const exclude = new Set<string>(request.exclude_recipe_ids);
     for (const planSlot of plan.slots) {
@@ -623,13 +650,14 @@ export async function swapSlot(
 
   // Fase 1 (fuori dalla transazione): decide solo se generare.
   const plan = await loadOpenOwnedPlan(db, planId, household, currentWeekStart);
-  const slot = findSwappableSlot(plan, slotId);
+  const slot = findSwappableSlot(plan, slotId, today);
 
   let rounds = 0;
   let created = 0;
   let llmError: LlmError | null = null;
 
-  if (pickRecipe(plan, slot, await loadLibrary(db)) === null) {
+  const initialConstraints = await loadConstraints(household.id, db);
+  if (pickRecipe(plan, slot, await loadLibrary(db), initialConstraints) === null) {
     if (config.maxGenerationRoundsSwap > 0) {
       rounds = 1;
       try {
@@ -646,19 +674,21 @@ export async function swapSlot(
     }
     // Uscita rapida: niente da scrivere se non c'è alternativa nemmeno dopo la generazione.
     const refreshed = await loadOpenOwnedPlan(db, planId, household, currentWeekStart);
-    const refreshedSlot = findSwappableSlot(refreshed, slotId);
-    if (pickRecipe(refreshed, refreshedSlot, await loadLibrary(db)) === null) {
+    const refreshedSlot = findSwappableSlot(refreshed, slotId, today);
+    const constraints = await loadConstraints(household.id, db);
+    if (pickRecipe(refreshed, refreshedSlot, await loadLibrary(db), constraints) === null) {
       throw llmError ?? new PlanError('no_alternatives');
     }
   }
 
-  // Fase 2 (sotto lock): rilegge tutto, rifà la scelta e scrive.
-  const updated = await db.transaction(async (tx) => {
+  // Fase 2 (sotto lock): rilegge tutto (impostazioni comprese), rifà la scelta e scrive.
+  const { updated, freshHousehold } = await db.transaction(async (tx) => {
     await acquirePlanLock(tx, household.id);
     const current = await loadOpenOwnedPlan(tx, planId, household, currentWeekStart);
-    const currentSlot = findSwappableSlot(current, slotId);
+    const currentSlot = findSwappableSlot(current, slotId, today);
 
-    const recipeId = pickRecipe(current, currentSlot, await loadLibrary(tx));
+    const constraints = await loadConstraints(household.id, tx);
+    const recipeId = pickRecipe(current, currentSlot, await loadLibrary(tx), constraints);
     if (recipeId === null) throw llmError ?? new PlanError('no_alternatives');
 
     await updateSlotRecipe(tx, slotId, recipeId);
@@ -669,11 +699,11 @@ export async function swapSlot(
 
     const fresh = await getPlanById(tx, planId);
     if (!fresh) throw new PlanError('plan_not_found');
-    return fresh;
+    return { updated: fresh, freshHousehold: constraints.household };
   });
 
   return {
-    plan: toPlanView(updated, household),
+    plan: toPlanView(updated, freshHousehold),
     generation: { rounds, created, failed: llmError !== null },
   };
 }

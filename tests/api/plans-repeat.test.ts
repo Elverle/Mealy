@@ -31,10 +31,10 @@ afterEach(() => {
 });
 
 describe('POST /api/plans/:id/repeat', () => {
-  it('exports runtime, dynamic and maxDuration 200', () => {
+  it('exports runtime, dynamic and maxDuration 250', () => {
     expect(repeatRoute.runtime).toBe('nodejs');
     expect(repeatRoute.dynamic).toBe('force-dynamic');
-    expect(repeatRoute.maxDuration).toBe(200);
+    expect(repeatRoute.maxDuration).toBe(250);
   });
 
   it('returns 200 with the service result and ignores the body', async () => {
