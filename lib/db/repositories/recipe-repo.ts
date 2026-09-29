@@ -1,5 +1,5 @@
 import { and, arrayContains, desc, eq, sql } from 'drizzle-orm';
-import { db, type Database } from '../index';
+import { db, type DbExecutor } from '../index';
 import {
   recipe_ingredients,
   recipe_prefs,
@@ -21,8 +21,7 @@ import {
   Unit,
 } from '@/lib/domain/types';
 
-type DbTransaction = Parameters<Parameters<Database['transaction']>[0]>[0];
-export type DbExecutor = Database | DbTransaction;
+export type { DbExecutor } from '../index';
 
 export const TITLE_SIMILARITY_THRESHOLD = 0.6;
 
@@ -68,7 +67,10 @@ export type RecipeWithDetails = Omit<Recipe, 'ingredients' | 'prefs'> & {
   prefs: RecipePref | null;
 };
 
-function formatRecipe(row: Record<string, unknown>): RecipeWithDetails {
+/**
+ * Converte una riga di `db.query.recipes` con `ingredients` e `prefs` in `RecipeWithDetails`.
+ */
+export function toRecipeWithDetails(row: Record<string, unknown>): RecipeWithDetails {
   const rowIngredients = Array.isArray(row.ingredients) ? row.ingredients : [];
   const ingredients: Ingredient[] = rowIngredients.map((ing) => {
     const item = typeof ing === 'object' && ing !== null ? (ing as Record<string, unknown>) : {};
@@ -160,7 +162,7 @@ export async function insertRecipeWith(
     })
     .returning();
 
-  return formatRecipe({
+  return toRecipeWithDetails({
     ...insertedRecipe,
     ingredients: insertedIngredients,
     prefs: insertedPref,
@@ -269,7 +271,7 @@ export async function getRecipeById(id: string): Promise<RecipeWithDetails | nul
   });
 
   if (!result) return null;
-  return formatRecipe(result);
+  return toRecipeWithDetails(result);
 }
 
 /**
@@ -285,7 +287,7 @@ export async function getRecipeBySlug(slug: string): Promise<RecipeWithDetails |
   });
 
   if (!result) return null;
-  return formatRecipe(result);
+  return toRecipeWithDetails(result);
 }
 
 /**
@@ -301,12 +303,14 @@ export async function deleteRecipe(id: string): Promise<boolean> {
 }
 
 /**
- * List all recipes with ingredients and preferences, optionally filtered by household_id.
+ * List all recipes with ingredients and preferences using the provided executor
+ * (db or transaction), optionally filtered by household_id.
  */
-export async function listRecipes(filter?: {
-  household_id?: string;
-}): Promise<RecipeWithDetails[]> {
-  const results = await db.query.recipes.findMany({
+export async function listRecipesWith(
+  executor: DbExecutor,
+  filter?: { household_id?: string }
+): Promise<RecipeWithDetails[]> {
+  const results = await executor.query.recipes.findMany({
     where: filter?.household_id ? eq(recipes.household_id, filter.household_id) : undefined,
     with: {
       ingredients: true,
@@ -315,5 +319,14 @@ export async function listRecipes(filter?: {
     orderBy: (rec, { desc }) => [desc(rec.created_at)],
   });
 
-  return results.map(formatRecipe);
+  return results.map(toRecipeWithDetails);
+}
+
+/**
+ * List all recipes with ingredients and preferences, optionally filtered by household_id.
+ */
+export async function listRecipes(filter?: {
+  household_id?: string;
+}): Promise<RecipeWithDetails[]> {
+  return listRecipesWith(db, filter);
 }

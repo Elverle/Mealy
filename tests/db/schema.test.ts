@@ -300,6 +300,11 @@ describe('WP2 Drizzle Schema & Table Definitions', () => {
     expect(cols).toContain('note');
   });
 
+  it('has generation tracking columns on meal_plans and shopping_lists', () => {
+    expect(Object.keys(dbSchema.meal_plans)).toContain('generated_at');
+    expect(Object.keys(dbSchema.shopping_lists)).toContain('needs_regeneration');
+  });
+
   it('has correct columns on recipe_prefs table', () => {
     const cols = Object.keys(dbSchema.recipe_prefs);
     expect(cols).toContain('recipe_id');

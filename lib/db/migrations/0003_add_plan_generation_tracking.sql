@@ -1,0 +1,2 @@
+ALTER TABLE "meal_plans" ADD COLUMN "generated_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
+ALTER TABLE "shopping_lists" ADD COLUMN "needs_regeneration" boolean DEFAULT false NOT NULL;

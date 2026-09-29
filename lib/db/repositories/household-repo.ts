@@ -81,7 +81,7 @@ type HouseholdUpdateValues = Partial<Omit<typeof households.$inferInsert, 'updat
  *
  * Invariante: `updated_at` rappresenta l'ultimo cambio dei vincoli o
  * dell'onboarding ed è il riferimento del contratto U1 (un piano è superato
- * se `updated_at > meal_plans.created_at`, entrambi scritti dall'orologio
+ * se `updated_at > meal_plans.generated_at`, entrambi scritti dall'orologio
  * del DB con `now()`). Non chiamare questa funzione per scritture che non
  * cambiano i vincoli: chi la chiama deve verificare a monte che ci sia
  * davvero un cambiamento (v. `lib/settings/service.ts`).

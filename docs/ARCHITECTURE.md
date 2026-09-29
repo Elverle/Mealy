@@ -131,7 +131,8 @@ recipe_prefs               -- 1:1 con recipes in v1; PK (recipe_id) → (recipe_
 
 meal_plans
   id, household_id FK, week_start date, status ('draft','active','archived'),
-  created_at
+  created_at,
+  generated_at timestamptz     -- ultima (ri)generazione; piano superato se households.updated_at > generated_at
   unique (household_id, week_start)
 
 plan_slots
@@ -141,7 +142,8 @@ plan_slots
   unique (plan_id, day, meal)
 
 shopping_lists             -- 1:1 con meal_plans
-  id, plan_id FK unique, generated_at
+  id, plan_id FK unique, generated_at,
+  needs_regeneration bool default false  -- impostato dallo swap (F4), azzerato alla rigenerazione della lista (F6)
 
 shopping_items
   id, list_id FK,
