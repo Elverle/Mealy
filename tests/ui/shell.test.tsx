@@ -15,11 +15,12 @@ import { ChipFilter } from "@/components/filters/chip-filter";
 import { EmptyState } from "@/components/feedback/empty-state";
 
 // Pages
-import Home from "@/app/(app)/page";
+import { PlanScreen } from "@/components/plan/plan-screen";
 import ShoppingListPage from "@/app/(app)/lista/page";
 import LibraryPage from "@/app/(app)/libreria/page";
 import { SettingsEditor } from "@/components/settings/settings-editor";
-import { DEFAULT_HOUSEHOLD, type SettingsView } from "@/lib/domain/types";
+import { DEFAULT_HOUSEHOLD, type PlanScreenView, type SettingsView } from "@/lib/domain/types";
+import { fixtureRecipesAsDomain } from "@/fixtures";
 
 // Mock next/navigation for BottomNav
 const mockPathname = vi.fn(() => "/");
@@ -31,6 +32,40 @@ vi.mock("next/navigation", () => ({
     prefetch: vi.fn(),
   }),
 }));
+
+const PLAN_FIXTURE_RECIPES = fixtureRecipesAsDomain().slice(0, 2);
+const PLAN_SCREEN_FIXTURE: PlanScreenView = {
+  today: "2026-09-30",
+  current_week_start: "2026-09-28",
+  target: { week_start: "2026-09-28", first_day: "2026-09-30", last_day: "2026-10-04" },
+  view: {
+    week: { week_start: "2026-09-28", first_day: "2026-09-30", last_day: "2026-10-04" },
+    plan: {
+      id: "11111111-1111-4111-8111-111111111111",
+      week_start: "2026-09-28",
+      status: "draft",
+      created_at: "2026-09-29T10:00:00.000Z",
+      generated_at: "2026-09-29T10:00:00.000Z",
+      superseded: false,
+      slots: PLAN_FIXTURE_RECIPES.map((recipe, index) => ({
+        id: `22222222-2222-4222-8222-22222222222${index}`,
+        day: "2026-09-30",
+        meal: index === 0 ? ("pranzo" as const) : ("cena" as const),
+        servings: 2,
+        locked: false,
+        recipe,
+      })),
+      shopping_list: { exists: false, needs_regeneration: false },
+    },
+    action: "regenerate",
+    editable: true,
+    can_repeat: false,
+  },
+  prev_week_start: null,
+  next_week_start: null,
+  target_plan_status: "draft",
+  current_plan_id: null,
+};
 
 const SETTINGS_FIXTURE: SettingsView = {
   persons: DEFAULT_HOUSEHOLD.persons,
@@ -384,11 +419,11 @@ describe("EmptyState", () => {
 
 describe("Pages Integration", () => {
   it("renders Home (Piano) page with week title and meals", () => {
-    render(<Home />);
+    render(<PlanScreen initialScreen={PLAN_SCREEN_FIXTURE} />);
     expect(screen.getByRole("heading", { level: 1, name: "Mealy" })).toBeInTheDocument();
     expect(screen.getByText("Cosa mangio oggi?")).toBeInTheDocument();
     expect(screen.getByText("Piano Settimanale")).toBeInTheDocument();
-    expect(screen.getByText("Pasta al pesto genovese")).toBeInTheDocument();
+    expect(screen.getByText(PLAN_FIXTURE_RECIPES[0].title)).toBeInTheDocument();
   });
 
   it("renders Shopping list page with sections and progress", () => {

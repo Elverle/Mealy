@@ -47,7 +47,7 @@ Spaziatura su griglia 4 px; raggio 12 px per le card, 999 px per chip/badge; omb
 Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Impostazioni.
 
 ### 4.1 Piano (home)
-- Header: settimana corrente + CTA *Genera piano* (o *Rigenera*)
+- Header: navigatore ‹ settimana › (storico in sola lettura) + CTA *Genera piano* / *Rigenera* sulla settimana da pianificare
 - Lista verticale di card-pasto raggruppate per giorno (pranzo/cena secondo impostazioni)
 - Slot con lucchetto (long-press) → sopravvive alla rigenerazione
 - Footer sticky: *Crea lista della spesa* quando il piano è confermato
