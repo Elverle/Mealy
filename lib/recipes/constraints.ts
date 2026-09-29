@@ -31,6 +31,9 @@ export function buildConstraints(
  * Checks a generated recipe against given constraints and returns an array of violation descriptions.
  * An empty array indicates the recipe meets all constraints.
  * Violations are returned in order: meal_type, diet_tags, appliances, ingredient_dislikes.
+ *
+ * Stesse regole di `exclusionReason` in `lib/domain/planner.ts` (applicate alla libreria):
+ * se cambi una, controlla l'altra.
  */
 export function findConstraintViolations(
   recipe: GeneratedRecipe,

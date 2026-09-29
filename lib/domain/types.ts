@@ -376,7 +376,7 @@ export const UpdateSettingsRequestSchema = HouseholdSettingsSchema.extend({
 export type UpdateSettingsRequest = z.input<typeof UpdateSettingsRequestSchema>;
 
 // Risposta di GET /api/settings. updated_at (ISO) è il riferimento per F4:
-// un piano è superato dai vincoli se updated_at > meal_plans.created_at.
+// un piano è superato dai vincoli se updated_at > meal_plans.generated_at.
 export const SettingsViewSchema = z.object({
   persons: z.number().int(),
   meals: z.array(MealTypeSchema),
@@ -394,3 +394,109 @@ export const SaveSettingsResultSchema = z.object({
   changed: z.boolean(),
 });
 export type SaveSettingsResult = z.infer<typeof SaveSettingsResultSchema>;
+
+// ============================================================================
+// Meal Plans (Feature 4)
+// ============================================================================
+
+export const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+// Settimana su cui lavorano "Genera piano" / "Rigenera" (v. lib/domain/week.ts).
+export const PlanWeekSchema = z.object({
+  week_start: IsoDateSchema, // lunedì
+  first_day: IsoDateSchema, // primo giorno pianificabile (>= week_start)
+  last_day: IsoDateSchema, // domenica = week_start + 6
+});
+export type PlanWeek = z.infer<typeof PlanWeekSchema>;
+
+export const PlanSlotViewSchema = z.object({
+  id: z.string().uuid(),
+  day: IsoDateSchema,
+  meal: MealTypeSchema,
+  servings: z.number().int().min(1),
+  locked: z.boolean(),
+  recipe: RecipeSchema.nullable(), // ricetta completa (ingredienti + prefs); null se eliminata
+});
+export type PlanSlotView = z.infer<typeof PlanSlotViewSchema>;
+
+export const PlanShoppingListStateSchema = z.object({
+  exists: z.boolean(),
+  needs_regeneration: z.boolean(),
+});
+export type PlanShoppingListState = z.infer<typeof PlanShoppingListStateSchema>;
+
+export const PlanViewSchema = z.object({
+  id: z.string().uuid(),
+  week_start: IsoDateSchema,
+  status: PlanStatusSchema,
+  created_at: z.string().datetime(),
+  generated_at: z.string().datetime(),
+  superseded: z.boolean(), // households.updated_at > generated_at
+  slots: z.array(PlanSlotViewSchema), // ordinati per giorno, poi pranzo → cena
+  shopping_list: PlanShoppingListStateSchema,
+});
+export type PlanView = z.infer<typeof PlanViewSchema>;
+
+export const PLAN_ACTION_VALUES = ['generate', 'regenerate', 'none'] as const;
+export const PlanActionSchema = z.enum(PLAN_ACTION_VALUES);
+export type PlanAction = z.infer<typeof PlanActionSchema>;
+
+// Una settimana mostrata nella pagina Piano (navigatore di settimane).
+export const PlanWeekViewSchema = z.object({
+  week: PlanWeekSchema, // per la settimana obiettivo first_day = primo giorno pianificabile; per le altre = week_start
+  plan: PlanViewSchema.nullable(),
+  action: PlanActionSchema, // solo la settimana obiettivo può avere generate/regenerate; le altre 'none'
+  editable: z.boolean(), // plan presente e non chiuso
+  can_repeat: z.boolean(), // plan con almeno una ricetta, settimana ≠ obiettivo, obiettivo non confermato
+});
+export type PlanWeekView = z.infer<typeof PlanWeekViewSchema>;
+
+// Risposta di GET /api/plans/current e dato iniziale della pagina Piano.
+export const PlanScreenViewSchema = z.object({
+  today: IsoDateSchema,
+  current_week_start: IsoDateSchema,
+  target: PlanWeekSchema, // settimana di Genera/Rigenera/Ripeti
+  view: PlanWeekViewSchema, // settimana mostrata
+  prev_week_start: IsoDateSchema.nullable(),
+  next_week_start: IsoDateSchema.nullable(),
+});
+export type PlanScreenView = z.infer<typeof PlanScreenViewSchema>;
+
+export const PlanGenerationSummarySchema = z.object({
+  rounds: z.number().int().min(0), // giri di generazione LLM eseguiti
+  created: z.number().int().min(0), // ricette nuove salvate in libreria
+  failed: z.boolean(), // true se almeno una chiamata LLM è fallita
+});
+export type PlanGenerationSummary = z.infer<typeof PlanGenerationSummarySchema>;
+
+// Body di POST /api/plans (la settimana la calcola il server)
+export const GeneratePlanRequestSchema = z.object({}).strict();
+// Risposta di POST /api/plans
+export const GeneratePlanResultSchema = z.object({
+  screen: PlanScreenViewSchema,
+  generation: PlanGenerationSummarySchema,
+});
+export type GeneratePlanResult = z.infer<typeof GeneratePlanResultSchema>;
+
+// Risposta di POST /api/plans/:id/confirm e PATCH /api/plans/:id/slots/:slotId
+export const PlanResultSchema = z.object({ plan: PlanViewSchema });
+export type PlanResult = z.infer<typeof PlanResultSchema>;
+
+// Body di POST /api/plans/:id/slots/:slotId/swap
+export const SWAP_EXCLUDE_MAX = 50;
+export const SwapSlotRequestSchema = z
+  .object({
+    exclude_recipe_ids: z.array(z.string().uuid()).max(SWAP_EXCLUDE_MAX).default([]),
+  })
+  .strict();
+export type SwapSlotRequest = z.infer<typeof SwapSlotRequestSchema>;
+// Risposta dello swap
+export const PlanMutationResultSchema = z.object({
+  plan: PlanViewSchema,
+  generation: PlanGenerationSummarySchema,
+});
+export type PlanMutationResult = z.infer<typeof PlanMutationResultSchema>;
+
+// Body di PATCH /api/plans/:id/slots/:slotId
+export const UpdateSlotRequestSchema = z.object({ locked: z.boolean() }).strict();
+export type UpdateSlotRequest = z.infer<typeof UpdateSlotRequestSchema>;
