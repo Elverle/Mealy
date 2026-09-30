@@ -2,7 +2,7 @@
 title: Chip Filtro a Pillola (chip-filter)
 type: entity
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-28
 tags: [ui, components, filters, chip-filter, pills, accessibility]
 ---
 
@@ -55,4 +55,5 @@ import { ChipFilter } from '@/components/filters/chip-filter';
 
 - [[design-system-and-tokens]] — Palette `basil`, `stone` e principi di tocco
 - [[meal-card]] — Tag stile associati ai filtri
+- [[settings-fields]] — Riuso nei 4 campi a scelta multipla di wizard e Impostazioni (Feature 3)
 - [[e0-fondamenta]] — Panoramica della Feature 1

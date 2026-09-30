@@ -1,0 +1,382 @@
+{
+  "recipes": [
+    {
+      "title": "Couscous di verdure speziato con ceci croccanti",
+      "description": "",
+      "meal_types": ["cena"],
+      "tags": ["salutare", "proteico", "economico", "piatto-unico", "veloce"],
+      "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
+      "appliances_required": ["fornelli", "friggitrice-ad-aria"],
+      "servings_base": 2,
+      "prep_minutes": 25,
+      "kcal_est": 410,
+      "steps": [
+        "Portare a bollore l'acqua in una pentola sui fornelli.",
+        "Versare il couscous nell'acqua bollente, coprire e lasciare riposare per 5 minuti.",
+        "Sgranare il couscous con una forchetta e condire con un filo d'olio, succo di limone, sale e pepe.",
+        "In una ciotola, mescolare i ceci scolati con olio, paprika affumicata, curcuma, sale e pepe.",
+        "Trasferire i ceci nella friggitrice ad aria e cuocere a 200°C per 12-15 minuti, scuotendo a metà cottura.",
+        "Unire i ceci croccanti al couscous, aggiungere il prezzemolo tritato e mescolare delicatamente.",
+        "Servire subito."
+      ],
+      "ingredients": [
+        {
+          "canonical_name": "couscous",
+          "display_name": "couscous",
+          "qty": 120,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "acqua",
+          "display_name": "acqua",
+          "qty": 240,
+          "unit": "ml",
+          "category": "bevande",
+          "note": null
+        },
+        {
+          "canonical_name": "ceci",
+          "display_name": "ceci scolati",
+          "qty": 240,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine d'oliva",
+          "display_name": "olio extravergine d'oliva",
+          "qty": 20,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "paprika affumicata",
+          "display_name": "paprika affumicata",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "curcuma",
+          "display_name": "curcuma in polvere",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe",
+          "display_name": "pepe",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "prezzemolo",
+          "display_name": "prezzemolo tritato",
+          "qty": null,
+          "unit": "qb",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "succo di limone",
+          "display_name": "succo di limone",
+          "qty": 15,
+          "unit": "ml",
+          "category": "bevande",
+          "note": null
+        }
+      ]
+    },
+    {
+      "title": "Spiedini di tofu e verdure alla piastra con salsa di soia e zenzero",
+      "description": "",
+      "meal_types": ["cena"],
+      "tags": ["salutare", "proteico", "economico", "piatto-unico", "veloce"],
+      "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
+      "appliances_required": ["fornelli", "friggitrice-ad-aria"],
+      "servings_base": 2,
+      "prep_minutes": 25,
+      "kcal_est": 170,
+      "steps": [
+        "In una ciotola, mescolare salsa di soia, succo di limone, olio di sesamo, zenzero grattugiato e aglio tritato.",
+        "Aggiungere il tofu tagliato a cubetti e lasciare marinare per 10 minuti.",
+        "Trasferire il tofu marinato nella friggitrice ad aria e cuocere a 200°C per 12-15 minuti, girando a metà cottura.",
+        "Nel frattempo, infilzare zucchine, peperone e cipolla sugli spiedini di legno.",
+        "Scaldare una padella antiaderente sui fornelli con un filo d'olio e cuocere gli spiedini per 8-10 minuti, girando frequentemente, finché le verdure sono tenere e leggermente abbrustolite.",
+        "Servire gli spiedini di verdure con il tofu croccante e cospargere di semi di sesamo tostati."
+      ],
+      "ingredients": [
+        {
+          "canonical_name": "tofu",
+          "display_name": "tofu compatto",
+          "qty": 200,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "zucchina",
+          "display_name": "zucchine a rondelle",
+          "qty": 200,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "peperone",
+          "display_name": "peperone rosso a pezzi",
+          "qty": 150,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "cipolla rossa",
+          "display_name": "cipolla rossa a spicchi",
+          "qty": 80,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio di sesamo",
+          "display_name": "olio di sesamo",
+          "qty": 10,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "salsa di soia",
+          "display_name": "salsa di soia",
+          "qty": 30,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "succo di limone",
+          "display_name": "succo di limone",
+          "qty": 10,
+          "unit": "ml",
+          "category": "bevande",
+          "note": null
+        },
+        {
+          "canonical_name": "zenzero fresco",
+          "display_name": "zenzero fresco grattugiato",
+          "qty": 5,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "aglio tritato",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe",
+          "display_name": "pepe",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "semi di sesamo",
+          "display_name": "semi di sesamo tostati",
+          "qty": 5,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "title": "Hamburger di lenticchie rosse con patate dolci friggitrice ad aria",
+      "description": "",
+      "meal_types": ["cena"],
+      "tags": ["salutare", "proteico", "comfort-food", "economico", "piatto-unico"],
+      "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
+      "appliances_required": ["fornelli", "friggitrice-ad-aria"],
+      "servings_base": 2,
+      "prep_minutes": 35,
+      "kcal_est": 720,
+      "steps": [
+        "Sciacquare le lenticchie rosse e cuocerle in acqua sui fornelli per 12-15 minuti, finché sono tenere ma non sfatte.",
+        "Scolare le lenticchie e schiacciarle grossolanamente con una forchetta in una ciotola.",
+        "Aggiungere cipolla tritata, carota grattugiata, aglio, olio, farina di ceci, paprika, cumino, sale e pepe; mescolare fino a ottenere un composto omogeneo.",
+        "Formare due hamburger dallo spessore di circa 1,5 cm.",
+        "Trasferire gli hamburger nella friggitrice ad aria e cuocere a 180°C per 12-15 minuti, girando a metà cottura.",
+        "Nel frattempo, condire i bastoncini di patata dolce con olio di semi, sale e pepe e disporli nella friggitrice ad aria; cuocere a 200°C per 18-20 minuti, scuotendo a metà cottura.",
+        "Tostare i panini per hamburger sui fornelli in una padella antiaderente per 1-2 minuti per lato.",
+        "Assemblare i burger spalmandoli con ketchup vegano, aggiungendo l'hamburger di lenticchie, foglie di lattuga e fette di pomodoro; servire con le patate dolci accanto."
+      ],
+      "ingredients": [
+        {
+          "canonical_name": "lenticchie rosse",
+          "display_name": "lenticchie rosse",
+          "qty": 180,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "acqua",
+          "display_name": "acqua",
+          "qty": 360,
+          "unit": "ml",
+          "category": "bevande",
+          "note": null
+        },
+        {
+          "canonical_name": "cipolla",
+          "display_name": "cipolla tritata",
+          "qty": 60,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "carota",
+          "display_name": "carota grattugiata",
+          "qty": 60,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "aglio tritato",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine d'oliva",
+          "display_name": "olio extravergine d'oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "farina di ceci",
+          "display_name": "farina di ceci",
+          "qty": 30,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "paprika",
+          "display_name": "paprika dolce",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "cumino",
+          "display_name": "cumino in polvere",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe",
+          "display_name": "pepe",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "patata dolce",
+          "display_name": "patata dolce a bastoncini",
+          "qty": 300,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio di semi",
+          "display_name": "olio di semi",
+          "qty": 10,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "panino per hamburger",
+          "display_name": "panino per hamburger",
+          "qty": 2,
+          "unit": "pz",
+          "category": "pane",
+          "note": null
+        },
+        {
+          "canonical_name": "lattuga",
+          "display_name": "foglie di lattuga",
+          "qty": 2,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "pomodoro",
+          "display_name": "pomodoro a fette",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "ketchup vegano",
+          "display_name": "ketchup vegano",
+          "qty": 20,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+---
+title: Controlli Condivisi delle Impostazioni (settings-fields)
+type: entity
+created: 2026-09-28
+updated: 2026-09-28
+tags: [ui, components, settings, forms, chip-filter, stepper, accessibility, feature-3]
+---
+
+## File e Responsabilità
+
+- **Percorso file**: `components/settings/settings-fields.tsx` (`"use client"`)
+- **Scopo**: fornire i controlli dei 5 campi delle impostazioni household, riusati **identici** dal wizard di primo avvio ([[onboarding-wizard]]) e dal form di modifica ([[settings-editor]]), come richiesto da `DESIGN §4.5` ("stesso componente per onboarding e modifica"). Titoli, descrizioni e regole di validità vivono solo qui: wizard e form non li duplicano.
+- **Dipendenze**: `ChipFilter` ([[chip-filter]]) per le scelte multiple, `Button` di `components/ui/button.tsx` per lo stepper, `toggleInOrder` da `lib/settings/normalize.ts` ([[settings-service]]), enum ed etichette da `lib/domain/types.ts` ([[domain-types]]).
+
+## Superficie Esportata
+
+```ts
+export type SettingsFieldKey = 'persons' | 'meals' | 'meal_style_tags' | 'diet_tags' | 'appliances';
+export const SETTINGS_FIELD_ORDER: readonly SettingsFieldKey[];
+export const SETTINGS_FIELD_COPY: Record<SettingsFieldKey, { title: string; description: string }>;
+export function isSettingsFieldValid(key: SettingsFieldKey, settings: HouseholdSettings): boolean;
+
+export function PersonsField(props: FieldProps<number>): React.JSX.Element;
+export function MealsField(props: FieldProps<MealType[]>): React.JSX.Element;
+export function MealStyleField(props: FieldProps<MealStyleTag[]>): React.JSX.Element;
+export function DietField(props: FieldProps<DietFlag[]>): React.JSX.Element;
+export function AppliancesField(props: FieldProps<Appliance[]>): React.JSX.Element;
+export function SettingsField(props: {
+  fieldKey: SettingsFieldKey;
+  settings: HouseholdSettings;
+  onChange: (next: HouseholdSettings) => void;
+  headingLevel?: 'h1' | 'h2';
+  headingRef?: React.Ref<HTMLHeadingElement>;
+}): React.JSX.Element;
+```
+
+`FieldProps<T>` comprende `value`, `onChange`, `headingLevel` (default `'h2'`) e `headingRef` (usato dal wizard per spostare il focus sull'heading a ogni cambio passo).
+
+## Campi, Copy e Mappatura sul Dominio
+
+L'ordine di `SETTINGS_FIELD_ORDER` è anche l'ordine dei passi del wizard e delle card del form:
+
+| Chiave (colonna `households`) | Titolo | Descrizione | Controllo | Validità |
+|---|---|---|---|---|
+| `persons` | Persone nel nucleo | Serve a calcolare le porzioni e le quantità della spesa. | Stepper −/+ | intero in `[PERSONS_MIN, PERSONS_MAX]` (1..12) |
+| `meals` | Pasti da pianificare | Quali pasti vuoi trovare nel piano settimanale? | Chip `MEAL_TYPE_LABELS` | almeno 1 valore |
+| `meal_style_tags` | Tipo di pasti | Che cucina preferisci? La useremo come preferenza, non come obbligo. | Chip `MEAL_STYLE_TAG_LABELS` | sempre valido |
+| `diet_tags` | Esigenze alimentari | Le ricette proposte le rispetteranno sempre. | Chip `DIET_FLAG_LABELS` | sempre valido |
+| `appliances` | Elettrodomestici | Proporremo solo ricette che puoi preparare con questi. | Chip `APPLIANCE_LABELS` | sempre valido |
+
+`isSettingsFieldValid` è una validità "leggera" per abilitare i pulsanti Avanti/Salva; la validazione autoritativa resta `HouseholdSettingsSchema` lato server.
+
+## Struttura e Accessibilità
+
+- Ogni campo è una `<section aria-labelledby>` con heading (`h1` con `font-display text-2xl` nel wizard, `h2` con `font-display text-base` nel form), `tabIndex={-1}` per ricevere il focus programmatico, e una descrizione `text-xs text-stone`. Gli id derivano da `React.useId()`.
+- **`PersonsField`**: due `Button variant="outline" size="icon"` con `min-h-[44px] min-w-[44px]` e `aria-label` "Una persona in meno" / "Una persona in più", disabilitati ai limiti; il valore è in un `<output aria-live="polite">` seguito da "persona" / "persone".
+- **Campi a chip** (implementati dal componente interno `ChipGroupField`): contenitore `role="group"` etichettato dall'heading, un `ChipFilter` per valore nell'ordine dell'enum; il clic chiama `onChange(toggleInOrder(value, VALUES, v))`, così gli array restano già normalizzati.
+- Messaggi sotto il gruppo:
+  - `MealsField` vuoto → `<p role="alert">Scegli almeno un pasto.</p>` (tomato);
+  - `AppliancesField` vuoto → avviso non bloccante "Senza elettrodomestici proporrò solo piatti senza cottura." (stone).
+- **`SettingsField`** smista su `fieldKey` e propaga `{ ...settings, [fieldKey]: nuovoValore }`, così wizard e form gestiscono un solo oggetto `HouseholdSettings`.
+
+## Test
+
+`tests/ui/settings-fields.test.tsx` (jsdom): limiti e plurale dello stepper, stato `aria-checked` dei chip e ordine canonico dopo il toggle, messaggi di campo vuoto, `isSettingsFieldValid`, aggiornamento mirato di `SettingsField`.
+
+## Vedi anche
+
+- [[settings-editor]] — Form di modifica che rende i 5 campi in card
+- [[onboarding-wizard]] — Wizard che rende un campo per passo con heading `h1`
+- [[chip-filter]] — Chip di selezione riusato dai 4 campi a scelta multipla
+- [[settings-service]] — `toggleInOrder` e normalizzazione
+- [[e5-impostazioni]] — Panoramica della Feature 3

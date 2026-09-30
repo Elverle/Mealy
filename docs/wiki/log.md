@@ -2,6 +2,42 @@
 
 Append-only operation log per le modifiche alla documentazione tecnica di Mealy.
 
+## [2026-09-29] feat-4 | Documentazione Feature 4 (E3 Pianificatore)
+- Documentato il topic aggregato [[e3-pianificatore]] (flusso pagina → API → servizio → planner/repository, decisioni U1–U4 e D1–D4, innesti dell'architecture review e della code review, contratti per F5/F6, punti aperti di F3 chiusi, strategia di test con gate a 571 test).
+- Creato il concetto [[plan-concurrency-pattern]]: generazione LLM fuori dalle transazioni, selezione rifatta dentro `acquirePlanLock` su piano, household, preferenze e libreria riletti, conferma con `activateDraftPlan`.
+- Create le entità [[planner]] (`lib/domain/{planner,planner-config,rng,week}.ts`: esclusioni, peso con pausa morbida e preferite senza pausa, `isFresh`, `needMore`, `splitGenerationBatches`, settimana obiettivo, RNG `mulberry32`), [[plan-repo]] (`lib/db/repositories/plan-repo.ts`), [[plan-service]] (`lib/plans/`, `lib/prefs/ingredient-prefs.ts`, `app/api/plans/**`: schermata e navigatore, genera, *Ripeti*, conferma, blocco, swap, errori con `slot_past`, `maxDuration` 500/250) e [[plan-screen]] (`app/(app)/page.tsx`, `components/plan/`: navigatore, recupero su `network_error` con backoff e *Smetti di aspettare*, unione per slot, focus nello swap).
+- Create le entità [[http-helpers]] (`lib/http/responses.ts`, `lib/http/client.ts`) e [[toast]] (`components/feedback/toast.tsx`).
+- Aggiornate [[domain-types]] (contratti `Meal Plans (Feature 4)`), [[database-schema]] (colonne `meal_plans.generated_at`, `shopping_lists.needs_regeneration`, semantica di `recipe_prefs.last_used_at`, migrazione `0003`), [[household-repo]] (`getHouseholdById(id, executor?)`, contratto U1 su `generated_at`), [[recipe-repo]] (`DbExecutor` in `lib/db/index.ts`, `listRecipesWith`, `toRecipeWithDetails`), [[recipe-generation]] (rotta sugli helper HTTP, `maxDuration` 300, chiamata a lotti da 3, commento incrociato con `exclusionReason`), [[llm-adapter]] (timeout di default 90 s per lotto, import di `errors.ts` da `plans` e `http`), [[meal-card]] (long-press, `actions`, *Cambia* e ★ solo con handler) e [[recipe-sheet]] (barra azioni condizionale, `recipe-detail.ts`).
+- Aggiornati [[settings-service]] e [[e5-impostazioni]] (esito di U1, R1, R2, Q1 nella Feature 4, rotta sugli helper), [[onboarding-guard]] (Q1 non adottato), [[shell-navigation-pattern]] (Piano reale con navigatore dentro la tab), [[empty-state]] (stati vuoti del Piano), [[design-system-and-tokens]] (`animate-meal-flip` e movimento ridotto).
+- Aggiornato il `README.md` alla radice (stato con E3, variabile `LLM_TIMEOUT_MS`, nota sul Piano e sull'aggiornamento del timeout nel `.env` locale).
+- Aggiornato il catalogo generale in [[index]].
+
+## [2026-09-28] fix | Smoke test LLM reale (debito F2)
+- Aggiornata l'entità [[llm-adapter]]: `gemini-2.5-flash` non è più disponibile per i nuovi account; modello di esempio `gemini-3.1-flash-lite`, alternativa consigliata OpenRouter `z-ai/glm-5.3-flash` (38 s per 3 ricette, entro `LLM_TIMEOUT_MS`). Esiti completi nel piano della Feature 2 e risposte registrate in `tests/fixtures/llm/recorded/`.
+
+## [2026-09-28] feat-3 | Documentazione Feature 3 (E5 Impostazioni)
+- Documentato il topic aggregato [[e5-impostazioni]] (onboarding obbligatorio e vincoli household: flusso guardia → wizard/form → `PUT /api/settings` → `saveSettings`, decisioni U1–U3, innesti P1–P3 della review architetturale e contratto U1 per la Feature 4).
+- Creato il concetto [[onboarding-guard]]: route group `app/(app)/` con layout server-side che reindirizza a `/benvenuto` gli household non onboardati, `await connection()`, `BottomNav` montata per gruppo, conseguenze per F4 (percorso `app/(app)/page.tsx`, doppia lettura `getSettings` da valutare con `React.cache()`).
+- Creata l'entità [[settings-service]] (`lib/settings/`, `app/api/settings/`): funzioni pure `normalize.ts` (client-safe), servizio server `getSettings`/`saveSettings` senza scritture a vincoli invariati, client `putSettings` con `SettingsRequestError` (2xx non JSON → `invalid_response`), API `GET/PUT /api/settings`, contratto U1 e punti aperti R1/R2/Q1.
+- Create le entità UI [[settings-fields]] (controlli condivisi dei 5 campi, copy e validità), [[settings-editor]] (form `/impostazioni` con Salva esplicito, banner, `router.refresh()`, `<fieldset disabled>` e live region sempre montata) e [[onboarding-wizard]] (wizard `/benvenuto` a 5 passi, progressbar, focus sull'`h1`, `replace('/')` + `refresh()`).
+- Aggiornata l'entità [[household-repo]]: nuova `loadHousehold(id?)`, `updateHousehold` con `updated_at = now()` del DB e invariante del contratto U1, `ensureDefaultHousehold` solo per l'id di default, `onboarded_at` nel singleton.
+- Aggiornata l'entità [[domain-types]]: etichette `MEAL_TYPE_LABELS`/`MEAL_STYLE_TAG_LABELS`, `PERSONS_MIN`/`PERSONS_MAX` condivisi con i contratti di F2, `Household.onboarded_at`, contratti `HouseholdSettingsSchema`, `UpdateSettingsRequestSchema`, `SettingsViewSchema`, `SaveSettingsResultSchema`.
+- Aggiornata l'entità [[database-schema]]: colonna `households.onboarded_at`, semantica di `updated_at` e tabella delle migrazioni `0000`–`0002`.
+- Aggiornati [[shell-navigation-pattern]] e [[bottom-nav]]: la shell e la `BottomNav` vivono ora nel layout `app/(app)/layout.tsx`; il root layout contiene solo `{children}` (corretti anche gli snippet precedenti, che indicavano un `<main>` inesistente nel root layout).
+- Aggiornata l'entità [[recipe-generation]]: risoluzione dell'household tramite `loadHousehold`, limiti `persons` condivisi, origine dei vincoli dalle impostazioni. Aggiunto il riferimento a [[settings-fields]] in [[chip-filter]].
+- Creato il `README.md` alla radice del repository (stato v0.2.0, stack, requisiti, avvio in sviluppo con note su primo avvio e porta 5432, comandi e gate, deploy, link alla documentazione).
+- Aggiornato il catalogo generale in [[index]].
+
+## [2026-09-17] feat-2 | Documentazione Feature 2 (E1 Motore ricette)
+- Documentato il topic aggregato [[e1-motore-ricette]] (pipeline end-to-end generazione ricette con LLM, adapter AI SDK 7, repair loop, deduplicazione trigrammi e persistenza).
+- Creata l'entità [[llm-adapter]] (`lib/llm/`): architettura multi-provider (Google, OpenRouter, Anthropic, OpenAI-compatible), repair loop a 2 fasi su `NoObjectGeneratedError`, prompt vincoli/esclusioni, errori tipizzati `LlmError` e CLI `pnpm llm:record`.
+- Creata l'entità [[recipe-generation]] (`lib/recipes/`, `app/api/recipes/generate/`): aggregazione e validazione vincoli (`buildConstraints`, `findConstraintViolations`), esecuzione LLM fuori transazione, inserimento atomico con advisory lock `pg_advisory_xact_lock`, cascata dedup a 4 stadi e route handler HTTP `POST /api/recipes/generate`.
+- Creata l'entità [[fixtures-and-seed]] (`fixtures/`, `lib/db/seed*.ts`): 18 ricette casalinghe e 24 alias ingredienti normalizzati, loader tipizzato in memoria `fixtureRecipesAsDomain` per test offline e script di seed database idempotente `pnpm db:seed`.
+- Aggiornata l'entità [[recipe-repo]] (`lib/db/repositories/recipe-repo.ts`): aggiunto supporto a `DbExecutor` (`Database | DbTransaction`), metodi `insertRecipeWith`, `listRecipeTitles`, similarità trigrammi `findSimilarRecipeTitle`, collisioni `slugExists`, advisory lock `acquireRecipeGenerationLock` e tipi ristretti `Unit`/`Category` (Fix-P2).
+- Aggiornata l'entità [[domain-types]] (`lib/domain/`): inseriti nuovi contratti Zod di generazione (`GeneratedRecipeSchema`, `RecipeConstraintsSchema`, `ConstraintOverridesSchema`, `GenerateRecipesRequestSchema`, `GenerationSkipSchema`, `FixtureRecipeSchema`) e documentate le funzioni pure di normalizzazione testo (`normalizeTitle`, `slugify`, `normalizeCanonicalName`, `expandDietFlags`, `normalizeGeneratedRecipe`).
+- Corretta la versione di Next.js da 16 a 15.5 in [[e0-fondamenta]] e [[index]] (Fix-P3).
+- Aggiornato il catalogo generale in [[index]].
+
 ## [2026-09-15] init | Inizializzazione wiki e documentazione Feature 1 (E0 Fondamenta)
 - Inizializzata la wiki di progetto sotto `docs/wiki/` secondo convenzioni standard e direttive di `CLAUDE.md`.
 - Documentato il topic aggregato [[e0-fondamenta]].

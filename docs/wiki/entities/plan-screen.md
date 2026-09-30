@@ -1,0 +1,104 @@
+---
+title: Pagina Piano — PlanScreen, PlanSlotCard e Avanzamento (plan-screen)
+type: entity
+created: 2026-09-29
+updated: 2026-09-29
+tags: [ui, components, plan, page, week-navigator, swap, long-press, accessibility, feature-4]
+---
+
+## File e Responsabilità
+
+- **Percorsi file**:
+  - `app/(app)/page.tsx`: pagina server `/` (Piano). Sostituisce la home con dati finti della Feature 1.
+  - `components/plan/plan-screen.tsx`: componente client `PlanScreen` (intestazione, navigatore di settimane, azioni del piano, card per giorno, footer, sheet, toast).
+  - `components/plan/plan-slot-card.tsx`: componente client `PlanSlotCard`, una `MealCard` con il flusso di swap *Cambia → Tieni / Cambia ancora*.
+  - `components/plan/generation-progress.tsx`: `GenerationProgress` (skeleton + microcopy a rotazione) e hook `useRotatingMessage`.
+- **Scopo**: la schermata principale del prodotto: genera o rigenera il piano della settimana da pianificare, lo mostra giorno per giorno, permette di cambiare, bloccare e confermare i pasti, di ripetere un piano e di consultare le settimane passate.
+- I componenti importano dal dominio dei piani solo `lib/plans/client.ts`, `lib/plans/format.ts` ed `errors` tramite il client ([[plan-service]]); la conversione ricetta → sheet arriva da `components/sheets/recipe-detail.ts` ([[recipe-sheet]]).
+
+## Pagina Server (`app/(app)/page.tsx`)
+
+```tsx
+export default async function PlanPage({ searchParams }: { searchParams: Promise<{ settimana?: string | string[] }> }) {
+  await connection();
+  const { settimana } = await searchParams;
+  const week = Array.isArray(settimana) ? settimana[0] : settimana;
+  const screen = await getPlanScreen({ week });
+  return <PlanScreen key={screen.view.week.week_start} initialScreen={screen} />;
+}
+```
+
+Stesso schema di `/impostazioni` (requirements P16): nessun flash di caricamento. La `key` sulla settimana mostrata azzera lo stato locale del client quando si cambia settimana. Il parametro `?settimana=YYYY-MM-DD` rende gli URL condivisibili e stabili al refresh; se ripetuto vale il primo valore. La guardia di onboarding resta nel layout del gruppo ([[onboarding-guard]]).
+
+## `PlanScreen`
+
+Stato: `screen` (`PlanScreenView`), `isGenerating`, `isRecovering`, `generateError`, `isConfirming`, `toast`, `sheetSlotId`, più la transizione di navigazione (`useTransition`). Se arriva un nuovo `initialScreen` con la stessa `key` (es. dopo `router.refresh()`), lo stato si riallinea (fix M2 della code review).
+
+### Struttura (dall'alto)
+1. Intestazione `Mealy` / `Cosa mangio oggi?`, titolo `Piano Settimanale` e pulsante d'azione: `Genera piano` (`Sparkles`) se `view.action === 'generate'`, `Rigenera` (`RefreshCw`) se `'regenerate'`, nessuno se `'none'`.
+2. **Navigatore** `‹ {range} [Bozza|Confermato] ›` (Addendum D2): le frecce sono `Link` veri verso `/?settimana=…` (tap target 44 px, `aria-label` `Settimana precedente` / `Settimana successiva`, focus visibile). Un clic normale naviga in transizione (il contenuto resta visibile con `opacity-60` e `aria-busy`); modificatori e tasto centrale restano al browser. Senza settimana in quella direzione, o durante la generazione, la freccia è uno `<span role="link" aria-disabled="true">` non focalizzabile.
+3. *Ripeti questo piano* (`Copy`, solo con `view.can_repeat`), con sotto `Nella settimana {range obiettivo}` e, se l'obiettivo ha già una bozza, `Sostituirà i pasti non bloccati della bozza.`.
+4. Avviso piano superato (solo se `plan.superseded` e settimana modificabile): in bozza sulla settimana obiettivo `Hai cambiato le impostazioni: rigenera il piano per applicarle.`, altrimenti `Le nuove impostazioni varranno dal prossimo piano.`.
+5. Riquadro di recupero dopo un errore di rete (v. sotto) e `role="alert"` con l'errore di generazione.
+6. Corpo:
+   - durante la generazione `GenerationProgress` con 4 skeleton;
+   - con un piano, una `<section>` per giorno (`formatDayLabel`) con le `PlanSlotCard`; `editable = view.editable`, `swappable = slot.day >= today`;
+   - settimana obiettivo senza piano: `EmptyState` `Nessun piano in programma` con azione `Genera piano`; se la settimana corrente ha un piano (`current_plan_id`), sotto il componente un pulsante `Ripeti questa settimana`;
+   - settimana corrente senza piano nel weekend: `EmptyState` `Nessun piano per questa settimana` / `Nel weekend si pianifica la settimana che arriva.` con azione `Pianifica la prossima settimana` (solo JS: `EmptyState` non accetta un `href`);
+   - settimana passata senza piano: `EmptyState` senza azioni (`Per questa settimana non c'è nessun pasto da mostrare.`).
+7. Footer sticky sopra la tab bar (solo con un piano modificabile e fuori dalla generazione): `Conferma piano` in bozza; `Crea lista della spesa` (`ShoppingBag`) come `Link` a `/lista?piano={plan.id}` su un piano confermato.
+8. `RecipeSheet` dello slot selezionato, con quantità scalate sulle porzioni dello slot e **senza** handler di preferenze (★, voto e *Non proporre più* restano nascosti fino alla Feature 5, requirements U4).
+9. [[toast]], alzato sopra il footer quando il footer è visibile.
+
+### Azioni
+- **Genera / Rigenera / Ripeti**: `isGenerating`, poi `requestGeneratePlan()` o `requestRepeatPlan(planId)`. Se la settimana mostrata è l'obiettivo, lo stato si aggiorna con `result.screen`; altrimenti `router.replace('/?settimana={obiettivo}')` e il toast attraversa il rimontaggio tramite una variabile di modulo legata alla settimana obiettivo (scartata se si finisce altrove). Durante la navigazione `isGenerating` resta attivo, così *Ripeti* non si può inviare due volte (fix m5). Toast: `Piano generato`, `Piano generato con le ricette della libreria.` (se `generation.failed`), `Piano ripetuto`. Se la richiesta termina dopo che l'utente ha lasciato la schermata, si fa solo `router.refresh()`.
+- **Recupero da `network_error`** (proposta R1 e fix m6): una generazione lunga può perdere la connessione mentre il server finisce e salva. Prima della richiesta si fissa una base (`generated_at` del piano obiettivo, `null` se non esiste, letta dal server se la bozza obiettivo non è mostrata); dopo l'errore si rilegge `fetchPlanScreen(obiettivo)` con backoff da 2 s a 30 s fino alla `maxDuration` della rotta (500 s per Genera, 250 s per Ripeti), mostrando `La connessione si è interrotta: controllo se il piano è pronto…` e il pulsante `Smetti di aspettare`. Un piano più recente della base viene adottato con il toast di successo; altrimenti compare l'errore originale. Se la base non è leggibile non si tenta il recupero.
+- **Conferma**: `requestConfirmPlan(plan.id)` → badge `Confermato`, footer con la lista, toast `Piano confermato`; errore → toast.
+- **Blocco** (lucchetto o long-press): aggiornamento ottimistico di `locked`, poi `requestSlotLock`; errore → ripristino e toast.
+- **Unione per slot** (fix m9): le risposte di swap e blocco aggiornano **solo** lo slot interessato (`recipe`/`servings` e lo stato della lista per lo swap, `locked` per il blocco), così risposte arrivate fuori ordine non annullano le modifiche degli altri slot.
+
+## `PlanSlotCard`
+
+```ts
+export interface PlanSlotCardProps {
+  planId: string;
+  slot: PlanSlotView;
+  editable: boolean;       // false → niente Cambia, lucchetto e long-press
+  swappable?: boolean;     // false → niente Cambia ma blocco consentito (giorno passato); default true
+  onPlanChange: (plan: PlanView) => void;
+  onToggleLock: (slotId: string) => void;
+  onSelectRecipe: (slot: PlanSlotView) => void;
+  onError: (message: string) => void;
+}
+```
+
+- Props passate a [[meal-card]]: solo il nome del giorno come eyebrow, `MEAL_TYPE_LABELS`, titolo (o `Ricetta non disponibile` se la ricetta è stata eliminata), tempo e chip (`recipeChips`); `onSwap` solo se `editable && swappable`; lucchetto e long-press solo se `editable`; **mai** `onToggleFavorite`.
+- Modalità `idle → swapping → review`. Lo swap invia come esclusioni le ricette scartate nella sequenza più quella corrente, senza duplicati e al massimo `SWAP_EXCLUDE_MAX` (50). In attesa, al posto del footer un `role="status"` con `Cerco un'alternativa…` seguito dai messaggi di generazione. In revisione la card si rimonta dentro `animate-meal-flip` e mostra `Tieni` (azzera la sequenza) e `Cambia ancora`. Un errore torna alla modalità precedente e passa il messaggio al genitore; se lo slot viene bloccato durante la revisione la sequenza termina.
+- **Focus** (fix m8): all'arrivo della proposta va su `Tieni`, dopo `Tieni` o un errore di nuovo su `Cambia` (su `Cambia ancora` se l'errore arriva in revisione), solo se l'utente non l'ha spostato altrove nel frattempo.
+
+## `GenerationProgress` e `useRotatingMessage`
+
+- `GENERATION_MESSAGES`: `Sto sfogliando il ricettario…`, `Accendo i fornelli…`, `Controllo la dispensa…`, `Assaggio il sugo…`, `Apparecchio la tavola…`; `GENERATION_MESSAGE_INTERVAL_MS = 2500`.
+- `useRotatingMessage(messages, intervalMs?, active?)`: parte dal primo messaggio e avanza in modo circolare; con `active` falso resta sul primo.
+- `GenerationProgress({ cards = 4 })`: `role="status" aria-live="polite"` con il messaggio e da 1 a 6 card skeleton `aria-hidden` con `motion-safe:animate-pulse`. Mai uno spinner né un `progressbar`.
+
+## Animazione dello Swap (`app/globals.css`)
+
+Classe `animate-meal-flip`: flip `rotateY` da 80° a 0° in 320 ms; con `prefers-reduced-motion: reduce` diventa una dissolvenza di 200 ms (requirements P20, `DESIGN.md §3` e §6).
+
+## Test
+
+- `tests/home.test.tsx` (node, `next/server` e servizio mockati): `connection()`, `getPlanScreen({ week })` con il parametro `settimana` (primo valore se ripetuto), `PlanScreen` con la `key` della settimana.
+- `tests/ui/plan-screen.test.tsx` (client mockato): generazione con progress e toast, errori, recupero con backoff e *Smetti di aspettare*, conferma, navigatore e frecce disabilitate, sola lettura delle settimane passate, stati vuoti, *Ripeti*, avviso superato, riallineamento dello stato, esiti dopo lo smontaggio, blocco ottimistico, unione per slot, sheet senza azioni di preferenza.
+- `tests/ui/plan-slot-card.test.tsx`: swap, *Cambia ancora*, *Tieni*, errori, limite delle esclusioni, card di sola lettura, giorni passati, focus.
+- `tests/ui/generation-progress.test.tsx`; `tests/ui/shell.test.tsx` rende ora `PlanScreen` con un fixture al posto della vecchia home.
+
+## Vedi anche
+
+- [[plan-service]] — Schermata, API e client usati dalla pagina
+- [[meal-card]] — Card del pasto con long-press e azioni sostitutive
+- [[recipe-sheet]] — Dettaglio ricetta e `toRecipeDetail`
+- [[toast]] — Notifiche della pagina
+- [[empty-state]] — Stati vuoti del piano
+- [[onboarding-guard]] — Layout del gruppo `(app)` che protegge la pagina
+- [[e3-pianificatore]] — Panoramica della Feature 4

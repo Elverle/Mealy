@@ -15,6 +15,20 @@
       "when": 1789480265545,
       "tag": "0001_unknown_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790596533704,
+      "tag": "0002_add_household_onboarded_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790681198301,
+      "tag": "0003_add_plan_generation_tracking",
+      "breakpoints": true
     }
   ]
 }

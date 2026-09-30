@@ -41,6 +41,8 @@ export const MEAL_TYPE_ENUM = MEAL_TYPE_VALUES;
 export const MealTypeSchema = z.enum(MEAL_TYPE_VALUES);
 export type MealType = z.infer<typeof MealTypeSchema>;
 
+export const MEAL_TYPE_LABELS: Record<MealType, string> = { pranzo: 'Pranzo', cena: 'Cena' };
+
 export const DIET_FLAG_VALUES = [
   'vegetariano',
   'vegano',
@@ -72,6 +74,16 @@ export const MEAL_STYLE_TAG_VALUES = [
 export const MEAL_STYLE_TAG_ENUM = MEAL_STYLE_TAG_VALUES;
 export const MealStyleTagSchema = z.enum(MEAL_STYLE_TAG_VALUES);
 export type MealStyleTag = z.infer<typeof MealStyleTagSchema>;
+
+export const MEAL_STYLE_TAG_LABELS: Record<MealStyleTag, string> = {
+  veloce: 'Veloce',
+  salutare: 'Salutare',
+  proteico: 'Proteico',
+  leggero: 'Leggero',
+  'comfort-food': 'Comfort food',
+  economico: 'Economico',
+  'piatto-unico': 'Piatto unico',
+};
 
 export const APPLIANCE_VALUES = [
   'fornelli',
@@ -164,6 +176,11 @@ export const RecipeSchema = z.object({
 });
 export type Recipe = z.infer<typeof RecipeSchema>;
 
+// Limiti di `persons`: usati da HouseholdSettingsSchema e dai contratti di
+// generazione (Feature 2). `HouseholdSchema.persons` resta senza max (v. sotto).
+export const PERSONS_MIN = 1;
+export const PERSONS_MAX = 12;
+
 export const HouseholdSchema = z.object({
   id: z.string().uuid(),
   persons: z.number().int().min(1),
@@ -171,6 +188,7 @@ export const HouseholdSchema = z.object({
   diet_tags: z.array(DietFlagSchema).default([]),
   meal_style_tags: z.array(MealStyleTagSchema).default([]),
   appliances: z.array(ApplianceSchema).default([]),
+  onboarded_at: z.coerce.date().nullable().default(null),
   created_at: z.coerce.date().default(() => new Date()),
   updated_at: z.coerce.date().default(() => new Date()),
 });
@@ -235,6 +253,252 @@ export const DEFAULT_HOUSEHOLD: Household = {
   diet_tags: [],
   meal_style_tags: ['veloce', 'salutare'],
   appliances: ['fornelli', 'forno', 'microonde', 'friggitrice-ad-aria'],
+  onboarded_at: null,
   created_at: new Date('2026-01-01T00:00:00Z'),
   updated_at: new Date('2026-01-01T00:00:00Z'),
 };
+
+// ============================================================================
+// Recipe Generation Contracts (Feature 2)
+// ============================================================================
+
+// Output LLM (ARCHITECTURE §5.1). Nessun .optional()/.default(): i provider
+// con structured output gestiscono male i campi opzionali.
+export const GeneratedIngredientSchema = z.object({
+  canonical_name: z.string().min(1),
+  display_name: z.string().min(1),
+  qty: z.number().positive().nullable(),
+  unit: UnitSchema,
+  category: CategorySchema,
+  note: z.string().nullable(),
+});
+export type GeneratedIngredient = z.infer<typeof GeneratedIngredientSchema>;
+
+export const GeneratedRecipeSchema = z.object({
+  title: z.string().min(3).max(120),
+  description: z.string(),
+  meal_types: z.array(MealTypeSchema).min(1),
+  tags: z.array(MealStyleTagSchema),
+  diet_flags: z.array(DietFlagSchema),
+  appliances_required: z.array(ApplianceSchema),
+  servings_base: z.number().int().min(1).max(12),
+  prep_minutes: z.number().int().min(1).max(600),
+  kcal_est: z.number().int().positive().nullable(),
+  steps: z.array(z.string().min(1)).min(1),
+  ingredients: z.array(GeneratedIngredientSchema).min(1),
+});
+export type GeneratedRecipe = z.infer<typeof GeneratedRecipeSchema>;
+
+export const GenerateRecipesOutputSchema = z.object({
+  recipes: z.array(GeneratedRecipeSchema).min(1),
+});
+export type GenerateRecipesOutput = z.infer<typeof GenerateRecipesOutputSchema>;
+
+// Vincoli passati all'adapter. ingredient_likes/dislikes: canonical_name,
+// vuoti fino alla Feature 5 (S2.3), che li popolerà da ingredient_prefs.
+export const RecipeConstraintsSchema = z.object({
+  persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
+  meal_type: MealTypeSchema.nullable(),
+  diet_tags: z.array(DietFlagSchema),
+  meal_style_tags: z.array(MealStyleTagSchema),
+  appliances: z.array(ApplianceSchema),
+  ingredient_likes: z.array(z.string().min(1)),
+  ingredient_dislikes: z.array(z.string().min(1)),
+});
+export type RecipeConstraints = z.infer<typeof RecipeConstraintsSchema>;
+
+export const ConstraintOverridesSchema = z
+  .object({
+    persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
+    diet_tags: z.array(DietFlagSchema),
+    meal_style_tags: z.array(MealStyleTagSchema),
+    appliances: z.array(ApplianceSchema),
+  })
+  .partial()
+  .strict();
+export type ConstraintOverrides = z.infer<typeof ConstraintOverridesSchema>;
+
+// Body di POST /api/recipes/generate
+export const GENERATE_COUNT_MIN = 1;
+export const GENERATE_COUNT_MAX = 10;
+export const GENERATE_COUNT_DEFAULT = 5;
+export const GenerateRecipesRequestSchema = z
+  .object({
+    count: z.number().int().min(GENERATE_COUNT_MIN).max(GENERATE_COUNT_MAX).default(GENERATE_COUNT_DEFAULT),
+    meal_type: MealTypeSchema.nullable().default(null),
+    overrides: ConstraintOverridesSchema.default({}),
+  })
+  .strict();
+export type GenerateRecipesRequest = z.infer<typeof GenerateRecipesRequestSchema>;
+
+export const GENERATION_SKIP_REASON_VALUES = ['duplicate', 'constraint_violation'] as const;
+export const GenerationSkipReasonSchema = z.enum(GENERATION_SKIP_REASON_VALUES);
+export type GenerationSkipReason = z.infer<typeof GenerationSkipReasonSchema>;
+export const GenerationSkipSchema = z.object({
+  title: z.string(),
+  reason: GenerationSkipReasonSchema,
+  detail: z.string(),
+});
+export type GenerationSkip = z.infer<typeof GenerationSkipSchema>;
+
+// Fixtures (fixtures/recipes.json, fixtures/ingredient-aliases.json)
+export const FixtureRecipeSchema = GeneratedRecipeSchema.extend({
+  id: z.string().uuid(),
+  slug: z.string().min(1),
+});
+export type FixtureRecipe = z.infer<typeof FixtureRecipeSchema>;
+export const FixtureFileSchema = z.object({
+  recipes: z.array(FixtureRecipeSchema).min(15).max(20),
+});
+export const IngredientAliasesFileSchema = z.object({
+  aliases: z.array(IngredientAliasSchema).min(15),
+});
+
+// ============================================================================
+// Household Settings (Feature 3)
+// ============================================================================
+
+export const HouseholdSettingsSchema = z
+  .object({
+    persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
+    meals: z.array(MealTypeSchema).min(1),
+    meal_style_tags: z.array(MealStyleTagSchema),
+    diet_tags: z.array(DietFlagSchema),
+    appliances: z.array(ApplianceSchema),
+  })
+  .strict();
+export type HouseholdSettings = z.infer<typeof HouseholdSettingsSchema>;
+
+// Body di PUT /api/settings
+export const UpdateSettingsRequestSchema = HouseholdSettingsSchema.extend({
+  complete_onboarding: z.boolean().default(false),
+}).strict();
+export type UpdateSettingsRequest = z.input<typeof UpdateSettingsRequestSchema>;
+
+// Risposta di GET /api/settings. updated_at (ISO) è il riferimento per F4:
+// un piano è superato dai vincoli se updated_at > meal_plans.generated_at.
+export const SettingsViewSchema = z.object({
+  persons: z.number().int(),
+  meals: z.array(MealTypeSchema),
+  meal_style_tags: z.array(MealStyleTagSchema),
+  diet_tags: z.array(DietFlagSchema),
+  appliances: z.array(ApplianceSchema),
+  onboarded: z.boolean(),
+  updated_at: z.string().datetime(),
+});
+export type SettingsView = z.infer<typeof SettingsViewSchema>;
+
+// Risposta di PUT /api/settings
+export const SaveSettingsResultSchema = z.object({
+  settings: SettingsViewSchema,
+  changed: z.boolean(),
+});
+export type SaveSettingsResult = z.infer<typeof SaveSettingsResultSchema>;
+
+// ============================================================================
+// Meal Plans (Feature 4)
+// ============================================================================
+
+export const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+// Settimana su cui lavorano "Genera piano" / "Rigenera" (v. lib/domain/week.ts).
+export const PlanWeekSchema = z.object({
+  week_start: IsoDateSchema, // lunedì
+  first_day: IsoDateSchema, // primo giorno pianificabile (>= week_start)
+  last_day: IsoDateSchema, // domenica = week_start + 6
+});
+export type PlanWeek = z.infer<typeof PlanWeekSchema>;
+
+export const PlanSlotViewSchema = z.object({
+  id: z.string().uuid(),
+  day: IsoDateSchema,
+  meal: MealTypeSchema,
+  servings: z.number().int().min(1),
+  locked: z.boolean(),
+  recipe: RecipeSchema.nullable(), // ricetta completa (ingredienti + prefs); null se eliminata
+});
+export type PlanSlotView = z.infer<typeof PlanSlotViewSchema>;
+
+export const PlanShoppingListStateSchema = z.object({
+  exists: z.boolean(),
+  needs_regeneration: z.boolean(),
+});
+export type PlanShoppingListState = z.infer<typeof PlanShoppingListStateSchema>;
+
+export const PlanViewSchema = z.object({
+  id: z.string().uuid(),
+  week_start: IsoDateSchema,
+  status: PlanStatusSchema,
+  created_at: z.string().datetime(),
+  generated_at: z.string().datetime(),
+  superseded: z.boolean(), // households.updated_at > generated_at
+  slots: z.array(PlanSlotViewSchema), // ordinati per giorno, poi pranzo → cena
+  shopping_list: PlanShoppingListStateSchema,
+});
+export type PlanView = z.infer<typeof PlanViewSchema>;
+
+export const PLAN_ACTION_VALUES = ['generate', 'regenerate', 'none'] as const;
+export const PlanActionSchema = z.enum(PLAN_ACTION_VALUES);
+export type PlanAction = z.infer<typeof PlanActionSchema>;
+
+// Una settimana mostrata nella pagina Piano (navigatore di settimane).
+export const PlanWeekViewSchema = z.object({
+  week: PlanWeekSchema, // per la settimana obiettivo first_day = primo giorno pianificabile; per le altre = week_start
+  plan: PlanViewSchema.nullable(),
+  action: PlanActionSchema, // solo la settimana obiettivo può avere generate/regenerate; le altre 'none'
+  editable: z.boolean(), // plan presente e non chiuso
+  can_repeat: z.boolean(), // plan con almeno una ricetta, settimana ≠ obiettivo, obiettivo non confermato
+});
+export type PlanWeekView = z.infer<typeof PlanWeekViewSchema>;
+
+// Risposta di GET /api/plans/current e dato iniziale della pagina Piano.
+export const PlanScreenViewSchema = z.object({
+  today: IsoDateSchema,
+  current_week_start: IsoDateSchema,
+  target: PlanWeekSchema, // settimana di Genera/Rigenera/Ripeti
+  view: PlanWeekViewSchema, // settimana mostrata
+  prev_week_start: IsoDateSchema.nullable(),
+  next_week_start: IsoDateSchema.nullable(),
+  target_plan_status: PlanStatusSchema.nullable(), // stato del piano della settimana obiettivo; null se non esiste
+  current_plan_id: z.string().uuid().nullable(), // piano della settimana corrente ripetibile sull'obiettivo (weekend); null altrimenti
+});
+export type PlanScreenView = z.infer<typeof PlanScreenViewSchema>;
+
+export const PlanGenerationSummarySchema = z.object({
+  rounds: z.number().int().min(0), // giri di generazione LLM eseguiti
+  created: z.number().int().min(0), // ricette nuove salvate in libreria
+  failed: z.boolean(), // true se almeno una chiamata LLM è fallita
+});
+export type PlanGenerationSummary = z.infer<typeof PlanGenerationSummarySchema>;
+
+// Body di POST /api/plans (la settimana la calcola il server)
+export const GeneratePlanRequestSchema = z.object({}).strict();
+// Risposta di POST /api/plans
+export const GeneratePlanResultSchema = z.object({
+  screen: PlanScreenViewSchema,
+  generation: PlanGenerationSummarySchema,
+});
+export type GeneratePlanResult = z.infer<typeof GeneratePlanResultSchema>;
+
+// Risposta di POST /api/plans/:id/confirm e PATCH /api/plans/:id/slots/:slotId
+export const PlanResultSchema = z.object({ plan: PlanViewSchema });
+export type PlanResult = z.infer<typeof PlanResultSchema>;
+
+// Body di POST /api/plans/:id/slots/:slotId/swap
+export const SWAP_EXCLUDE_MAX = 50;
+export const SwapSlotRequestSchema = z
+  .object({
+    exclude_recipe_ids: z.array(z.string().uuid()).max(SWAP_EXCLUDE_MAX).default([]),
+  })
+  .strict();
+export type SwapSlotRequest = z.infer<typeof SwapSlotRequestSchema>;
+// Risposta dello swap
+export const PlanMutationResultSchema = z.object({
+  plan: PlanViewSchema,
+  generation: PlanGenerationSummarySchema,
+});
+export type PlanMutationResult = z.infer<typeof PlanMutationResultSchema>;
+
+// Body di PATCH /api/plans/:id/slots/:slotId
+export const UpdateSlotRequestSchema = z.object({ locked: z.boolean() }).strict();
+export type UpdateSlotRequest = z.infer<typeof UpdateSlotRequestSchema>;

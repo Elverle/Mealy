@@ -19,8 +19,15 @@ export interface MealCardProps {
   onSwap?: (id: string) => void;
   onToggleLock?: (id: string) => void;
   onSelect?: (id: string) => void;
+  onLongPress?: (id: string) => void;
+  /** Sostituisce l'intero footer (Cambia + preferita). */
+  actions?: React.ReactNode;
   className?: string;
 }
+
+export const LONG_PRESS_MS = 500;
+const LONG_PRESS_MOVE_TOLERANCE_PX = 10;
+const LONG_PRESS_VIBRATE_MS = 10;
 
 export function MealCard({
   id,
@@ -35,13 +42,70 @@ export function MealCard({
   onSwap,
   onToggleLock,
   onSelect,
+  onLongPress,
+  actions,
   className,
 }: MealCardProps) {
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const originRef = React.useRef<{ x: number; y: number } | null>(null);
+  const suppressNextClick = React.useRef(false);
+
+  const cancelLongPress = React.useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    originRef.current = null;
+  }, []);
+
+  React.useEffect(() => cancelLongPress, [cancelLongPress]);
+
+  const longPressProps = onLongPress
+    ? {
+        onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+          if (e.button !== 0) return;
+          // Il long-press parte solo dal corpo della card, non dai pulsanti interni.
+          const button = (e.target as Element).closest("button");
+          if (button && e.currentTarget.contains(button)) return;
+          cancelLongPress();
+          suppressNextClick.current = false;
+          originRef.current = { x: e.clientX, y: e.clientY };
+          timerRef.current = setTimeout(() => {
+            timerRef.current = null;
+            originRef.current = null;
+            suppressNextClick.current = true;
+            navigator.vibrate?.(LONG_PRESS_VIBRATE_MS);
+            onLongPress(id);
+          }, LONG_PRESS_MS);
+        },
+        onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+          const origin = originRef.current;
+          if (!origin) return;
+          if (
+            Math.hypot(e.clientX - origin.x, e.clientY - origin.y) >
+            LONG_PRESS_MOVE_TOLERANCE_PX
+          ) {
+            cancelLongPress();
+          }
+        },
+        onPointerUp: cancelLongPress,
+        onPointerLeave: cancelLongPress,
+        onPointerCancel: cancelLongPress,
+        onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+        style: { WebkitTouchCallout: "none" } as React.CSSProperties,
+      }
+    : {};
+
+  const showFooter = Boolean(actions || onSwap || onToggleFavorite);
+
   return (
     <Card
+      data-testid={`meal-card-${id}`}
+      {...longPressProps}
       className={cn(
         "relative flex flex-col justify-between overflow-hidden p-4 transition-all hover:border-stone/40 hover:shadow-md",
         isLocked && "border-basil/40 bg-basil/[0.02]",
+        onLongPress && "select-none",
         className
       )}
     >
@@ -75,7 +139,13 @@ export function MealCard({
 
       {/* Main Content (Clickable to open details) */}
       <div
-        onClick={() => onSelect?.(id)}
+        onClick={() => {
+          if (suppressNextClick.current) {
+            suppressNextClick.current = false;
+            return;
+          }
+          onSelect?.(id);
+        }}
         className={cn(
           "my-2 cursor-pointer group",
           onSelect && "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil rounded-lg"
@@ -115,47 +185,53 @@ export function MealCard({
         )}
       </div>
 
-      {/* Action Footer: Swap (Tomato) and Favorite (Saffron) */}
-      <div className="mt-3 flex items-center justify-between border-t border-stone/15 pt-2">
-        {/* Swap button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSwap?.(id);
-          }}
-          disabled={isLocked}
-          aria-label={`Cambia ${title}`}
-          className={cn(
-            "flex min-h-[44px] items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-tomato transition-colors hover:bg-tomato/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tomato active:scale-95 cursor-pointer disabled:pointer-events-none disabled:opacity-40"
-          )}
-        >
-          <RefreshCw className="h-4 w-4 stroke-[2.25]" />
-          <span>Cambia</span>
-        </button>
+      {/* Action Footer: Swap (Tomato) and Favorite (Saffron), or custom actions */}
+      {showFooter && (
+        <div className="mt-3 flex items-center justify-between border-t border-stone/15 pt-2">
+          {actions ?? (
+            <>
+              {onSwap && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSwap(id);
+                  }}
+                  disabled={isLocked}
+                  aria-label={`Cambia ${title}`}
+                  className="flex min-h-[44px] items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-tomato transition-colors hover:bg-tomato/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tomato active:scale-95 cursor-pointer disabled:pointer-events-none disabled:opacity-40"
+                >
+                  <RefreshCw className="h-4 w-4 stroke-[2.25]" />
+                  <span>Cambia</span>
+                </button>
+              )}
 
-        {/* Favorite button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite?.(id);
-          }}
-          aria-label={isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
-          aria-pressed={isFavorite}
-          className={cn(
-            "flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-saffron/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron active:scale-95 cursor-pointer",
-            isFavorite ? "text-saffron" : "text-stone hover:text-saffron"
+              {onToggleFavorite && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFavorite(id);
+                  }}
+                  aria-label={isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+                  aria-pressed={isFavorite}
+                  className={cn(
+                    "ml-auto flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-saffron/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron active:scale-95 cursor-pointer",
+                    isFavorite ? "text-saffron" : "text-stone hover:text-saffron"
+                  )}
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5 stroke-[2]",
+                      isFavorite && "fill-saffron"
+                    )}
+                  />
+                </button>
+              )}
+            </>
           )}
-        >
-          <Star
-            className={cn(
-              "h-5 w-5 stroke-[2]",
-              isFavorite && "fill-saffron"
-            )}
-          />
-        </button>
-      </div>
+        </div>
+      )}
     </Card>
   );
 }

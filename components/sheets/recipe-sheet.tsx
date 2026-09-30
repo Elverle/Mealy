@@ -81,6 +81,7 @@ export function RecipeSheet({
 
   if (!recipe) return null;
 
+  const hasActionBar = Boolean(onRate || onToggleFavorite || onToggleBlock);
   const baseServings = recipe.servings || 1;
   const scale = servings / baseServings;
 
@@ -296,64 +297,66 @@ export function RecipeSheet({
           </ol>
         </div>
 
-        {/* Action bar (Rating, Favorite, Block) */}
-        <div className="mt-6 border-t border-stone/20 pt-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            {/* 1-5 Rating stars */}
-            <div className="flex items-center gap-1">
-              <span className="text-xs font-medium text-stone mr-1">Voto:</span>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => onRate?.(recipe.id, star)}
-                  aria-label={`Vota ${star} stelle`}
-                  className="flex h-11 w-11 items-center justify-center rounded-lg text-stone transition-colors hover:text-saffron hover:bg-saffron/15 cursor-pointer"
+        {/* Action bar (Rating, Favorite, Block) — only when a handler is wired */}
+        {hasActionBar && (
+          <div className="mt-6 border-t border-stone/20 pt-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {/* 1-5 Rating stars */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium text-stone mr-1">Voto:</span>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => onRate?.(recipe.id, star)}
+                    aria-label={`Vota ${star} stelle`}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-stone transition-colors hover:text-saffron hover:bg-saffron/15 cursor-pointer"
+                  >
+                    <Star
+                      className={cn(
+                        "h-5 w-5",
+                        (recipe.rating || 0) >= star
+                          ? "fill-saffron text-saffron"
+                          : "text-stone"
+                      )}
+                    />
+                  </button>
+                ))}
+              </div>
+
+              {/* Favorite & Block buttons */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={recipe.isFavorite ? "default" : "outline"}
+                  className={cn(
+                    "flex-1 sm:flex-initial",
+                    recipe.isFavorite && "bg-saffron text-ink hover:bg-saffron/90"
+                  )}
+                  onClick={() => onToggleFavorite?.(recipe.id)}
                 >
                   <Star
                     className={cn(
-                      "h-5 w-5",
-                      (recipe.rating || 0) >= star
-                        ? "fill-saffron text-saffron"
-                        : "text-stone"
+                      "h-4 w-4",
+                      recipe.isFavorite ? "fill-ink text-ink" : "text-stone"
                     )}
                   />
-                </button>
-              ))}
-            </div>
+                  <span>{recipe.isFavorite ? "Preferita" : "Preferita"}</span>
+                </Button>
 
-            {/* Favorite & Block buttons */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant={recipe.isFavorite ? "default" : "outline"}
-                className={cn(
-                  "flex-1 sm:flex-initial",
-                  recipe.isFavorite && "bg-saffron text-ink hover:bg-saffron/90"
-                )}
-                onClick={() => onToggleFavorite?.(recipe.id)}
-              >
-                <Star
-                  className={cn(
-                    "h-4 w-4",
-                    recipe.isFavorite ? "fill-ink text-ink" : "text-stone"
-                  )}
-                />
-                <span>{recipe.isFavorite ? "Preferita" : "Preferita"}</span>
-              </Button>
-
-              <Button
-                variant={recipe.isBlocked ? "destructive" : "outline"}
-                className="flex-1 sm:flex-initial"
-                onClick={() => onToggleBlock?.(recipe.id)}
-              >
-                <Ban className="h-4 w-4" />
-                <span>
-                  {recipe.isBlocked ? "Sblocca ricetta" : "Non proporre più"}
-                </span>
-              </Button>
+                <Button
+                  variant={recipe.isBlocked ? "destructive" : "outline"}
+                  className="flex-1 sm:flex-initial"
+                  onClick={() => onToggleBlock?.(recipe.id)}
+                >
+                  <Ban className="h-4 w-4" />
+                  <span>
+                    {recipe.isBlocked ? "Sblocca ricetta" : "Non proporre più"}
+                  </span>
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </SheetContent>
     </Sheet>
   );

@@ -23,6 +23,7 @@ export const households = pgTable('households', {
   diet_tags: text('diet_tags').array().notNull().default(sql`ARRAY[]::text[]`),
   meal_style_tags: text('meal_style_tags').array().notNull().default(sql`ARRAY[]::text[]`),
   appliances: text('appliances').array().notNull().default(sql`ARRAY[]::text[]`),
+  onboarded_at: timestamp('onboarded_at', { withTimezone: true }),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -142,6 +143,7 @@ export const meal_plans = pgTable(
     week_start: date('week_start').notNull(),
     status: text('status').notNull().default('draft'),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    generated_at: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex('meal_plans_household_week_idx').on(table.household_id, table.week_start),
@@ -202,6 +204,7 @@ export const shopping_lists = pgTable('shopping_lists', {
     .references(() => meal_plans.id, { onDelete: 'cascade' })
     .unique(),
   generated_at: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+  needs_regeneration: boolean('needs_regeneration').notNull().default(false),
 });
 
 export const shoppingListsRelations = relations(shopping_lists, ({ one, many }) => ({

@@ -2,7 +2,7 @@
 title: E0 Fondamenta — Scaffold, Dominio, DB e Shell UI
 type: topic
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-17
 tags: [scaffold, architecture, domain, database, ui-shell, e0, feature-1]
 ---
 
@@ -11,7 +11,7 @@ tags: [scaffold, architecture, domain, database, ui-shell, e0, feature-1]
 L'iniziativa **E0 Fondamenta** (implementata tramite la Feature 1) costituisce l'infrastruttura tecnologica e concettuale portante di Mealy. Fornisce la baseline stabile e non regressiva su cui poggiano tutte le feature successive del piano di sviluppo (generazione ricette, compilazione piano settimanale, lista della spesa, onboarding preferenze).
 
 L'intervento ha coperto tre grandi macro-aree interconnesse:
-1. **Scaffold tecnologico e Design System**: configurazione di Next.js 16 App Router, React 19, TypeScript strict mode, Tailwind CSS v4 con token palette definiti via `@theme`, Google Fonts (`Fraunces` e `Figtree`) e Vitest con ambiente `jsdom`.
+1. **Scaffold tecnologico e Design System**: configurazione di Next.js 15.5 App Router, React 19, TypeScript strict mode, Tailwind CSS v4 con token palette definiti via `@theme`, Google Fonts (`Fraunces` e `Figtree`) e Vitest con ambiente `jsdom`.
 2. **Dominio tipato e Persistenza Relazionale**: definizione della single source of truth dei tipi di dominio tramite schemi Zod, modellazione di 9 tabelle relazionali Drizzle per PostgreSQL 16 con estensione `pg_trgm`, migrazioni versionate e primi repository tipati per `households` e `recipes`.
 3. **UI Kit e Shell di Navigazione Mobile-First**: barra di navigazione inferiore a 4 tab (`BottomNav`), componenti atomici e molecolari accessibili (`MealCard`, `RecipeSheet`, `ShoppingItemRow`, `ChipFilter`, `EmptyState`) e 4 route dimostrative funzionanti con mock data locali.
 
@@ -80,3 +80,4 @@ L'interfaccia rispetta i vincoli di ergonomia per uso con una mano su smartphone
 - [[household-repo]] — API del repository per il nucleo familiare
 - [[recipe-repo]] — API del repository per la persistenza delle ricette
 - [[bottom-nav]] — Componente shell di navigazione
+- [[e1-motore-ricette]] — Generazione assistita da LLM e seed libreria (Feature 2)

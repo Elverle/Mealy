@@ -2,7 +2,7 @@
 title: Design System e Design Tokens (Tailwind CSS v4)
 type: concept
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-29
 tags: [design-system, tailwind-v4, typography, colors, mobile-first, accessibility]
 ---
 
@@ -63,6 +63,8 @@ La gerarchia tipografica combina due caratteri caricati tramite `next/font/googl
    - Tutti i controlli personalizzati (come i chip e le righe lista con ruolo checkbox) integrano `focus-visible:ring-2 focus-visible:ring-basil` per la navigazione da tastiera o switch-access.
 4. **Adattamento alle Safe Areas**:
    - Il layout globale e la barra inferiore integrano `pb-[env(safe-area-inset-bottom)]` per prevenire sovrapposizioni con l'indicatore home o le barre di sistema di iOS e Android.
+5. **Movimento Ridotto (`prefers-reduced-motion`)** (Feature 4):
+   - In coda a `app/globals.css` la classe `animate-meal-flip` (keyframes `meal-flip`: flip `rotateY` da 80° a 0° in 320 ms) anima la card dopo uno swap (`DESIGN.md §3`); con `prefers-reduced-motion: reduce` degrada a una dissolvenza di 200 ms (keyframes `meal-fade`, `DESIGN.md §6`). Gli skeleton della generazione pulsano solo con `motion-safe:animate-pulse` ([[plan-screen]]).
 
 ## Vedi anche
 
@@ -70,4 +72,5 @@ La gerarchia tipografica combina due caratteri caricati tramite `next/font/googl
 - [[meal-card]] — Esempio pratico di applicazione di Fraunces, Basil, Tomato e Saffron
 - [[recipe-sheet]] — Utilizzo tipografico avanzato e interazioni proporzioni
 - [[shopping-item-row]] — Implementazione dei requisiti di touch target per la lista spesa
+- [[plan-screen]] — Animazione dello swap e skeleton con movimento ridotto
 - [[e0-fondamenta]] — Panoramica della Feature 1

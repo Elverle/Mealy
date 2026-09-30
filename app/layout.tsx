@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Figtree, Fraunces } from "next/font/google";
-import { BottomNav } from "@/components/navigation/bottom-nav";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -30,10 +29,7 @@ export default function RootLayout({
       <body
         className={`${figtree.variable} ${fraunces.variable} min-h-screen bg-paper text-ink antialiased flex flex-col`}
       >
-        <div className="flex-1 pb-24">
-          {children}
-        </div>
-        <BottomNav />
+        {children}
       </body>
     </html>
   );
