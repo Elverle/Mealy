@@ -2,6 +2,16 @@
 
 Append-only operation log per le modifiche alla documentazione tecnica di Mealy.
 
+## [2026-09-29] feat-4 | Documentazione Feature 4 (E3 Pianificatore)
+- Documentato il topic aggregato [[e3-pianificatore]] (flusso pagina → API → servizio → planner/repository, decisioni U1–U4 e D1–D4, innesti dell'architecture review e della code review, contratti per F5/F6, punti aperti di F3 chiusi, strategia di test con gate a 571 test).
+- Creato il concetto [[plan-concurrency-pattern]]: generazione LLM fuori dalle transazioni, selezione rifatta dentro `acquirePlanLock` su piano, household, preferenze e libreria riletti, conferma con `activateDraftPlan`.
+- Create le entità [[planner]] (`lib/domain/{planner,planner-config,rng,week}.ts`: esclusioni, peso con pausa morbida e preferite senza pausa, `isFresh`, `needMore`, `splitGenerationBatches`, settimana obiettivo, RNG `mulberry32`), [[plan-repo]] (`lib/db/repositories/plan-repo.ts`), [[plan-service]] (`lib/plans/`, `lib/prefs/ingredient-prefs.ts`, `app/api/plans/**`: schermata e navigatore, genera, *Ripeti*, conferma, blocco, swap, errori con `slot_past`, `maxDuration` 500/250) e [[plan-screen]] (`app/(app)/page.tsx`, `components/plan/`: navigatore, recupero su `network_error` con backoff e *Smetti di aspettare*, unione per slot, focus nello swap).
+- Create le entità [[http-helpers]] (`lib/http/responses.ts`, `lib/http/client.ts`) e [[toast]] (`components/feedback/toast.tsx`).
+- Aggiornate [[domain-types]] (contratti `Meal Plans (Feature 4)`), [[database-schema]] (colonne `meal_plans.generated_at`, `shopping_lists.needs_regeneration`, semantica di `recipe_prefs.last_used_at`, migrazione `0003`), [[household-repo]] (`getHouseholdById(id, executor?)`, contratto U1 su `generated_at`), [[recipe-repo]] (`DbExecutor` in `lib/db/index.ts`, `listRecipesWith`, `toRecipeWithDetails`), [[recipe-generation]] (rotta sugli helper HTTP, `maxDuration` 300, chiamata a lotti da 3, commento incrociato con `exclusionReason`), [[llm-adapter]] (timeout di default 90 s per lotto, import di `errors.ts` da `plans` e `http`), [[meal-card]] (long-press, `actions`, *Cambia* e ★ solo con handler) e [[recipe-sheet]] (barra azioni condizionale, `recipe-detail.ts`).
+- Aggiornati [[settings-service]] e [[e5-impostazioni]] (esito di U1, R1, R2, Q1 nella Feature 4, rotta sugli helper), [[onboarding-guard]] (Q1 non adottato), [[shell-navigation-pattern]] (Piano reale con navigatore dentro la tab), [[empty-state]] (stati vuoti del Piano), [[design-system-and-tokens]] (`animate-meal-flip` e movimento ridotto).
+- Aggiornato il `README.md` alla radice (stato con E3, variabile `LLM_TIMEOUT_MS`, nota sul Piano e sull'aggiornamento del timeout nel `.env` locale).
+- Aggiornato il catalogo generale in [[index]].
+
 ## [2026-09-28] fix | Smoke test LLM reale (debito F2)
 - Aggiornata l'entità [[llm-adapter]]: `gemini-2.5-flash` non è più disponibile per i nuovi account; modello di esempio `gemini-3.1-flash-lite`, alternativa consigliata OpenRouter `z-ai/glm-5.3-flash` (38 s per 3 ricette, entro `LLM_TIMEOUT_MS`). Esiti completi nel piano della Feature 2 e risposte registrate in `tests/fixtures/llm/recorded/`.
 

@@ -143,7 +143,7 @@ plan_slots
 
 shopping_lists             -- 1:1 con meal_plans
   id, plan_id FK unique, generated_at,
-  needs_regeneration bool default false  -- impostato dallo swap (F4), azzerato alla rigenerazione della lista (F6)
+  needs_regeneration bool default false  -- impostato da swap, rigenerazione e Ripeti su un piano esistente (F4), azzerato alla rigenerazione della lista (F6)
 
 shopping_items
   id, list_id FK,
@@ -236,7 +236,7 @@ I parametri (10/28 giorni, `recencyFloor`, boost, soglia, lotti) sono costanti i
 
 ### 5.3 Swap di uno slot
 
-Stesso algoritmo di 5.2 applicato al singolo slot, con exclude-list = ricetta attuale + tutte le altre del piano. Lo swap invalida la lista della spesa se già generata (flag "lista da rigenerare" sulla UI, rigenerazione esplicita che preserva le spunte per `canonical_name` dove possibile).
+Stesso algoritmo di 5.2 applicato al singolo slot, con exclude-list = ricetta attuale + tutte le altre del piano + le ricette già scartate nella stessa sequenza di *Cambia* (inviate dal client in `exclude_recipe_ids`, al più `SWAP_EXCLUDE_MAX`). I pasti dei giorni già passati non si cambiano (`409 slot_past`). Lo swap invalida la lista della spesa se già generata (flag "lista da rigenerare" sulla UI, rigenerazione esplicita che preserva le spunte per `canonical_name` dove possibile).
 
 ### 5.4 Preferenze
 

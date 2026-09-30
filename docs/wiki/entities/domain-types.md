@@ -2,8 +2,8 @@
 title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-09-28
-tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings]
+updated: 2026-09-29
+tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans]
 ---
 
 ## File e Responsabilità
@@ -11,6 +11,7 @@ tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, r
 - **Percorsi file**:
   - `lib/domain/types.ts`: definizione degli schemi di validazione runtime (Zod), tipi statici TypeScript inferiti e liste enum chiuse.
   - `lib/domain/recipe-text.ts`: funzioni pure per la normalizzazione di titoli, slug, nomi canonici, diete transitive e sanitizzazione delle ricette generate.
+  - Dalla Feature 4 `lib/domain/` contiene anche il planner puro (`planner.ts`, `planner-config.ts`, `rng.ts`, `week.ts`), documentato in [[planner]].
 - **Scopo**: Costituire la **single source of truth** del modello dati dell'intera applicazione (`CLAUDE.md § Regole di architettura`). Nessun tipo di dominio viene ridefinito localmente nei moduli applicativi.
 
 ## Costanti Enum Chiuse
@@ -100,7 +101,7 @@ Configurazione del nucleo domestico.
 - `updated_at`: `z.coerce.date()` — ultimo cambio dei vincoli o dell'onboarding (contratto U1, v. [[household-repo]])
 
 ### 5. MealPlan (`MealPlanSchema`) & PlanSlot (`PlanSlotSchema`)
-- **MealPlan**: rappresenta un piano settimanale (`id`, `household_id`, `week_start: YYYY-MM-DD`, `status: draft | active | archived`, `created_at`).
+- **MealPlan**: rappresenta un piano settimanale (`id`, `household_id`, `week_start: YYYY-MM-DD`, `status: draft | active | archived`, `created_at`). Lo schema non è stato esteso dalla Feature 4: la colonna `generated_at` e le viste del piano esposte dalle API sono nei contratti `Meal Plans (Feature 4)` più sotto.
 - **PlanSlot**: rappresenta uno specifico slot pasto del piano (`id`, `plan_id`, `day: YYYY-MM-DD`, `meal: pranzo | cena`, `recipe_id: uuid | null`, `servings: number`, `locked: boolean`).
 
 ### 6. ShoppingList (`ShoppingListSchema`) & ShoppingItem (`ShoppingItemSchema`)
@@ -168,10 +169,34 @@ Sezione `// Household Settings (Feature 3)` in coda a `types.ts`, usata da [[set
 |---|---|---|
 | `HouseholdSettingsSchema` / `HouseholdSettings` | strict: `persons` intero in `[PERSONS_MIN, PERSONS_MAX]`, `meals: MealType[]` con **almeno 1** elemento, `meal_style_tags`, `diet_tags`, `appliances` (possono essere vuoti) | I 5 vincoli modificabili dall'utente |
 | `UpdateSettingsRequestSchema` / `UpdateSettingsRequest` | `HouseholdSettingsSchema` + `complete_onboarding: boolean` (default `false`), strict | Body di `PUT /api/settings`. Il tipo usa `z.input` perché `complete_onboarding` è facoltativo in ingresso. |
-| `SettingsViewSchema` / `SettingsView` | i 5 campi + `onboarded: boolean` + `updated_at: string` (ISO datetime) | Risposta di `GET /api/settings` e props iniziali di wizard e form. `updated_at` è il riferimento del contratto U1 per la Feature 4. |
+| `SettingsViewSchema` / `SettingsView` | i 5 campi + `onboarded: boolean` + `updated_at: string` (ISO datetime) | Risposta di `GET /api/settings` e props iniziali di wizard e form. `updated_at` è il riferimento del contratto U1: dalla Feature 4 un piano è superato se `updated_at > meal_plans.generated_at` (il commento nel codice è stato aggiornato da `created_at`). |
 | `SaveSettingsResultSchema` / `SaveSettingsResult` | `{ settings: SettingsView, changed: boolean }` | Risposta di `PUT /api/settings`, validata anche lato client da `putSettings` |
 
 Le chiavi sconosciute sono rifiutate (`.strict()`), così come diete o elettrodomestici fuori enum.
+
+## Contratti dei Piani Settimanali (Feature 4)
+
+Sezione `// Meal Plans (Feature 4)` in coda a `types.ts`, usata da [[plan-service]] (servizio, rotte e client) e da [[plan-screen]]. Gli schemi `MealPlanSchema` e `PlanSlotSchema` restano invariati; questi sono i DTO delle API.
+
+| Schema / Tipo | Forma | Uso |
+|---|---|---|
+| `IsoDateSchema` | stringa `YYYY-MM-DD` (solo formato) | Date di settimane e slot |
+| `PlanWeekSchema` / `PlanWeek` | `{ week_start, first_day, last_day }` | Settimana obiettivo (`first_day` = primo giorno pianificabile) o settimana mostrata (`first_day = week_start`) |
+| `PlanSlotViewSchema` / `PlanSlotView` | `{ id, day, meal, servings (≥ 1), locked, recipe: Recipe \| null }` | Slot con la ricetta **completa** (ingredienti + prefs); `null` se la ricetta è stata eliminata |
+| `PlanShoppingListStateSchema` | `{ exists, needs_regeneration }` | Stato della lista della spesa del piano (Feature 6) |
+| `PlanViewSchema` / `PlanView` | `{ id, week_start, status, created_at, generated_at, superseded, slots, shopping_list }` | Piano per le API; `superseded` = `households.updated_at > generated_at`; slot ordinati per giorno, poi pranzo → cena |
+| `PLAN_ACTION_VALUES` / `PlanActionSchema` / `PlanAction` | `'generate' \| 'regenerate' \| 'none'` | Azione disponibile sulla settimana mostrata |
+| `PlanWeekViewSchema` / `PlanWeekView` | `{ week, plan, action, editable, can_repeat }` | Settimana mostrata dal navigatore: solo la settimana obiettivo può avere un'azione; `editable` = piano presente e non chiuso; `can_repeat` = piano con ricette, settimana diversa dall'obiettivo, obiettivo non confermato |
+| `PlanScreenViewSchema` / `PlanScreenView` | `{ today, current_week_start, target, view, prev_week_start, next_week_start, target_plan_status, current_plan_id }` | Risposta di `GET /api/plans/current` e dato iniziale della pagina Piano |
+| `PlanGenerationSummarySchema` / `PlanGenerationSummary` | `{ rounds, created, failed }` | Esito dei giri di generazione LLM (`failed` = almeno una chiamata fallita) |
+| `GeneratePlanRequestSchema` | `{}` strict | Body di `POST /api/plans` (la settimana la calcola il server) |
+| `GeneratePlanResultSchema` / `GeneratePlanResult` | `{ screen: PlanScreenView, generation }` | Risposta di `POST /api/plans` e `POST /api/plans/:id/repeat` |
+| `PlanResultSchema` / `PlanResult` | `{ plan: PlanView }` | Risposta di conferma e blocco |
+| `SWAP_EXCLUDE_MAX = 50`, `SwapSlotRequestSchema` / `SwapSlotRequest` | `{ exclude_recipe_ids: uuid[] }` strict, default `[]`, max 50 | Body dello swap: ricette scartate nella sequenza *Cambia ancora* |
+| `PlanMutationResultSchema` / `PlanMutationResult` | `{ plan, generation }` | Risposta dello swap |
+| `UpdateSlotRequestSchema` / `UpdateSlotRequest` | `{ locked: boolean }` strict | Body di `PATCH /api/plans/:id/slots/:slotId` |
+
+L'Addendum D2 della review architetturale ha sostituito il `PlanScreenView` del piano originale (`{ today, plan, target, action }`) con la struttura a navigatore; `target_plan_status` e `current_plan_id` sono stati aggiunti per il pulsante *Ripeti questa settimana* e per la Feature 6. Le interfacce di funzione del planner (`PlannerInput`, `MealTypeShortage`, …) e i tipi riga del repository non stanno qui ma nei rispettivi moduli ([[planner]], [[plan-repo]]), costruiti a partire da questi tipi.
 
 ## Funzioni Pure di Normalizzazione Testo (`recipe-text.ts`)
 
@@ -244,3 +269,6 @@ Questi valori sono quelli con cui il wizard di primo avvio si presenta precompil
 - [[recipe-repo]] — Persistenza nel database PostgreSQL
 - [[settings-service]] — Uso dei contratti delle impostazioni in servizio, API e client
 - [[e5-impostazioni]] — Panoramica della Feature 3
+- [[planner]] — Funzioni pure del planner in `lib/domain/` (`planner`, `planner-config`, `rng`, `week`)
+- [[plan-service]] — Uso dei contratti dei piani in servizio, API e client
+- [[e3-pianificatore]] — Panoramica della Feature 4

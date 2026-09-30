@@ -2,7 +2,7 @@
 title: Servizio Impostazioni Household e API (settings-service)
 type: entity
 created: 2026-09-28
-updated: 2026-09-28
+updated: 2026-09-29
 tags: [settings, household, service, api-route, normalization, client-fetch, onboarding, contract-u1, feature-3]
 ---
 
@@ -57,7 +57,7 @@ Concorrenza: lettura e scrittura non sono in transazione. Con un solo utente vin
 ## API HTTP (`app/api/settings/route.ts`)
 
 - **Configurazione**: `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`.
-- **Formato errori**: identico a `POST /api/recipes/generate` ([[recipe-generation]]): `{ error: { code, message, details? } }`, log con `console.error('[api/settings]', err)`, nessun dettaglio interno nel corpo dei 500.
+- **Formato errori**: identico a `POST /api/recipes/generate` ([[recipe-generation]]): `{ error: { code, message, details? } }`, log con `console.error('[api/settings]', err)`, nessun dettaglio interno nel corpo dei 500. Dalla Feature 4 le risposte si costruiscono con `invalidRequestResponse` / `internalErrorResponse` di `lib/http/responses.ts` ([[http-helpers]]), senza cambiare comportamento (`tests/api/settings.test.ts` invariato).
 
 | Metodo | Input | Successo | Errori |
 |---|---|---|---|
@@ -88,6 +88,8 @@ export async function putSettings(body: UpdateSettingsRequest): Promise<SaveSett
 
 La mappatura dei 2xx non JSON su `invalid_response` è un fix post-review: in precedenza l'eccezione di `response.json()` sfuggiva non tipizzata.
 
+Dalla Feature 4 esiste un client generico equivalente, `requestJson` / `ApiRequestError` in `lib/http/client.ts` ([[http-helpers]]), su cui è costruito il client dei piani. `putSettings` non è stato migrato e mantiene la sua implementazione.
+
 ## Contratto per la Feature 4 (decisione U1)
 
 Un piano è **superato dai vincoli** se `Date.parse(settings.updated_at) > meal_plans.created_at`.
@@ -100,6 +102,12 @@ Punti aperti consegnati al piano della Feature 4 (addendum della review 2026-09-
 - **R1**: le preferenze ingredienti (`ingredient_prefs`, Feature 5) non toccano `households.updated_at`, quindi un 👎 non rende "superato" il piano corrente. Va deciso se accettarlo o estendere la regola.
 - **R2**: la pagina Piano ora vive in `app/(app)/page.tsx` (v. [[onboarding-guard]]).
 - **Q1**: `getSettings()` è chiamato sia dal layout del gruppo `(app)` sia dalle pagine (oggi `/impostazioni`, in F4 anche il Piano): due letture dell'household per richiesta. Valutare `React.cache()` su `getSettings` / `loadHousehold`.
+
+### Esito nella Feature 4
+- La regola è diventata `households.updated_at > meal_plans.generated_at` (requirements P8 di F4): `generated_at` si aggiorna a ogni rigenerazione, mentre con `created_at` l'avviso "superato" sarebbe rimasto anche dopo aver rigenerato. Stesso orologio del DB, quindi le garanzie sopra restano valide. Il campo calcolato è `PlanView.superseded` ([[plan-service]]); il servizio dei piani rilegge l'household dentro il lock, così `generated_at` copre solo impostazioni effettivamente applicate.
+- **R1** accettato: un like/dislike agisce dalla prossima generazione o dal prossimo swap, senza segnare il piano come superato.
+- **R2** applicato: la pagina Piano è `app/(app)/page.tsx` ([[plan-screen]]).
+- **Q1** non adottato: la pagina Piano legge l'household tramite `getPlanScreen`, e due letture per richiesta su una LAN domestica non giustificano la modifica di F3 e dei suoi test.
 
 ## Test
 
@@ -116,3 +124,5 @@ Punti aperti consegnati al piano della Feature 4 (addendum della review 2026-09-
 - [[settings-editor]] — Form di modifica che usa `putSettings`
 - [[onboarding-wizard]] — Wizard che completa l'onboarding con `complete_onboarding: true`
 - [[onboarding-guard]] — Guardia server-side che legge `getSettings().onboarded`
+- [[http-helpers]] — Helper di risposta e client generico introdotti dalla Feature 4
+- [[plan-service]] — Consumatore del contratto U1 (`superseded`)

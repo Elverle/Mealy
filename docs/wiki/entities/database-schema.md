@@ -2,8 +2,8 @@
 title: Schema del Database Relazionale Drizzle (db/schema)
 type: entity
 created: 2026-09-15
-updated: 2026-09-28
-tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding]
+updated: 2026-09-29
+tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans]
 ---
 
 ## File e Responsabilità
@@ -103,8 +103,8 @@ Preferenze, gradimento e metriche d'uso (relazione 1:1 con la ricetta).
   - `rating`: `integer` (1–5) nullable
   - `favorite`: `boolean` not null default `false`
   - `blocked`: `boolean` not null default `false`
-  - `times_used`: `integer` not null default `0`
-  - `last_used_at`: `timestamp with time zone` nullable
+  - `times_used`: `integer` not null default `0` — dalla Feature 4 incrementato di 1 per ricetta alla conferma del piano e dallo swap su un piano confermato
+  - `last_used_at`: `timestamp with time zone` nullable — dalla Feature 4 è il **giorno del pasto** (mezzogiorno UTC dello slot più recente), non l'istante della conferma; non arretra mai ([[plan-repo]] `incrementRecipeUsage`)
 
 ### 5. `meal_plans`
 Piani settimanali generati o archiviati.
@@ -112,8 +112,9 @@ Piani settimanali generati o archiviati.
   - `id`: `uuid` PK
   - `household_id`: `uuid` references `households.id` (`ON DELETE CASCADE`)
   - `week_start`: `date` not null (data del lunedì di riferimento)
-  - `status`: `text` not null default `'draft'` (`draft | active | archived`)
+  - `status`: `text` not null default `'draft'` (`draft | active | archived`) — `draft` alla creazione, `active` alla conferma, `archived` quando si crea il piano di una settimana successiva e la sua settimana è già conclusa ([[plan-service]])
   - `created_at`: `timestamp with time zone` default now
+  - `generated_at`: `timestamp with time zone` not null default now (Feature 4, migrazione `0003`) — ultima (ri)generazione, aggiornata con `now()` del DB a ogni rigenerazione o *Ripeti* su bozza. Il piano è **superato** se `households.updated_at > generated_at` (contratto U1 della Feature 3, prima riferito a `created_at`).
 - **Indici**:
   - `meal_plans_household_week_idx`: indice UNIQUE composto `(household_id, week_start)`
 
@@ -136,6 +137,7 @@ Contenitore della lista della spesa generata da un piano.
   - `id`: `uuid` PK
   - `plan_id`: `uuid` unique references `meal_plans.id` (`ON DELETE CASCADE`)
   - `generated_at`: `timestamp with time zone` default now
+  - `needs_regeneration`: `boolean` not null default `false` (Feature 4, migrazione `0003`) — flag "lista da rigenerare": messo a `true` da swap, rigenerazione e *Ripeti* su un piano che ha già una lista ([[plan-repo]] `markShoppingListStale`); va rimesso a `false` dalla rigenerazione della lista (Feature 6)
 
 ### 8. `shopping_items`
 Voci consolidate della spesa raggruppate per corsia.
@@ -167,6 +169,7 @@ File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e 
 | `0000` | `0000_init_schema` | Estensione `pg_trgm`, le 9 tabelle e i relativi indici (Feature 1) |
 | `0001` | `0001_unknown_wolf_cub` | DROP e CREATE degli stessi 9 indici (con metodo esplicito `btree`/`gin`); nessuna modifica alle colonne |
 | `0002` | `0002_add_household_onboarded_at` | Solo `ALTER TABLE "households" ADD COLUMN "onboarded_at" timestamp with time zone;` (Feature 3). Le righe esistenti ricevono `null`. |
+| `0003` | `0003_add_plan_generation_tracking` | Due `ALTER TABLE … ADD COLUMN` (Feature 4): `meal_plans.generated_at timestamp with time zone DEFAULT now() NOT NULL` e `shopping_lists.needs_regeneration boolean DEFAULT false NOT NULL`. Additiva: i piani esistenti ricevono `generated_at` = istante della migrazione. |
 
 ## Vedi anche
 
@@ -176,3 +179,5 @@ File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e 
 - [[household-repo]] — Operazioni su `households`
 - [[onboarding-guard]] — Uso di `households.onboarded_at`
 - [[e5-impostazioni]] — Panoramica della Feature 3
+- [[plan-repo]] — Operazioni su `meal_plans`, `plan_slots`, `recipe_prefs` (uso) e `shopping_lists` (flag)
+- [[e3-pianificatore]] — Panoramica della Feature 4

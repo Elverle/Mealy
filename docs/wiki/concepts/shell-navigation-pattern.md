@@ -2,7 +2,7 @@
 title: Pattern di Shell e Navigazione Mobile-First
 type: concept
 created: 2026-09-15
-updated: 2026-09-28
+updated: 2026-09-29
 tags: [ui, navigation, shell, mobile-first, layout, app-router, route-group]
 ---
 
@@ -36,6 +36,7 @@ La barra di navigazione inferiore indirizza l'utente verso le quattro sezioni fo
 1. **Piano (`/`)**:
    - Visualizzazione temporale del piano settimanale (dal lunedì alla domenica, per pranzo e cena).
    - Card pasto interattive con indicazione dello stato di blocco, preferenza e azione rapida di sostituzione ricetta ("Cambia").
+   - Dalla Feature 4 è la pagina reale ([[plan-screen]]): genera/rigenera, swap, blocco con long-press, conferma e un navigatore `‹ settimana ›` che resta **dentro** la tab (URL `/?settimana=YYYY-MM-DD`, nessuna rotta o tab nuova; la barra resta a 4 voci). Il footer sticky *Conferma piano* / *Crea lista della spesa* si appoggia sopra la tab bar (`bottom-[calc(4rem+env(safe-area-inset-bottom))]`).
 2. **Lista (`/lista`)**:
    - Elenco della spesa derivato dalla pianificazione della settimana attiva.
    - Prodotti raggruppati per corsia/reparto del supermercato, spuntabili al tocco con barra di avanzamento visuale.
@@ -73,6 +74,7 @@ Un problema frequente nelle layout web mobili con barre fisse è il mascherament
 - [[bottom-nav]] — Componente React della barra di navigazione
 - [[onboarding-guard]] — Route group `(app)` e guardia di onboarding che montano la shell
 - [[meal-card]] — Componente visualizzato nella schermata Piano
+- [[plan-screen]] — Pagina Piano reale con navigatore di settimane (Feature 4)
 - [[shopping-item-row]] — Componente della schermata Lista
 - [[design-system-and-tokens]] — Standard di accessibilità e touch target
 - [[e0-fondamenta]] — Panoramica della Feature 1

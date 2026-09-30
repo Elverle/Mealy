@@ -2,7 +2,7 @@
 title: Stato Vuoto (empty-state)
 type: entity
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-29
 tags: [ui, components, feedback, empty-state, placeholders]
 ---
 
@@ -50,8 +50,14 @@ import { CalendarPlus } from 'lucide-react';
 />
 ```
 
+## Uso nella Pagina Piano (Feature 4)
+
+[[plan-screen]] usa tre stati vuoti: `Nessun piano in programma` con azione `Genera piano` sulla settimana da pianificare; `Nessun piano per questa settimana` con azione `Pianifica la prossima settimana` sulla settimana corrente nel weekend; lo stesso titolo senza azioni per una settimana passata. Il componente accetta **una sola** azione e solo come callback (niente `href`): il secondo pulsante `Ripeti questa settimana` è reso sotto il componente, e `Pianifica la prossima settimana` naviga via JavaScript (scelta confermata dalla code review, Q2).
+
 ## Vedi anche
 
 - [[design-system-and-tokens]] — Specifiche tipografiche di `Fraunces` e colori
 - [[meal-card]] — Componente visualizzato dopo la popolazione del piano
+- [[plan-screen]] — Stati vuoti della pagina Piano
+- [[toast]] — Altro componente di feedback in `components/feedback/`
 - [[e0-fondamenta]] — Panoramica della Feature 1

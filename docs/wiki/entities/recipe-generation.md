@@ -2,8 +2,8 @@
 title: Servizio di Generazione e Route API (recipe-generation)
 type: entity
 created: 2026-09-17
-updated: 2026-09-28
-tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock]
+updated: 2026-09-29
+tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches]
 ---
 
 ## File e Responsabilità
@@ -26,7 +26,7 @@ Fonde i valori di base configurati nell'anagrafica del nucleo familiare ([[house
 - `diet_tags`: array di regimi dietetici attivi.
 - `meal_style_tags`: stili desiderati (es. `veloce`, `salutare`).
 - `appliances`: elettrodomestici disponibili per la preparazione.
-- `ingredient_likes` e `ingredient_dislikes`: predisposti a liste vuote (verranno integrati nella Feature 5 con le preferenze ingredienti).
+- `ingredient_likes` e `ingredient_dislikes`: predisposti a liste vuote (verranno integrati nella Feature 5 con le preferenze ingredienti). Dalla Feature 4 il punto di lettura condiviso è `loadIngredientPreferences` in `lib/prefs/ingredient-prefs.ts` (modulo neutro importabile sia da `recipes` sia da `plans`, proposta R4 della review architetturale): la Feature 5 lo cablerà e lo userà anche qui. `buildConstraints` non è ancora stato toccato.
 
 ### `findConstraintViolations(recipe, constraints): string[]`
 Esegue un controllo deterministico a posteriori su ciascuna ricetta generata dall'LLM per verificare che il modello non abbia ignorato i vincoli richiesti:
@@ -36,6 +36,8 @@ Esegue un controllo deterministico a posteriori su ciascuna ricetta generata dal
 4. **Ingrediente escluso**: controlla se uno degli ingredienti coincide, per nome canonico normalizzato (`normalizeCanonicalName`), con un elemento di `constraints.ingredient_dislikes`.
 
 Restituisce l'elenco delle violazioni: un array vuoto attesta la piena conformità della ricetta.
+
+Le stesse quattro regole sono applicate alla libreria da `exclusionReason` del planner ([[planner]]); dalla Feature 4 un commento incrociato nei due file ricorda di allinearle quando se ne modifica una (proposta P3 della review architetturale).
 
 I valori base arrivano dai vincoli che l'utente imposta nel wizard di primo avvio e in `/impostazioni` (Feature 3, [[e5-impostazioni]]); `tests/settings/service.test.ts` verifica che un salvataggio si rifletta in `buildConstraints`.
 
@@ -101,6 +103,11 @@ L'oggetto finale restituito (`GenerateAndStoreResult`) riassume:
 - `created`: array delle `RecipeWithDetails` effettivamente create e salvate.
 - `skipped`: array degli scarti tipizzati (`GenerationSkip`: `{ title, reason, detail }`).
 
+### Chiamante principale dalla Feature 4: il servizio dei piani
+`lib/plans/service.ts` ([[plan-service]]) è l'unico modulo applicativo che chiama `generateAndStoreRecipes` oltre alla rotta manuale, sempre **fuori** da transazioni (contratto R2 della review di F2). Non chiede mai più di `generationBatchSize` = 3 ricette per chiamata: il numero necessario per ogni tipo di pasto viene diviso in lotti (es. 10 → 3+3+3+1) lanciati tutti in parallelo con `Promise.allSettled`, così un giro dura quanto una chiamata da 3 (circa 38 s sul modello consigliato). Lo swap chiede 3 ricette per un solo pasto.
+
+Limite noto (nota della code review di F4, preesistente): i titoli da escludere si calcolano prima della chiamata LLM, quindi lotti paralleli dello stesso pasto non si vedono tra loro; eventuali quasi-doppioni vengono scartati come `duplicate` dalla cascata (solo token sprecati, e può far partire il secondo giro).
+
 ## Endpoint HTTP: `POST /api/recipes/generate`
 
 L'API route in `app/api/recipes/generate/route.ts` espone l'operazione al frontend e ai client esterni:
@@ -108,7 +115,7 @@ L'API route in `app/api/recipes/generate/route.ts` espone l'operazione al fronte
 - **Configurazione Route**:
   - `runtime = 'nodejs'`
   - `dynamic = 'force-dynamic'`
-  - `maxDuration = 120` (tempo massimo consentito per attendere chiamate LLM con repair loop).
+  - `maxDuration = 300` (fino alla Feature 3 era `120`; l'Addendum D1 della review architetturale di F4 l'ha alzato perché una chiamata con riparazione può durare fino a `2 × LLM_TIMEOUT_MS`, e il timeout di default è passato a 90 s, v. [[llm-adapter]]). Sul Raspberry (Next standalone) `maxDuration` non è applicato: documenta il caso peggiore.
 - **Validazione Payload**: valida il body JSON tramite `GenerateRecipesRequestSchema`:
   - `count`: numero ricette da generare (compreso tra `GENERATE_COUNT_MIN = 1` e `GENERATE_COUNT_MAX = 10`, default `GENERATE_COUNT_DEFAULT = 5`).
   - `meal_type`: `pranzo` | `cena` | `null` (default `null`).
@@ -126,6 +133,8 @@ L'API route in `app/api/recipes/generate/route.ts` espone l'operazione al fronte
 | `LlmError` con `code: 'invalid_output'` | Output non valido persistente dopo repair | **502 Bad Gateway** | `code: 'llm_invalid_output'` |
 | Eccezione generica non gestita | Errore interno database o runtime | **500 Internal Server Error** | `code: 'internal_error'` |
 
+Dalla Feature 4 la rotta costruisce queste risposte con gli helper condivisi di `lib/http/responses.ts` (`invalidRequestResponse`, `llmErrorResponse`, `internalErrorResponse`, v. [[http-helpers]]) invece dei blocchi `Response.json` scritti in linea; status, codici e messaggi sono invariati, il body si legge ancora con `request.json()` e l'errore si logga con `console.error('[api/recipes/generate]', err)`. La stessa mappatura degli errori LLM è usata dalle rotte dei piani.
+
 ## Vedi anche
 
 - [[llm-adapter]] — Adapter AI SDK multi-provider, repair loop e classe `LlmError`
@@ -134,3 +143,6 @@ L'API route in `app/api/recipes/generate/route.ts` espone l'operazione al fronte
 - [[e1-motore-ricette]] — Quadro complessivo dell'iniziativa Feature 2
 - [[household-repo]] — `loadHousehold`, risoluzione dell'household
 - [[e5-impostazioni]] — Feature 3: origine dei vincoli dell'household
+- [[plan-service]] — Feature 4: chiamante a lotti da 3
+- [[http-helpers]] — Helper di risposta usati dalla rotta
+- [[planner]] — `exclusionReason`, le stesse regole sulla libreria

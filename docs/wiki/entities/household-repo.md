@@ -2,8 +2,8 @@
 title: Repository Nucleo Domestico (household-repo)
 type: entity
 created: 2026-09-15
-updated: 2026-09-28
-tags: [database, repository, household, singleton, drizzle, onboarding, contract-u1]
+updated: 2026-09-29
+tags: [database, repository, household, singleton, drizzle, onboarding, contract-u1, executor]
 ---
 
 ## File e Responsabilità
@@ -13,8 +13,10 @@ tags: [database, repository, household, singleton, drizzle, onboarding, contract
 
 ## Metodi Esportati
 
-### `getHouseholdById(id: string): Promise<Household | null>`
-Esegue una query `findFirst` sulla tabella `households` tramite `drizzle.query`. Se il record viene individuato, ne esegue il parsing con lo schema Zod `HouseholdSchema`. In caso contrario restituisce `null`.
+### `getHouseholdById(id: string, executor: DbExecutor = db): Promise<Household | null>`
+Esegue una query `findFirst` sulla tabella `households` tramite `executor.query`. Se il record viene individuato, ne esegue il parsing con lo schema Zod `HouseholdSchema`. In caso contrario restituisce `null`.
+
+Il parametro `executor` (Feature 4, fix M1 della code review) permette di rileggere le impostazioni **dentro una transazione**, dopo un advisory lock: [[plan-service]] lo usa per applicare al piano i vincoli salvati mentre l'LLM stava generando (v. [[plan-concurrency-pattern]]). Senza argomento usa il `db` globale, come prima.
 
 ### `ensureDefaultHousehold(): Promise<Household>`
 Garantisce in modo **idempotente** che il nucleo familiare di default (`DEFAULT_HOUSEHOLD_ID = '00000000-0000-0000-0000-000000000001'`) sia presente nel database:
@@ -26,7 +28,7 @@ Garantisce in modo **idempotente** che il nucleo familiare di default (`DEFAULT_
 Metodo di comodo utilizzato dalle schermate e dai servizi in v1. Prova il recupero del singleton tramite `getHouseholdById` e, in caso di esito negativo, invoca `ensureDefaultHousehold()`.
 
 ### `loadHousehold(id?: string): Promise<Household>` (Feature 3)
-Punto di ingresso raccomandato per i moduli applicativi (servizio impostazioni, generazione ricette, in futuro il planner). Centralizza la regola di risoluzione, così il messaggio d'errore resta uno solo:
+Punto di ingresso raccomandato per i moduli applicativi (servizio impostazioni, generazione ricette e, dalla Feature 4, servizio dei piani). Centralizza la regola di risoluzione, così il messaggio d'errore resta uno solo:
 - `id` assente o uguale a `DEFAULT_HOUSEHOLD_ID` → `getDefaultHousehold()` (crea il singleton se manca);
 - altrimenti `getHouseholdById(id)`; se `null` → `throw new Error(\`Household ${id} non trovato\`)`.
 
@@ -40,7 +42,7 @@ Aggiorna i parametri di configurazione del nucleo (default: `DEFAULT_HOUSEHOLD_I
 - Solleva un errore esplicito (`Household with id … not found for update`) qualora l'ID indicato non esista.
 
 #### Invariante di `updated_at` (contratto U1)
-Documentata nel JSDoc della funzione: `updated_at` rappresenta l'**ultimo cambio dei vincoli o dell'onboarding** ed è il riferimento del contratto U1 per la Feature 4 (un piano è superato se `updated_at > meal_plans.created_at`, entrambi scritti con `now()` del DB). Poiché ogni chiamata aggiorna `updated_at`, **non va chiamata per scritture che non cambiano i vincoli**: il chiamante deve verificare a monte che ci sia un cambiamento reale, come fa `saveSettings` con `settingsEqual` ([[settings-service]]).
+Documentata nel JSDoc della funzione: `updated_at` rappresenta l'**ultimo cambio dei vincoli o dell'onboarding** ed è il riferimento del contratto U1 (un piano è superato se `updated_at > meal_plans.generated_at`, entrambi scritti con `now()` del DB). Fino alla Feature 3 il confronto era con `meal_plans.created_at`; la Feature 4 lo ha spostato su `generated_at`, che si aggiorna a ogni rigenerazione (requirements P8), e ha corretto anche il JSDoc. Poiché ogni chiamata aggiorna `updated_at`, **non va chiamata per scritture che non cambiano i vincoli**: il chiamante deve verificare a monte che ci sia un cambiamento reale, come fa `saveSettings` con `settingsEqual` ([[settings-service]]).
 
 ## Esempio d'Uso
 
@@ -64,4 +66,6 @@ Per modificare i vincoli dall'applicazione si passa da `saveSettings` ([[setting
 - [[database-architecture]] — Strategia relazionale e migrazioni
 - [[settings-service]] — Servizio impostazioni che usa `loadHousehold` e `updateHousehold`
 - [[recipe-generation]] — Generazione ricette che usa `loadHousehold`
+- [[plan-service]] — Servizio dei piani: `loadHousehold` e rilettura sotto lock con `getHouseholdById(id, tx)`
 - [[e5-impostazioni]] — Panoramica della Feature 3
+- [[e3-pianificatore]] — Panoramica della Feature 4

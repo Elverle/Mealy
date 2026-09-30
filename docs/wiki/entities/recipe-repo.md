@@ -2,8 +2,8 @@
 title: Repository Ricette (recipe-repo)
 type: entity
 created: 2026-09-15
-updated: 2026-09-17
-tags: [database, repository, recipes, ingredients, preferences, drizzle, transactions, trigram, advisory-lock]
+updated: 2026-09-29
+tags: [database, repository, recipes, ingredients, preferences, drizzle, transactions, trigram, advisory-lock, executor]
 ---
 
 ## File e Responsabilità
@@ -19,7 +19,9 @@ Definisce l'interfaccia per invocare le query sia direttamente sul client del da
 type DbTransaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 export type DbExecutor = Database | DbTransaction;
 ```
-Permette a moduli coordinatori come [[recipe-generation]] di raggruppare più operazioni nel medesimo blocco `db.transaction(tx => ...)`.
+Permette a moduli coordinatori come [[recipe-generation]] e [[plan-service]] di raggruppare più operazioni nel medesimo blocco `db.transaction(tx => ...)`.
+
+Dalla Feature 4 (proposta P4 della review architetturale) la definizione vive in `lib/db/index.ts`, accanto a `db` e `Database`, perché la usano anche [[plan-repo]], [[household-repo]] e `lib/prefs/`. `recipe-repo.ts` la **riesporta** (`export type { DbExecutor } from '../index'`) per compatibilità con gli import esistenti.
 
 ### Tipi di Input e Modello Composito
 - `InsertRecipeInput`: dati anagrafici della ricetta (`title`, `slug`, `steps`, `meal_types`, `tags`, `diet_flags`, `appliances_required`, `servings_base`, `prep_minutes`, `kcal_est`, `source`, ecc.).
@@ -80,8 +82,14 @@ Recupera la ricetta dato il suo identificatore univoco leggibile `slug`. Utilizz
 ### `deleteRecipe(id: string): Promise<boolean>`
 Rimuove la ricetta per ID. I record collegati in `recipe_ingredients` e `recipe_prefs` vengono eliminati contestualmente grazie al vincolo `ON DELETE CASCADE`.
 
+### `listRecipesWith(executor, filter?: { household_id?: string }): Promise<RecipeWithDetails[]>` (Feature 4)
+Estrae tutte le ricette memorizzate con l'esecutore fornito, con filtro opzionale per nucleo (`household_id`), ordinate per `created_at DESC` con ingredienti e preferenze inclusi. Introdotta dalla proposta R2 della review architetturale di F4: [[plan-service]] rilegge la libreria **dentro** la transazione del piano, dopo il lock, per rifare la selezione sullo stato aggiornato ([[plan-concurrency-pattern]]).
+
 ### `listRecipes(filter?: { household_id?: string }): Promise<RecipeWithDetails[]>`
-Estrae tutte le ricette memorizzate, con filtro opzionale per nucleo (`household_id`), ordinate per `created_at DESC` con ingredienti e preferenze inclusi.
+Come `listRecipesWith(db, filter)`; comportamento invariato.
+
+### `toRecipeWithDetails(row): RecipeWithDetails` (Feature 4)
+Converte una riga di `db.query.recipes` con `ingredients` e `prefs` in `RecipeWithDetails`. È la funzione interna `formatRecipe` delle feature precedenti, rinominata ed esportata senza cambiarne il comportamento: [[plan-repo]] la usa per le ricette annidate negli slot del piano.
 
 ## Esempio d'Uso con Transazione Esterna
 
@@ -131,3 +139,5 @@ await db.transaction(async (tx) => {
 - [[domain-types]] — Tipi `Recipe`, `Ingredient`, `RecipePref`, `Unit`, `Category`
 - [[recipe-generation]] — Servizio che orchestra generazione e deduplicazione
 - [[fixtures-and-seed]] — Inserimento ricette di base tramite `insertRecipe`
+- [[plan-repo]] — Repository dei piani, che usa `toRecipeWithDetails`
+- [[plan-service]] — Lettura della libreria con `listRecipesWith` dentro il lock

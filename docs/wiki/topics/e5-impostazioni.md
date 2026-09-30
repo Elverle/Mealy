@@ -2,7 +2,7 @@
 title: E5 Impostazioni — Onboarding e Vincoli Household
 type: topic
 created: 2026-09-28
-updated: 2026-09-28
+updated: 2026-09-29
 tags: [settings, onboarding, household, api, route-group, ui, e5, feature-3]
 ---
 
@@ -89,6 +89,8 @@ Punti aperti per il piano di F4 (review architetturale 2026-09-28 e addendum):
 - **R2** — la pagina Piano è in `app/(app)/page.tsx`;
 - **Q1** — valutare `React.cache()` su `getSettings`/`loadHousehold` per evitare la doppia lettura layout + pagina.
 
+**Esito nella Feature 4** ([[e3-pianificatore]]): il confronto usa ora `meal_plans.generated_at` al posto di `created_at` (si aggiorna a ogni rigenerazione); R1 accettato così com'è, R2 applicato, Q1 non adottato. Dettagli in [[settings-service]].
+
 ## Innesti della Review Architetturale
 
 La review del 2026-09-28 (`docs/planning/feature/feature-3/architecture-review-2026-09-28.md`) ha fatto applicare tre correzioni dentro WP1:
@@ -116,3 +118,4 @@ I test di F1 sono stati adeguati solo nei percorsi (`@/app/(app)/…`) e nel tes
 - [[household-repo]] — `loadHousehold` e invariante di `updated_at`
 - [[e1-motore-ricette]] — Feature 2, consumatrice dei vincoli tramite `buildConstraints`
 - [[e0-fondamenta]] — Feature 1, shell e mock originari
+- [[e3-pianificatore]] — Feature 4, consumatrice del contratto U1
