@@ -1,0 +1,61 @@
+name: Gate
+
+on:
+  pull_request:
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mealy
+          POSTGRES_PASSWORD: mealy
+          POSTGRES_DB: mealy_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mealy -d mealy_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://mealy:mealy@localhost:5432/mealy_dev
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      # I test DB si saltano da soli se Postgres non risponde: la migrazione qui
+      # fallisce per prima e impedisce un gate verde senza test DB.
+      - run: pnpm db:migrate
+
+      - run: pnpm test
+
+      - run: pnpm build
