@@ -29,6 +29,10 @@ export interface RecipeIngredient {
   amount: number;
   unit: string;
   preference?: "liked" | "disliked" | null;
+  /** Nome canonico normalizzato: se presente, titola la conferma di scarto. */
+  canonicalName?: string;
+  /** Ricette non bloccate in libreria che lo contengono: se presente, la conferma di scarto lo mostra. */
+  recipesCount?: number;
 }
 
 export interface RecipeDetail {
@@ -56,7 +60,30 @@ export interface RecipeSheetProps {
     ingredientId: string,
     preference: "liked" | "disliked" | null
   ) => void;
+  /** Ricetta in caricamento (recipe null): mostra lo scheletro invece di niente. */
+  isLoading?: boolean;
+  /** Disabilita voto, Preferita e blocco (salvataggio in corso). */
+  actionsDisabled?: boolean;
+  /** Disabilita 👍/👎 e la conferma di esclusione (salvataggio in corso). */
+  ingredientsDisabled?: boolean;
 }
+
+const SKELETON_ROWS = [0, 1, 2];
+
+/** Seconda riga della conferma di scarto, in base all'impatto noto. */
+function dislikeImpactText(recipesCount: number | undefined): string {
+  if (recipesCount === undefined) {
+    return "Escluderà le ricette contenenti questo ingrediente dai prossimi piani.";
+  }
+  if (recipesCount === 0) {
+    return "Nessuna ricetta in libreria lo contiene: non lo userò in quelle nuove.";
+  }
+  if (recipesCount === 1) return "Escluderà 1 ricetta dai prossimi piani.";
+  return `Escluderà ${recipesCount} ricette dai prossimi piani.`;
+}
+
+const FOCUS_RING =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil";
 
 export function RecipeSheet({
   recipe,
@@ -66,20 +93,47 @@ export function RecipeSheet({
   onToggleBlock,
   onRate,
   onIngredientPreference,
+  isLoading = false,
+  actionsDisabled = false,
+  ingredientsDisabled = false,
 }: RecipeSheetProps) {
   const [servings, setServings] = React.useState(recipe?.servings || 4);
   const [pendingDislikeIngredient, setPendingDislikeIngredient] =
     React.useState<RecipeIngredient | null>(null);
 
-  // Sync servings when recipe changes
+  // Sync servings only when the recipe (id) or its base servings change: a new object for the
+  // same recipe (e.g. updated preferences) must not reset the servings chosen by the user.
+  const recipeId = recipe?.id;
+  const baseServingsProp = recipe?.servings;
   React.useEffect(() => {
-    if (recipe) {
-      setServings(recipe.servings);
-      setPendingDislikeIngredient(null);
-    }
-  }, [recipe]);
+    if (recipeId === undefined || baseServingsProp === undefined) return;
+    setServings(baseServingsProp);
+    setPendingDislikeIngredient(null);
+  }, [recipeId, baseServingsProp]);
 
-  if (!recipe) return null;
+  if (!recipe) {
+    if (!isLoading) return null;
+    return (
+      <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[92vh] overflow-y-auto px-4 pb-8 pt-6 sm:px-6"
+        >
+          <SheetHeader className="mb-4">
+            <SheetTitle className="text-2xl mt-2">Apro la ricetta…</SheetTitle>
+          </SheetHeader>
+          <div role="status" aria-label="Caricamento della ricetta" className="space-y-3">
+            {SKELETON_ROWS.map((row) => (
+              <div
+                key={row}
+                className="h-12 rounded-xl bg-stone/15 animate-pulse motion-reduce:animate-none"
+              />
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   const hasActionBar = Boolean(onRate || onToggleFavorite || onToggleBlock);
   const baseServings = recipe.servings || 1;
@@ -151,7 +205,7 @@ export function RecipeSheet({
               onClick={handleDecreaseServings}
               disabled={servings <= 1}
               aria-label="Diminuisci porzioni"
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-stone/20 text-ink transition-colors hover:bg-stone/10 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+              className={cn("flex h-11 w-11 items-center justify-center rounded-lg border border-stone/20 text-ink transition-colors hover:bg-stone/10 disabled:opacity-30 disabled:pointer-events-none cursor-pointer", FOCUS_RING)}
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -159,7 +213,7 @@ export function RecipeSheet({
               type="button"
               onClick={handleIncreaseServings}
               aria-label="Aumenta porzioni"
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-stone/20 text-ink transition-colors hover:bg-stone/10 cursor-pointer"
+              className={cn("flex h-11 w-11 items-center justify-center rounded-lg border border-stone/20 text-ink transition-colors hover:bg-stone/10 cursor-pointer", FOCUS_RING)}
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -173,15 +227,17 @@ export function RecipeSheet({
               <AlertTriangle className="h-5 w-5 text-tomato shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-semibold text-tomato">
-                  Scartare {pendingDislikeIngredient.name}?
+                  {`Scartare ${pendingDislikeIngredient.canonicalName ?? pendingDislikeIngredient.name}?`}
                 </p>
                 <p className="text-xs text-stone mt-0.5">
-                  Escluderà le ricette contenenti questo ingrediente dai prossimi piani.
+                  {dislikeImpactText(pendingDislikeIngredient.recipesCount)}
                 </p>
                 <div className="mt-2.5 flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="destructive"
+                    disabled={ingredientsDisabled}
+                    className="disabled:pointer-events-none disabled:opacity-40"
                     onClick={() => {
                       onIngredientPreference?.(
                         pendingDislikeIngredient.id,
@@ -240,8 +296,10 @@ export function RecipeSheet({
                       }}
                       aria-label={`Preferisci ${ing.name}`}
                       aria-pressed={ing.preference === "liked"}
+                      disabled={ingredientsDisabled}
                       className={cn(
-                        "flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-basil/15 cursor-pointer",
+                        "flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-basil/15 cursor-pointer disabled:pointer-events-none disabled:opacity-40",
+                        FOCUS_RING,
                         ing.preference === "liked"
                           ? "text-basil bg-basil/10"
                           : "text-stone hover:text-basil"
@@ -260,8 +318,10 @@ export function RecipeSheet({
                       }}
                       aria-label={`Scarta ${ing.name}`}
                       aria-pressed={ing.preference === "disliked"}
+                      disabled={ingredientsDisabled}
                       className={cn(
-                        "flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-tomato/15 cursor-pointer",
+                        "flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-tomato/15 cursor-pointer disabled:pointer-events-none disabled:opacity-40",
+                        FOCUS_RING,
                         ing.preference === "disliked"
                           ? "text-tomato bg-tomato/10"
                           : "text-stone hover:text-tomato"
@@ -310,7 +370,12 @@ export function RecipeSheet({
                     type="button"
                     onClick={() => onRate?.(recipe.id, star)}
                     aria-label={`Vota ${star} stelle`}
-                    className="flex h-11 w-11 items-center justify-center rounded-lg text-stone transition-colors hover:text-saffron hover:bg-saffron/15 cursor-pointer"
+                    aria-pressed={recipe.rating === star}
+                    disabled={actionsDisabled}
+                    className={cn(
+                      "flex h-11 w-11 items-center justify-center rounded-lg text-stone transition-colors hover:text-saffron hover:bg-saffron/15 cursor-pointer disabled:pointer-events-none disabled:opacity-40",
+                      FOCUS_RING
+                    )}
                   >
                     <Star
                       className={cn(
@@ -332,6 +397,8 @@ export function RecipeSheet({
                     "flex-1 sm:flex-initial",
                     recipe.isFavorite && "bg-saffron text-ink hover:bg-saffron/90"
                   )}
+                  aria-pressed={Boolean(recipe.isFavorite)}
+                  disabled={actionsDisabled || Boolean(recipe.isBlocked)}
                   onClick={() => onToggleFavorite?.(recipe.id)}
                 >
                   <Star
@@ -340,12 +407,13 @@ export function RecipeSheet({
                       recipe.isFavorite ? "fill-ink text-ink" : "text-stone"
                     )}
                   />
-                  <span>{recipe.isFavorite ? "Preferita" : "Preferita"}</span>
+                  <span>Preferita</span>
                 </Button>
 
                 <Button
                   variant={recipe.isBlocked ? "destructive" : "outline"}
                   className="flex-1 sm:flex-initial"
+                  disabled={actionsDisabled}
                   onClick={() => onToggleBlock?.(recipe.id)}
                 >
                   <Ban className="h-4 w-4" />
