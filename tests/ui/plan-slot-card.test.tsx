@@ -47,6 +47,7 @@ interface HarnessProps {
   onPlanChange?: (plan: PlanView) => void;
   onError?: (message: string) => void;
   onToggleLock?: (slotId: string) => void;
+  onToggleFavorite?: (recipeId: string) => void;
 }
 
 /** Fa da genitore: sostituisce lo slot con quello del piano restituito dallo swap. */
@@ -57,6 +58,7 @@ function Harness({
   onPlanChange = vi.fn(),
   onError = vi.fn(),
   onToggleLock = vi.fn(),
+  onToggleFavorite,
 }: HarnessProps) {
   const [slot, setSlot] = React.useState(initial);
   return (
@@ -71,6 +73,7 @@ function Harness({
       }}
       onToggleLock={onToggleLock}
       onSelectRecipe={vi.fn()}
+      onToggleFavorite={onToggleFavorite}
       onError={onError}
     />
   );
@@ -300,5 +303,70 @@ describe("PlanSlotCard", () => {
 
     expect(screen.getByText("GIOVEDÌ · CENA")).toBeInTheDocument();
     expect(screen.getByText("Ricetta non disponibile")).toBeInTheDocument();
+  });
+
+  describe("favorite star", () => {
+    const withPrefs = (prefs: Partial<NonNullable<Recipe["prefs"]>>): Recipe => ({
+      ...RECIPE_A,
+      prefs: {
+        recipe_id: RECIPE_A.id,
+        rating: null,
+        favorite: false,
+        blocked: false,
+        times_used: 0,
+        last_used_at: null,
+        ...prefs,
+      },
+    });
+
+    it("shows no star without onToggleFavorite", () => {
+      render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+      expect(screen.queryByRole("button", { name: "Aggiungi ai preferiti" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Rimuovi dai preferiti" })).toBeNull();
+    });
+
+    it("passes the recipe id, not the slot id, when the star is tapped", () => {
+      const onToggleFavorite = vi.fn();
+      render(<Harness initial={makeSlot(RECIPE_A)} onToggleFavorite={onToggleFavorite} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Aggiungi ai preferiti" }));
+
+      expect(onToggleFavorite).toHaveBeenCalledWith(RECIPE_A.id);
+      expect(onToggleFavorite).not.toHaveBeenCalledWith(SLOT_ID);
+    });
+
+    it("marks the star as pressed when the recipe is a favorite", () => {
+      render(
+        <Harness initial={makeSlot(withPrefs({ favorite: true }))} onToggleFavorite={vi.fn()} />
+      );
+
+      expect(screen.getByRole("button", { name: "Rimuovi dai preferiti" })).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+    });
+
+    it("shows no star when the recipe is blocked", () => {
+      render(
+        <Harness initial={makeSlot(withPrefs({ blocked: true }))} onToggleFavorite={vi.fn()} />
+      );
+
+      expect(screen.queryByRole("button", { name: /preferiti/ })).toBeNull();
+    });
+
+    it("shows no star when the slot has no recipe", () => {
+      render(<Harness initial={makeSlot(null)} onToggleFavorite={vi.fn()} />);
+
+      expect(screen.queryByRole("button", { name: /preferiti/ })).toBeNull();
+    });
+
+    it("shows the star on a read-only card", () => {
+      render(
+        <Harness initial={makeSlot(RECIPE_A)} editable={false} onToggleFavorite={vi.fn()} />
+      );
+
+      expect(screen.getByRole("button", { name: "Aggiungi ai preferiti" })).toBeInTheDocument();
+    });
   });
 });

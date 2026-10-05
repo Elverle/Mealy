@@ -16,7 +16,8 @@ import {
   type PlanSlotView,
   type PlanView,
 } from "@/lib/domain/types";
-import { PlanRequestError, requestSwapSlot } from "@/lib/plans/client";
+import { apiErrorMessage } from "@/lib/http/client";
+import { requestSwapSlot } from "@/lib/plans/client";
 import { formatDayLabel } from "@/lib/plans/format";
 
 export interface PlanSlotCardProps {
@@ -30,6 +31,8 @@ export interface PlanSlotCardProps {
   onPlanChange: (plan: PlanView) => void;
   onToggleLock: (slotId: string) => void;
   onSelectRecipe: (slot: PlanSlotView) => void;
+  /** Alterna la preferita della ricetta dello slot. Assente → nessuna ★. */
+  onToggleFavorite?: (recipeId: string) => void;
   /** Messaggio da mostrare come toast dal genitore. */
   onError: (message: string) => void;
 }
@@ -47,7 +50,6 @@ const FOCUS_SELECTORS: Record<FocusTarget, string> = {
 
 const MISSING_RECIPE_TITLE = "Ricetta non disponibile";
 const SWAP_PENDING_MESSAGES = ["Cerco un'alternativa…", ...GENERATION_MESSAGES] as const;
-const SWAP_FALLBACK_ERROR = "Qualcosa è andato storto. Riprova.";
 
 /** Ricette da escludere: scartate nella sequenza + corrente, senza duplicati, ultime `SWAP_EXCLUDE_MAX`. */
 function buildExclude(rejected: readonly string[], currentRecipeId: string | undefined): string[] {
@@ -64,6 +66,7 @@ export function PlanSlotCard({
   onPlanChange,
   onToggleLock,
   onSelectRecipe,
+  onToggleFavorite,
   onError,
 }: PlanSlotCardProps): React.JSX.Element {
   const [mode, setMode] = React.useState<SlotMode>("idle");
@@ -109,7 +112,7 @@ export function PlanSlotCard({
       pendingFocus.current = "keep";
       setMode("review");
     } catch (err) {
-      onError(err instanceof PlanRequestError ? err.message : SWAP_FALLBACK_ERROR);
+      onError(apiErrorMessage(err));
       pendingFocus.current = previousMode === "review" ? "swapAgain" : "swap";
       setMode(previousMode);
     }
@@ -154,6 +157,9 @@ export function PlanSlotCard({
 
   const isReview = mode === "review";
   const canSwap = editable && swappable;
+  // Il giudizio riguarda la ricetta, non il piano: la ★ c'è anche sulle card non modificabili.
+  const favoriteRecipeId =
+    onToggleFavorite && slot.recipe && slot.recipe.prefs?.blocked !== true ? slot.recipe.id : null;
 
   return (
     <div
@@ -169,6 +175,12 @@ export function PlanSlotCard({
         prepTimeMinutes={slot.recipe?.prep_minutes}
         tags={slot.recipe ? recipeChips(slot.recipe) : []}
         isLocked={slot.locked}
+        isFavorite={slot.recipe?.prefs?.favorite ?? false}
+        onToggleFavorite={
+          favoriteRecipeId !== null && onToggleFavorite
+            ? () => onToggleFavorite(favoriteRecipeId)
+            : undefined
+        }
         onSelect={slot.recipe ? () => onSelectRecipe(slot) : undefined}
         onSwap={canSwap ? () => void handleSwap() : undefined}
         onToggleLock={editable ? () => onToggleLock(slot.id) : undefined}

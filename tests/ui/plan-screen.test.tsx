@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtureRecipesAsDomain } from "@/fixtures";
 import { PlanScreen, discardPendingPlanToast } from "@/components/plan/plan-screen";
+import { defaultRecipePref } from "@/lib/domain/prefs";
 import type {
   GeneratePlanResult,
   PlanScreenView,
@@ -9,6 +10,7 @@ import type {
   PlanStatus,
   PlanView,
   PlanWeekView,
+  RecipePref,
 } from "@/lib/domain/types";
 
 const router = vi.hoisted(() => ({
@@ -35,6 +37,18 @@ vi.mock("@/lib/plans/client", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/library/client", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/library/client")>();
+  return { ...original, fetchRecipeDetail: vi.fn() };
+});
+
+vi.mock("@/lib/prefs/client", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/prefs/client")>();
+  return { ...original, putRecipePref: vi.fn(), putIngredientPref: vi.fn() };
+});
+
+import { fetchRecipeDetail } from "@/lib/library/client";
+import { putRecipePref } from "@/lib/prefs/client";
 import {
   PlanRequestError,
   fetchPlanScreen,
@@ -178,6 +192,10 @@ describe("PlanScreen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     discardPendingPlanToast();
+    vi.mocked(fetchRecipeDetail).mockImplementation(async (recipeId) => ({
+      recipe: RECIPES.find((recipe) => recipe.id === recipeId) ?? RECIPES[0],
+      ingredients: [],
+    }));
   });
 
   describe("generation", () => {
@@ -901,21 +919,154 @@ describe("PlanScreen", () => {
   });
 
   describe("recipe sheet and preferences", () => {
-    it("opens the sheet with the recipe and without preference actions", async () => {
+    const savedPref = (recipeId: string, patch: Partial<RecipePref>): RecipePref => ({
+      ...defaultRecipePref(recipeId),
+      ...patch,
+    });
+
+    it("opens the detail with the recipe at once and the preference actions", async () => {
+      const detail = deferred<Awaited<ReturnType<typeof fetchRecipeDetail>>>();
+      vi.mocked(fetchRecipeDetail).mockReturnValueOnce(detail.promise);
       render(<PlanScreen initialScreen={makeScreen()} />);
 
       fireEvent.click(screen.getByText(RECIPES[0].title));
 
       const dialog = await screen.findByRole("dialog");
       expect(within(dialog).getByText(RECIPES[0].title)).toBeInTheDocument();
-      expect(within(dialog).queryByText("Non proporre più")).toBeNull();
+      expect(within(dialog).getByText("Non proporre più")).toBeInTheDocument();
+      expect(fetchRecipeDetail).toHaveBeenCalledWith(RECIPES[0].id);
     });
 
-    it("renders no favorite buttons on the cards", () => {
+    it("shows a favorite star on every card and toggles it optimistically", async () => {
+      const pending = deferred<RecipePref>();
+      vi.mocked(putRecipePref).mockReturnValueOnce(pending.promise);
       render(<PlanScreen initialScreen={makeScreen()} />);
 
-      expect(screen.queryByRole("button", { name: "Aggiungi ai preferiti" })).toBeNull();
+      const stars = screen.getAllByRole("button", { name: "Aggiungi ai preferiti" });
+      expect(stars).toHaveLength(2);
+      fireEvent.click(stars[0]);
+
+      expect(putRecipePref).toHaveBeenCalledWith(RECIPES[0].id, { favorite: true });
+      expect(screen.getAllByRole("button", { name: "Rimuovi dai preferiti" })).toHaveLength(1);
+
+      await act(async () => pending.resolve(savedPref(RECIPES[0].id, { favorite: true })));
+
+      expect(screen.getAllByRole("button", { name: "Rimuovi dai preferiti" })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: "Aggiungi ai preferiti" })).toHaveLength(1);
+    });
+
+    it("rolls the star back and toasts the message when the save fails", async () => {
+      vi.mocked(putRecipePref).mockRejectedValueOnce(
+        new PlanRequestError(500, "internal_error", "Impossibile salvare il giudizio.")
+      );
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Aggiungi ai preferiti" })[0]);
+
+      expect(await screen.findByText("Impossibile salvare il giudizio.")).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: "Aggiungi ai preferiti" })).toHaveLength(2);
       expect(screen.queryByRole("button", { name: "Rimuovi dai preferiti" })).toBeNull();
+    });
+
+    it("ignores a second tap on the star while its save is pending", async () => {
+      const pending = deferred<RecipePref>();
+      vi.mocked(putRecipePref).mockReturnValueOnce(pending.promise);
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Aggiungi ai preferiti" })[0]);
+      fireEvent.click(screen.getByRole("button", { name: "Rimuovi dai preferiti" }));
+      await act(async () => pending.resolve(savedPref(RECIPES[0].id, { favorite: true })));
+
+      expect(putRecipePref).toHaveBeenCalledTimes(1);
+    });
+
+    it("blocks a recipe from the detail: toast, card stays without star, plan untouched", async () => {
+      vi.mocked(putRecipePref).mockResolvedValueOnce(savedPref(RECIPES[0].id, { blocked: true }));
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getByText(RECIPES[0].title));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Non proporre più" }));
+
+      expect(putRecipePref).toHaveBeenCalledWith(RECIPES[0].id, { blocked: true });
+      expect(
+        await screen.findByText(
+          "Non la proporrò più. In questo piano resta: usa Cambia per sostituirla."
+        )
+      ).toBeInTheDocument();
+      expect(screen.getAllByText(RECIPES[0].title).length).toBeGreaterThan(0);
+      // La sheet è modale: le card sono nascoste agli strumenti di accessibilità.
+      expect(
+        screen.getAllByRole("button", { name: "Aggiungi ai preferiti", hidden: true })
+      ).toHaveLength(1);
+      expect(requestSwapSlot).not.toHaveBeenCalled();
+      expect(requestGeneratePlan).not.toHaveBeenCalled();
+      expect(requestRepeatPlan).not.toHaveBeenCalled();
+    });
+
+    it("saves the rating given from the detail", async () => {
+      vi.mocked(putRecipePref).mockResolvedValueOnce(savedPref(RECIPES[0].id, { rating: 5 }));
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getByText(RECIPES[0].title));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Vota 5 stelle" }));
+
+      expect(putRecipePref).toHaveBeenCalledWith(RECIPES[0].id, { rating: 5 });
+      await waitFor(() =>
+        expect(within(dialog).getByRole("button", { name: "Vota 5 stelle" })).toHaveAttribute(
+          "aria-pressed",
+          "true"
+        )
+      );
+    });
+
+    it("keeps a rating given from the detail when a pending star response arrives later", async () => {
+      const star = deferred<RecipePref>();
+      vi.mocked(putRecipePref)
+        .mockReturnValueOnce(star.promise)
+        .mockResolvedValueOnce(savedPref(RECIPES[0].id, { rating: 4 }));
+      // Il dettaglio non risponde: la sheet usa la ricetta dello stato del piano.
+      vi.mocked(fetchRecipeDetail).mockReturnValue(new Promise(() => {}));
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Aggiungi ai preferiti" })[0]);
+      fireEvent.click(screen.getByText(RECIPES[0].title));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Vota 4 stelle" }));
+      await waitFor(() => expect(putRecipePref).toHaveBeenCalledTimes(2));
+      await act(async () => {});
+
+      // Arriva la risposta della ★, che non conosce il voto.
+      await act(async () =>
+        star.resolve(savedPref(RECIPES[0].id, { favorite: true, rating: null }))
+      );
+
+      fireEvent.keyDown(dialog, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      fireEvent.click(screen.getByText(RECIPES[0].title));
+      const reopened = await screen.findByRole("dialog");
+
+      expect(within(reopened).getByRole("button", { name: "Vota 4 stelle" })).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+      expect(within(reopened).getByRole("button", { name: "Preferita" })).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+    });
+
+    it("shows the star on a read-only past week and saves it", async () => {
+      vi.mocked(putRecipePref).mockResolvedValueOnce(savedPref(RECIPES[0].id, { favorite: true }));
+      render(<PlanScreen initialScreen={makePastScreen()} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Aggiungi ai preferiti" })[0]);
+
+      expect(putRecipePref).toHaveBeenCalledWith(RECIPES[0].id, { favorite: true });
+      expect(
+        await screen.findByRole("button", { name: "Rimuovi dai preferiti" })
+      ).toBeInTheDocument();
     });
   });
 });
