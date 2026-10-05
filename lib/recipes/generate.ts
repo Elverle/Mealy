@@ -16,6 +16,7 @@ import {
 } from '@/lib/domain/types';
 import { normalizeTitle, slugify } from '@/lib/domain/recipe-text';
 import { generateRecipes, type GenerateRecipesOptions } from '@/lib/llm';
+import { loadIngredientPreferences } from '@/lib/prefs/ingredient-prefs';
 import { buildConstraints, findConstraintViolations } from './constraints';
 
 export const EXCLUDED_TITLES_IN_PROMPT = 150;
@@ -68,7 +69,14 @@ export async function generateAndStoreRecipes(
 ): Promise<GenerateAndStoreResult> {
   const household = await loadHousehold(input.householdId);
 
-  const constraints = buildConstraints(household, input.mealType, input.overrides ?? {});
+  const ingredientPrefs = await loadIngredientPreferences(household.id);
+
+  const constraints = buildConstraints(
+    household,
+    input.mealType,
+    input.overrides ?? {},
+    ingredientPrefs
+  );
 
   const excludeTitles = await listRecipeTitles(db, household.id, {
     mealType: input.mealType ?? undefined,

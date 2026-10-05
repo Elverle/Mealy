@@ -7,7 +7,12 @@ import {
   type Household,
   type RecipeConstraints,
 } from '@/lib/domain/types';
-import { buildConstraints, findConstraintViolations } from '@/lib/recipes/constraints';
+import { toIngredientPreferenceSets } from '@/lib/domain/planner';
+import {
+  buildConstraints,
+  findConstraintViolations,
+  PROMPT_INGREDIENT_LIKES_MAX,
+} from '@/lib/recipes/constraints';
 
 describe('buildConstraints', () => {
   const testHousehold: Household = {
@@ -70,6 +75,47 @@ describe('buildConstraints', () => {
     const constraints = buildConstraints(testHousehold, 'cena');
     expect(constraints.ingredient_likes).toEqual([]);
     expect(constraints.ingredient_dislikes).toEqual([]);
+  });
+
+  it('keeps both lists empty when ingredientPrefs is omitted', () => {
+    const constraints = buildConstraints(testHousehold, 'cena', {}, undefined);
+    expect(constraints.ingredient_likes).toEqual([]);
+    expect(constraints.ingredient_dislikes).toEqual([]);
+  });
+
+  it('copies ingredient preferences into constraints sorted alphabetically', () => {
+    const constraints = buildConstraints(
+      testHousehold,
+      'cena',
+      undefined,
+      toIngredientPreferenceSets(['zucchina', 'basilico'], ['cipolla', 'aglio'])
+    );
+    expect(constraints.ingredient_likes).toEqual(['basilico', 'zucchina']);
+    expect(constraints.ingredient_dislikes).toEqual(['aglio', 'cipolla']);
+  });
+
+  it('caps ingredient_likes at PROMPT_INGREDIENT_LIKES_MAX', () => {
+    const likes = Array.from({ length: 35 }, (_, i) => `ingrediente-${String(i).padStart(2, '0')}`);
+    const constraints = buildConstraints(
+      testHousehold,
+      'cena',
+      undefined,
+      toIngredientPreferenceSets(likes, [])
+    );
+    expect(PROMPT_INGREDIENT_LIKES_MAX).toBe(30);
+    expect(constraints.ingredient_likes).toHaveLength(30);
+    expect(constraints.ingredient_likes).toEqual(likes.slice(0, 30));
+  });
+
+  it('keeps every ingredient dislike without capping', () => {
+    const dislikes = Array.from({ length: 35 }, (_, i) => `ingrediente-${String(i).padStart(2, '0')}`);
+    const constraints = buildConstraints(
+      testHousehold,
+      'cena',
+      undefined,
+      toIngredientPreferenceSets([], dislikes)
+    );
+    expect(constraints.ingredient_dislikes).toHaveLength(35);
   });
 });
 
