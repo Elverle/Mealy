@@ -235,7 +235,7 @@ describe('WP2 Domain Types & Zod Schemas', () => {
 });
 
 describe('WP2 Drizzle Schema & Table Definitions', () => {
-  it('exports all 9 required tables and their relations', () => {
+  it('exports all 10 required tables and their relations', () => {
     expect(dbSchema.households).toBeDefined();
     expect(dbSchema.recipes).toBeDefined();
     expect(dbSchema.recipe_ingredients).toBeDefined();
@@ -245,6 +245,7 @@ describe('WP2 Drizzle Schema & Table Definitions', () => {
     expect(dbSchema.shopping_lists).toBeDefined();
     expect(dbSchema.shopping_items).toBeDefined();
     expect(dbSchema.ingredient_aliases).toBeDefined();
+    expect(dbSchema.ingredient_prefs).toBeDefined();
 
     expect(dbSchema.householdsRelations).toBeDefined();
     expect(dbSchema.recipesRelations).toBeDefined();
@@ -314,6 +315,14 @@ describe('WP2 Drizzle Schema & Table Definitions', () => {
     expect(cols).toContain('times_used');
     expect(cols).toContain('last_used_at');
   });
+
+  it('has correct columns on ingredient_prefs table', () => {
+    const cols = Object.keys(dbSchema.ingredient_prefs);
+    expect(cols).toContain('household_id');
+    expect(cols).toContain('canonical_name');
+    expect(cols).toContain('pref');
+    expect(cols).toContain('created_at');
+  });
 });
 
 describe('WP2 Migration Generation & File Verification', () => {
@@ -349,6 +358,14 @@ describe('WP2 Migration Generation & File Verification', () => {
     expect(mainSql).toContain('"recipes_title_trgm_idx"');
     expect(mainSql).toContain('"shopping_items_list_category_idx"');
     expect(mainSql).toContain('ON DELETE cascade');
+  });
+
+  it('creates ingredient_prefs in migration 0004 with cascade on household delete', () => {
+    const file = path.join(migrationsDir, '0004_add_ingredient_prefs.sql');
+    expect(fs.existsSync(file)).toBe(true);
+    const sql = fs.readFileSync(file, 'utf-8');
+    expect(sql).toContain('CREATE TABLE "ingredient_prefs"');
+    expect(sql).toContain('ON DELETE cascade');
   });
 
   it('produces valid Drizzle Kit metadata journal and snapshot files', () => {

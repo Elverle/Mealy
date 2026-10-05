@@ -2,21 +2,22 @@
 // (importabile sia da `lib/plans` sia da `lib/recipes`).
 
 import { db, type DbExecutor } from '@/lib/db';
+import { listIngredientPrefRows } from '@/lib/db/repositories/ingredient-pref-repo';
 import {
-  EMPTY_INGREDIENT_PREFERENCES,
+  toIngredientPreferenceSets,
   type IngredientPreferenceSets,
 } from '@/lib/domain/planner';
 
 /**
- * Preferenze ingredienti (likes/dislikes normalizzati) dell'household.
- * In F4 sono sempre vuote.
+ * Preferenze ingredienti (likes/dislikes normalizzati) dell'household, lette da `ingredient_prefs`.
  */
 export async function loadIngredientPreferences(
   householdId: string,
   executor: DbExecutor = db
 ): Promise<IngredientPreferenceSets> {
-  void householdId;
-  void executor;
-  // F5 (S2.3): leggere ingredient_prefs e restituire toIngredientPreferenceSets(likes, dislikes); usarlo anche in buildConstraints (lib/recipes/constraints.ts)
-  return EMPTY_INGREDIENT_PREFERENCES;
+  const rows = await listIngredientPrefRows(executor, householdId);
+  return toIngredientPreferenceSets(
+    rows.filter((row) => row.pref === 'like').map((row) => row.canonical_name),
+    rows.filter((row) => row.pref === 'dislike').map((row) => row.canonical_name)
+  );
 }

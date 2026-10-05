@@ -330,3 +330,59 @@ export async function listRecipes(filter?: {
 }): Promise<RecipeWithDetails[]> {
   return listRecipesWith(db, filter);
 }
+
+export interface RecipePrefValues {
+  rating: number | null;
+  favorite: boolean;
+  blocked: boolean;
+}
+
+/** true se la ricetta esiste e appartiene all'household. */
+export async function recipeBelongsToHousehold(
+  executor: DbExecutor,
+  recipeId: string,
+  householdId: string
+): Promise<boolean> {
+  const rows = await executor
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(and(eq(recipes.id, recipeId), eq(recipes.household_id, householdId)))
+    .limit(1);
+
+  return rows.length > 0;
+}
+
+/**
+ * Legge la riga di preferenze bloccandola (SELECT … FOR UPDATE); null se assente.
+ * Va chiamata solo dentro una transazione.
+ */
+export async function lockRecipePref(
+  executor: DbExecutor,
+  recipeId: string
+): Promise<RecipePref | null> {
+  const rows = await executor
+    .select()
+    .from(recipe_prefs)
+    .where(eq(recipe_prefs.recipe_id, recipeId))
+    .for('update');
+
+  return rows[0] ? RecipePrefSchema.parse(rows[0]) : null;
+}
+
+/** Scrive rating/favorite/blocked (upsert). Non tocca times_used né last_used_at. */
+export async function writeRecipePref(
+  executor: DbExecutor,
+  recipeId: string,
+  values: RecipePrefValues
+): Promise<RecipePref> {
+  const [row] = await executor
+    .insert(recipe_prefs)
+    .values({ recipe_id: recipeId, ...values })
+    .onConflictDoUpdate({
+      target: recipe_prefs.recipe_id,
+      set: { rating: values.rating, favorite: values.favorite, blocked: values.blocked },
+    })
+    .returning();
+
+  return RecipePrefSchema.parse(row);
+}

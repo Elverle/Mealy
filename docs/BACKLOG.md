@@ -123,7 +123,7 @@ Accettazione: rating/star/block persistono al reload; una ricetta bloccata non �
 
 ### S2.3 Preferenze ingredienti — dipende da S2.2 + S3.1 + S1.1
 Obiettivo: like/dislike sul singolo ingrediente, popolati man mano dalle ricette proposte (nessuna anagrafica ingredienti a priori; chiave = `canonical_name`).
-- [ ] Tabella `ingredient_prefs (canonical_name PK, pref like|dislike)` + migrazione
+- [ ] Tabella `ingredient_prefs ((household_id, canonical_name) PK, pref like|dislike)` + migrazione
 - [ ] `GET /api/ingredient-prefs`, `PUT /api/ingredient-prefs/:canonicalName` (set/rimuovi; la PUT risponde col conteggio ricette impattate)
 - [ ] UI: toggle 👍/👎 sulle righe ingrediente del RecipeSheet; conferma con impatto allo scarto ("Escluderà N ricette"); sezione *I miei ingredienti* nelle Impostazioni
 - [ ] Planner: `dislike` = esclusione hard (estensione filtri S3.1), `like` = fattore `ingredientAffinity` nella formula peso

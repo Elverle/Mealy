@@ -155,7 +155,7 @@ ingredient_aliases
   alias text PK, canonical_name text
 
 ingredient_prefs           -- popolata lazy: solo gli ingredienti su cui si è espresso un giudizio
-  canonical_name text PK,
+  household_id FK, canonical_name text,   -- PK (household_id, canonical_name); canonical_name normalizzato
   pref text ('like','dislike'),
   created_at
 ```
@@ -240,7 +240,7 @@ Stesso algoritmo di 5.2 applicato al singolo slot, con exclude-list = ricetta at
 
 ### 5.4 Preferenze
 
-Solo segnali espliciti in v1, su **due livelli**: la **ricetta** (rating 1–5, preferita, bloccata) e il **singolo ingrediente** (like/dislike su `canonical_name`). Le preferenze ingrediente si popolano man mano dalle ricette proposte — nessuna anagrafica ingredienti da riempire a priori: la chiave `canonical_name` esiste già grazie alla normalizzazione di §4.1. Un `dislike` è un filtro duro (esclude dalla selezione e dalla generazione LLM); un `like` è un boost morbido. Poiché scartare un ingrediente molto comune (es. cipolla) può escludere una fetta ampia di libreria, la UI mostra l'impatto prima di confermare ("escluderà N ricette"). `times_used`/`last_used_at` si aggiornano automaticamente alla conferma del piano e alimentano recency e novelty. Nessun machine learning: la formula di 5.2 è trasparente e spiegabile ("perché mi hai proposto questa?" ha una risposta leggibile).
+Solo segnali espliciti in v1, su **due livelli**: la **ricetta** (rating 1–5, preferita, bloccata) e il **singolo ingrediente** (like/dislike su `canonical_name`). Le preferenze ingrediente si popolano man mano dalle ricette proposte — nessuna anagrafica ingredienti da riempire a priori: la chiave `canonical_name` esiste già grazie alla normalizzazione di §4.1. Un `dislike` è un filtro duro (esclude dalla selezione e dalla generazione LLM); un `like` è un boost morbido. Poiché scartare un ingrediente molto comune (es. cipolla) può escludere una fetta ampia di libreria, la UI mostra l'impatto prima di confermare ("escluderà N ricette"). `times_used`/`last_used_at` si aggiornano automaticamente alla conferma del piano e alimentano recency e novelty. Nessun machine learning: la formula di 5.2 è trasparente e spiegabile ("perché mi hai proposto questa?" ha una risposta leggibile). Bloccare una ricetta la toglie anche dalle preferite. Ogni giudizio (su ricetta o ingrediente) vale dalla selezione successiva — generazione, rigenerazione, *Ripeti* o *Cambia* — e non modifica un piano già composto. L'impatto mostrato prima di scartare un ingrediente è il numero di ricette non bloccate della libreria che lo contengono; gli alias non si risolvono. Il confronto è sul nome canonico esatto: varianti come «cipolla rossa» sono ingredienti distinti e si giudicano a parte.
 
 ### 5.5 Consolidamento lista della spesa
 
