@@ -4,7 +4,7 @@
 import type { z } from 'zod';
 
 const NETWORK_ERROR_MESSAGE = 'Connessione non disponibile.';
-const UNKNOWN_ERROR_MESSAGE = 'Qualcosa è andato storto. Riprova.';
+export const UNKNOWN_ERROR_MESSAGE = 'Qualcosa è andato storto. Riprova.';
 const INVALID_RESPONSE_MESSAGE = 'Risposta del server non valida.';
 
 /**
@@ -22,6 +22,11 @@ export class ApiRequestError extends Error {
     this.status = status;
     this.code = code;
   }
+}
+
+/** Messaggio mostrabile all'utente: quello dell'errore API, altrimenti il generico. */
+export function apiErrorMessage(err: unknown): string {
+  return err instanceof ApiRequestError ? err.message : UNKNOWN_ERROR_MESSAGE;
 }
 
 /**
