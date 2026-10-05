@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Info, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { IngredientPrefsPlaceholder } from "@/components/settings/ingredient-prefs-placeholder";
+import { IngredientPrefsSection } from "@/components/settings/ingredient-prefs-section";
 import {
   SettingsField,
   SETTINGS_FIELD_ORDER,
@@ -13,10 +13,16 @@ import {
 } from "@/components/settings/settings-fields";
 import { putSettings } from "@/lib/settings/client";
 import { settingsEqual } from "@/lib/settings/normalize";
-import type { HouseholdSettings, SettingsView } from "@/lib/domain/types";
+import {
+  EMPTY_INGREDIENT_PREFS_VIEW,
+  type HouseholdSettings,
+  type IngredientPrefsView,
+  type SettingsView,
+} from "@/lib/domain/types";
 
 export interface SettingsEditorProps {
   initialSettings: SettingsView;
+  initialIngredientPrefs?: IngredientPrefsView;
 }
 
 type SaveStatus = "idle" | "saving" | "error";
@@ -37,7 +43,10 @@ function toHouseholdSettings(view: SettingsView): HouseholdSettings {
  * traccia una bozza locale e salva solo su pressione esplicita di "Salva".
  * Mostra un banner quando il salvataggio ha effettivamente cambiato i vincoli.
  */
-export function SettingsEditor({ initialSettings }: SettingsEditorProps): React.JSX.Element {
+export function SettingsEditor({
+  initialSettings,
+  initialIngredientPrefs,
+}: SettingsEditorProps): React.JSX.Element {
   const router = useRouter();
   const [saved, setSaved] = React.useState<HouseholdSettings>(() =>
     toHouseholdSettings(initialSettings)
@@ -138,7 +147,7 @@ export function SettingsEditor({ initialSettings }: SettingsEditorProps): React.
         ))}
       </fieldset>
 
-      <IngredientPrefsPlaceholder />
+      <IngredientPrefsSection initialPrefs={initialIngredientPrefs ?? EMPTY_INGREDIENT_PREFS_VIEW} />
     </main>
   );
 }

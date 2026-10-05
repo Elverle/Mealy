@@ -47,7 +47,23 @@ beforeEach(() => {
 });
 
 describe("SettingsEditor", () => {
-  it("starts with Salva disabled, no banner, and shows the 5 field titles plus the ingredient placeholder", () => {
+  it("lists a discarded ingredient under Scartati and keeps Salva disabled", () => {
+    render(
+      <SettingsEditor
+        initialSettings={FIXTURE}
+        initialIngredientPrefs={{
+          likes: [],
+          dislikes: [{ canonical_name: "cipolla", pref: "dislike", recipes_count: 2 }],
+        }}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Scartati" })).toBeInTheDocument();
+    expect(screen.getByText("Cipolla")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salva" })).toBeDisabled();
+  });
+
+  it("starts with Salva disabled, no banner, and shows the 5 field titles plus the ingredient section", () => {
     renderEditor();
 
     expect(screen.getByRole("button", { name: "Salva" })).toBeDisabled();
