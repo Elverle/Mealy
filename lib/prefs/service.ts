@@ -9,15 +9,18 @@ import {
   upsertIngredientPref,
 } from '@/lib/db/repositories/ingredient-pref-repo';
 import {
+  ensureRecipePrefRow,
   listRecipes,
   lockRecipePref,
   recipeBelongsToHousehold,
   writeRecipePref,
 } from '@/lib/db/repositories/recipe-repo';
-import { applyRecipePrefPatch, countRecipesByIngredient } from '@/lib/domain/prefs';
-import { normalizeCanonicalName } from '@/lib/domain/recipe-text';
 import {
-  INGREDIENT_NAME_MAX,
+  applyRecipePrefPatch,
+  countRecipesByIngredient,
+  parseIngredientPrefName,
+} from '@/lib/domain/prefs';
+import {
   type IngredientPref,
   type IngredientPrefEntry,
   type IngredientPrefsView,
@@ -40,6 +43,8 @@ export async function updateRecipePref(
   const household = await loadHousehold(householdId);
   return db.transaction(async (tx) => {
     if (!(await recipeBelongsToHousehold(tx, recipeId, household.id))) return null;
+    // Senza riga FOR UPDATE non blocca nulla: la si crea prima, così due prime scritture si serializzano.
+    await ensureRecipePrefRow(tx, recipeId);
     const current = await lockRecipePref(tx, recipeId);
     const next = applyRecipePrefPatch(current, patch);
     return writeRecipePref(tx, recipeId, next);
@@ -72,10 +77,8 @@ export async function setIngredientPref(
   pref: IngredientPref | null,
   householdId?: string
 ): Promise<SetIngredientPrefResult> {
-  const name = normalizeCanonicalName(canonicalName);
-  if (name.length === 0 || name.length > INGREDIENT_NAME_MAX) {
-    throw new RangeError('canonical_name non valido');
-  }
+  const name = parseIngredientPrefName(canonicalName);
+  if (name === null) throw new RangeError('canonical_name non valido');
 
   const household = await loadHousehold(householdId);
   if (pref === null) {

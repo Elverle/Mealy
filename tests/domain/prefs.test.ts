@@ -4,6 +4,7 @@ import {
   applyRecipePrefPatch,
   countRecipesByIngredient,
   defaultRecipePref,
+  parseIngredientPrefName,
 } from '@/lib/domain/prefs';
 import { RecipeSchema, type Recipe } from '@/lib/domain/types';
 
@@ -124,5 +125,36 @@ describe('countRecipesByIngredient', () => {
 
   it('returns an empty map for no recipes', () => {
     expect(countRecipesByIngredient([]).size).toBe(0);
+  });
+});
+
+describe('parseIngredientPrefName', () => {
+  it('returns the normalized name', () => {
+    expect(parseIngredientPrefName('  Cipolla   Rossa ')).toBe('cipolla rossa');
+  });
+
+  it('accepts a name of exactly 80 characters and rejects 81', () => {
+    expect(parseIngredientPrefName('a'.repeat(80))).toBe('a'.repeat(80));
+    expect(parseIngredientPrefName('a'.repeat(81))).toBeNull();
+  });
+
+  it('rejects an empty or whitespace-only name', () => {
+    expect(parseIngredientPrefName('')).toBeNull();
+    expect(parseIngredientPrefName(' \t\n ')).toBeNull();
+  });
+
+  it.each(['sale\u0000', 'sa\u0001le', 'sa\u001fle', 'sa\u007fle'])(
+    'rejects a name with a control character (%j)',
+    (raw) => {
+      expect(parseIngredientPrefName(raw)).toBeNull();
+    }
+  );
+
+  it('turns tabs and newlines into single spaces instead of rejecting them', () => {
+    expect(parseIngredientPrefName('cipolla\trossa\nfresca')).toBe('cipolla rossa fresca');
+  });
+
+  it('keeps a percent sign', () => {
+    expect(parseIngredientPrefName('cioccolato 70%')).toBe('cioccolato 70%');
   });
 });

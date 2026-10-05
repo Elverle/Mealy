@@ -352,6 +352,14 @@ export async function recipeBelongsToHousehold(
   return rows.length > 0;
 }
 
+/** Crea la riga di preferenze di default se manca (non tocca una riga esistente). */
+export async function ensureRecipePrefRow(executor: DbExecutor, recipeId: string): Promise<void> {
+  await executor
+    .insert(recipe_prefs)
+    .values({ recipe_id: recipeId })
+    .onConflictDoNothing({ target: recipe_prefs.recipe_id });
+}
+
 /**
  * Legge la riga di preferenze bloccandola (SELECT … FOR UPDATE); null se assente.
  * Va chiamata solo dentro una transazione.

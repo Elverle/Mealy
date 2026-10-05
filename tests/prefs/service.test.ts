@@ -90,10 +90,26 @@ describe.skipIf(!dbUp)('prefs service', { timeout: DB_TEST_TIMEOUT_MS }, () => {
     it('creates the pref row when the recipe has none', async () => {
       const hid = await newHousehold();
       const recipe = await insertTestRecipe(hid, { meal_types: ['cena'] });
+      await db.delete(recipe_prefs).where(eq(recipe_prefs.recipe_id, recipe.id));
 
       const result = await updateRecipePref(recipe.id, { rating: 2 }, hid);
 
       expect(result).toMatchObject({ rating: 2, favorite: false, blocked: false, times_used: 0 });
+    });
+
+    it('does not lose a concurrent first write when the pref row is missing', async () => {
+      const hid = await newHousehold();
+      const recipe = await insertTestRecipe(hid, { meal_types: ['cena'] });
+      await db.delete(recipe_prefs).where(eq(recipe_prefs.recipe_id, recipe.id));
+
+      await Promise.all([
+        updateRecipePref(recipe.id, { favorite: true }, hid),
+        updateRecipePref(recipe.id, { rating: 4 }, hid),
+      ]);
+
+      const rows = await db.select().from(recipe_prefs).where(eq(recipe_prefs.recipe_id, recipe.id));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ favorite: true, rating: 4, blocked: false });
     });
 
     it('returns null and writes nothing for a recipe of another household', async () => {
@@ -159,6 +175,13 @@ describe.skipIf(!dbUp)('prefs service', { timeout: DB_TEST_TIMEOUT_MS }, () => {
       const hid = await newHousehold();
       await expect(setIngredientPref('   ', 'like', hid)).rejects.toBeInstanceOf(RangeError);
       await expect(setIngredientPref(NAME_TOO_LONG, 'like', hid)).rejects.toBeInstanceOf(RangeError);
+    });
+
+    it('rejects a name with a control character and writes nothing', async () => {
+      const hid = await newHousehold();
+      await expect(setIngredientPref('sale\u0000', 'like', hid)).rejects.toBeInstanceOf(RangeError);
+      await expect(setIngredientPref('sa\u0007le', 'like', hid)).rejects.toBeInstanceOf(RangeError);
+      expect(await listIngredientPrefs(hid)).toEqual({ likes: [], dislikes: [] });
     });
   });
 

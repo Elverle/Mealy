@@ -63,17 +63,36 @@ describe('PUT /api/ingredient-prefs/[canonicalName]', () => {
     expect(putDynamic).toBe('force-dynamic');
   });
 
-  it('decodes a percent-encoded name', async () => {
+  it('passes the already-decoded param to the service', async () => {
     vi.mocked(setIngredientPref).mockResolvedValueOnce({
       canonical_name: 'cipolla rossa',
       pref: 'like',
       recipes_count: 1,
     });
 
-    const response = await put('cipolla%20rossa', JSON.stringify({ pref: 'like' }));
+    const response = await put('cipolla rossa', JSON.stringify({ pref: 'like' }));
 
     expect(response.status).toBe(200);
     expect(setIngredientPref).toHaveBeenCalledWith('cipolla rossa', 'like');
+  });
+
+  it('does not decode the param a second time', async () => {
+    vi.mocked(setIngredientPref).mockResolvedValueOnce({
+      canonical_name: 'a%20b',
+      pref: 'like',
+      recipes_count: 0,
+    });
+
+    const response = await put('a%20b', JSON.stringify({ pref: 'like' }));
+
+    expect(response.status).toBe(200);
+    expect(setIngredientPref).toHaveBeenCalledWith('a%20b', 'like');
+  });
+
+  it('returns 400 for a name containing a NUL character', async () => {
+    const response = await put('sale\u0000', JSON.stringify({ pref: 'like' }));
+    expect(response.status).toBe(400);
+    expect(setIngredientPref).not.toHaveBeenCalled();
   });
 
   it('keeps an already-decoded name containing a percent sign', async () => {
@@ -90,7 +109,7 @@ describe('PUT /api/ingredient-prefs/[canonicalName]', () => {
   });
 
   it('returns 400 for a whitespace-only name', async () => {
-    const response = await put('%20%20', JSON.stringify({ pref: 'like' }));
+    const response = await put('  ', JSON.stringify({ pref: 'like' }));
     expect(response.status).toBe(400);
     expect(setIngredientPref).not.toHaveBeenCalled();
   });

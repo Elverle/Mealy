@@ -557,7 +557,7 @@ export type LibraryView = z.infer<typeof LibraryViewSchema>;
 // Giudizio e impatto di un ingrediente di una ricetta.
 export const INGREDIENT_NAME_MAX = 80;
 export const RecipeIngredientInfoSchema = z.object({
-  canonical_name: z.string().min(1).max(INGREDIENT_NAME_MAX), // normalizzato
+  canonical_name: z.string().min(1), // normalizzato; senza max: i nomi generati dall'LLM non ne hanno
   pref: IngredientPrefSchema.nullable(),
   recipes_count: z.number().int().min(0), // ricette non bloccate della libreria che lo contengono
 });

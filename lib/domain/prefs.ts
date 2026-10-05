@@ -1,7 +1,12 @@
 // Regole pure delle preferenze sulle ricette. Nessuna dipendenza da DB, LLM o framework.
 
 import { recipeIngredientNames } from './library';
+import { normalizeCanonicalName } from './recipe-text';
+import { INGREDIENT_NAME_MAX } from './types';
 import type { Recipe, RecipePref, UpdateRecipePrefRequest } from './types';
+
+// Dopo la normalizzazione restano solo i caratteri di controllo non-whitespace (NUL, ESC, DEL, …).
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 
 export interface RecipePrefFields {
   rating: number | null;
@@ -42,4 +47,11 @@ export function countRecipesByIngredient(recipes: readonly Recipe[]): Map<string
     }
   }
   return counts;
+}
+
+/** Nome normalizzato di un giudizio su ingrediente; null se vuoto, troppo lungo o con caratteri di controllo. */
+export function parseIngredientPrefName(raw: string): string | null {
+  const name = normalizeCanonicalName(raw);
+  if (name.length === 0 || name.length > INGREDIENT_NAME_MAX) return null;
+  return CONTROL_CHARACTERS.test(name) ? null : name;
 }

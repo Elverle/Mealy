@@ -153,6 +153,11 @@ describe('matchesLibraryFilter', () => {
     expect(matchesLibraryFilter(card, filterWith({ diets: ['vegetariano'] }))).toBe(true);
   });
 
+  it('does not let a vegetarian-only recipe satisfy the vegan filter', () => {
+    const card = makeCard({ diet_flags: ['vegetariano'] });
+    expect(matchesLibraryFilter(card, filterWith({ diets: ['vegano'] }))).toBe(false);
+  });
+
   it('searches the title ignoring case and accents', () => {
     expect(matchesLibraryFilter(makeCard(), filterWith({ q: 'POLLO limòne' }))).toBe(true);
   });

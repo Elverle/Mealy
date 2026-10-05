@@ -1,5 +1,5 @@
-import { normalizeCanonicalName } from '@/lib/domain/recipe-text';
-import { INGREDIENT_NAME_MAX, SetIngredientPrefRequestSchema } from '@/lib/domain/types';
+import { parseIngredientPrefName } from '@/lib/domain/prefs';
+import { SetIngredientPrefRequestSchema } from '@/lib/domain/types';
 import { internalErrorResponse, invalidRequestResponse, readJsonBody } from '@/lib/http/responses';
 import { setIngredientPref } from '@/lib/prefs/service';
 
@@ -8,21 +8,13 @@ export const dynamic = 'force-dynamic';
 
 const TAG = '[api/ingredient-prefs/name]';
 
-/** Next può consegnare il parametro già decodificato oppure no: si decodifica una volta, senza fallire. */
-function decodeParam(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value; // già decodificato e contiene un '%' (es. "cioccolato 70%")
-  }
-}
-
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ canonicalName: string }> }
 ): Promise<Response> {
-  const name = normalizeCanonicalName(decodeParam((await params).canonicalName));
-  if (name.length === 0 || name.length > INGREDIENT_NAME_MAX) return invalidRequestResponse();
+  // Next consegna il parametro già decodificato: non va decodificato di nuovo.
+  const name = parseIngredientPrefName((await params).canonicalName);
+  if (name === null) return invalidRequestResponse();
 
   const body = await readJsonBody(request, { allowEmpty: false });
   if (!body.ok) return invalidRequestResponse();

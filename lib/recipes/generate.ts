@@ -93,11 +93,16 @@ export async function generateAndStoreRecipes(
 
   await db.transaction(async (tx) => {
     await acquireRecipeGenerationLock(tx);
+    // Riletti nella transazione: un "non mi piace" salvato durante la chiamata LLM vale per il controllo.
+    const currentConstraints = {
+      ...constraints,
+      ingredient_dislikes: [...(await loadIngredientPreferences(household.id, tx)).dislikes],
+    };
     const existingTitles = await listRecipeTitles(tx, household.id);
     const known = new Set(existingTitles.map(normalizeTitle));
 
     for (const r of generated) {
-      const violations = findConstraintViolations(r, constraints);
+      const violations = findConstraintViolations(r, currentConstraints);
       if (violations.length > 0) {
         skipped.push({
           title: r.title,

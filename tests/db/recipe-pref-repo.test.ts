@@ -4,6 +4,7 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, recipe_prefs } from '@/lib/db';
 import {
+  ensureRecipePrefRow,
   lockRecipePref,
   recipeBelongsToHousehold,
   writeRecipePref,
@@ -75,6 +76,41 @@ describe.skipIf(!dbUp)('recipe pref repository additions', () => {
 
       const pref = await db.transaction((tx) => lockRecipePref(tx, recipe.id));
       expect(pref).toBeNull();
+    });
+  });
+
+  describe('ensureRecipePrefRow', () => {
+    it('creates a default row when it is missing', async () => {
+      const h = await newHousehold();
+      const recipe = await insertTestRecipe(h, { meal_types: ['cena'] });
+      await db.delete(recipe_prefs).where(eq(recipe_prefs.recipe_id, recipe.id));
+
+      await ensureRecipePrefRow(db, recipe.id);
+
+      const rows = await db.select().from(recipe_prefs).where(eq(recipe_prefs.recipe_id, recipe.id));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        rating: null,
+        favorite: false,
+        blocked: false,
+        times_used: 0,
+        last_used_at: null,
+      });
+    });
+
+    it('leaves an existing row untouched', async () => {
+      const h = await newHousehold();
+      const lastUsed = new Date('2026-09-01T12:00:00Z');
+      const recipe = await insertTestRecipe(h, {
+        meal_types: ['cena'],
+        prefs: { rating: 4, favorite: true, times_used: 3, last_used_at: lastUsed },
+      });
+
+      await ensureRecipePrefRow(db, recipe.id);
+
+      const [row] = await db.select().from(recipe_prefs).where(eq(recipe_prefs.recipe_id, recipe.id));
+      expect(row).toMatchObject({ rating: 4, favorite: true, blocked: false, times_used: 3 });
+      expect(row.last_used_at?.getTime()).toBe(lastUsed.getTime());
     });
   });
 

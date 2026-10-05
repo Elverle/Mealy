@@ -43,4 +43,19 @@ describe('RecipeDetailViewSchema', () => {
     expect(parsed.recipe.id).toBe(recipe.id);
     expect(parsed.recipe.created_at).toBeInstanceOf(Date);
   });
+
+  it('accepts an ingredient info whose canonical name exceeds 80 characters', () => {
+    const recipe = fixtureRecipesAsDomain()[0];
+    const longName = 'a'.repeat(81);
+    const wire = JSON.parse(
+      JSON.stringify({
+        recipe,
+        ingredients: [{ canonical_name: longName, pref: null, recipes_count: 1 }],
+      })
+    );
+
+    const parsed = RecipeDetailViewSchema.parse(wire);
+
+    expect(parsed.ingredients[0].canonical_name).toBe(longName);
+  });
 });
