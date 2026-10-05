@@ -92,8 +92,7 @@ function shownTitles(): string[] {
 
 /** Tocca il corpo della card (non la ★). */
 function openCard(title: string) {
-  const body = screen.getByRole("heading", { level: 3, name: title }).closest("button");
-  fireEvent.click(body!);
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(`^\\d+ min ${title}`) }));
 }
 
 beforeEach(() => {
@@ -147,6 +146,15 @@ describe("LibraryScreen", () => {
     expect(shownTitles()).toEqual(["Risotto ai funghi"]);
     expect(screen.getByText("Bloccata")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /ai preferiti/ })).not.toBeInTheDocument();
+  });
+
+  it("exposes each title as a level-3 heading outside any button, with a card-wide open button", () => {
+    renderScreen([PESTO]);
+    const heading = screen.getByRole("heading", { level: 3, name: "Pasta al pesto" });
+    expect(heading.closest("button")).toBeNull();
+    const open = screen.getByRole("button", { name: /^\d+ min Pasta al pesto/ });
+    expect(open).not.toContainElement(heading);
+    expect(open.className).toContain("after:inset-0");
   });
 
   it("shows the dedicated empty state when Bloccate matches nothing", () => {
@@ -272,5 +280,34 @@ describe("LibraryScreen", () => {
     expect(
       screen.getByRole("button", { name: "Rimuovi Pasta al pesto dai preferiti", hidden: true })
     ).toHaveAttribute("aria-pressed", "true");
+  });
+  it("keeps a recipe blocked from the detail without a favorite when a pending star response arrives later", async () => {
+    const star = deferred<RecipePref>();
+    putRecipeMock.mockImplementation((_id, patch) =>
+      "favorite" in patch ? star.promise : Promise.resolve(pref(ID_PESTO, { blocked: true }))
+    );
+    fetchMock.mockResolvedValue({
+      recipe: PESTO,
+      ingredients: [{ canonical_name: "basilico", pref: null, recipes_count: 3 }],
+    });
+    renderScreen([PESTO]);
+
+    // ★ rapida in sospeso, poi blocco dal dettaglio
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi Pasta al pesto ai preferiti" }));
+    openCard("Pasta al pesto");
+    fireEvent.click(await screen.findByRole("button", { name: "Non proporre più" }));
+    expect(await screen.findByText("Non la proporrò più.")).toBeInTheDocument();
+
+    // la risposta tardiva della ★ non deve rimettere la preferita su una ricetta bloccata
+    await act(async () => star.resolve(pref(ID_PESTO, { favorite: true })));
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    // tra le bloccate, filtrando per preferite, la ricetta non deve comparire
+    fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Bloccate" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Preferite" }));
+    expect(screen.queryByRole("heading", { level: 3, name: "Pasta al pesto" })).not.toBeInTheDocument();
   });
 });

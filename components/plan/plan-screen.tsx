@@ -247,17 +247,13 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     setScreen((prev) => {
       const current = prev.view.plan;
       if (!current || !current.slots.some((slot) => slot.recipe?.id === recipeId)) return prev;
-      const slots = current.slots.map((slot) =>
-        slot.recipe?.id === recipeId
-          ? {
-              ...slot,
-              recipe: {
-                ...slot.recipe,
-                prefs: { ...(slot.recipe.prefs ?? defaultRecipePref(recipeId)), ...changed },
-              },
-            }
-          : slot
-      );
+      const slots = current.slots.map((slot) => {
+        if (slot.recipe?.id !== recipeId) return slot;
+        const merged = { ...(slot.recipe.prefs ?? defaultRecipePref(recipeId)), ...changed };
+        // Una ricetta bloccata non è mai preferita: una risposta tardiva della ★ non lo annulla.
+        const prefs = merged.blocked ? { ...merged, favorite: false } : merged;
+        return { ...slot, recipe: { ...slot.recipe, prefs } };
+      });
       return { ...prev, view: { ...prev.view, plan: { ...current, slots } } };
     });
   };

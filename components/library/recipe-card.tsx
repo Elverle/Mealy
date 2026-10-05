@@ -14,23 +14,34 @@ export interface RecipeCardProps {
   onToggleFavorite: (recipeId: string) => void;
 }
 
-/** Card compatta della Libreria: il corpo apre il dettaglio, la ★ è un pulsante separato. */
+/**
+ * Card compatta della Libreria: il corpo apre il dettaglio, la ★ è un pulsante separato.
+ * Titolo e badge restano fuori dal pulsante (stretched link): il titolo è un vero `h3` e il
+ * pulsante copre l'intera card con uno pseudo-elemento, prendendo il nome dal suo contenuto.
+ */
 export function RecipeCard({ recipe, onOpen, onToggleFavorite }: RecipeCardProps): React.JSX.Element {
   const chips = recipeChips(recipe);
+  const baseId = React.useId();
+  const metaId = `${baseId}-meta`;
+  const hasMeta = chips.length > 0 || recipe.rating !== null;
   return (
     <Card className="relative p-4 transition-all hover:border-stone/40 hover:shadow-sm">
-      <button
-        type="button"
-        onClick={() => onOpen(recipe.id)}
-        className="block min-h-[44px] w-full cursor-pointer rounded-lg pr-12 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil"
-      >
-        <Badge variant="secondary" className="mb-1.5 gap-1 text-[11px]">
+      <div className="min-h-[44px] pr-12">
+        <Badge id={`${baseId}-time`} variant="secondary" className="mb-1.5 gap-1 text-[11px]">
           <Clock className="h-3 w-3 text-stone" aria-hidden="true" />
           <span className="tabular-nums">{recipe.prep_minutes} min</span>
         </Badge>
-        <h3 className="font-display text-base font-bold text-ink line-clamp-2">{recipe.title}</h3>
-        {(chips.length > 0 || recipe.rating !== null) && (
-          <span className="mt-3 flex items-center justify-between gap-2 border-t border-stone/15 pt-2 text-xs">
+        <h3
+          id={`${baseId}-title`}
+          className="font-display text-base font-bold text-ink line-clamp-2"
+        >
+          {recipe.title}
+        </h3>
+        {hasMeta && (
+          <div
+            id={metaId}
+            className="mt-3 flex items-center justify-between gap-2 border-t border-stone/15 pt-2 text-xs"
+          >
             <span className="flex flex-wrap items-center gap-1 text-stone">
               {chips.map((chip) => (
                 <span key={chip} className="rounded bg-stone/10 px-1.5 py-0.5">
@@ -48,11 +59,19 @@ export function RecipeCard({ recipe, onOpen, onToggleFavorite }: RecipeCardProps
                 <span aria-hidden="true">{recipe.rating}</span>
               </span>
             )}
-          </span>
+          </div>
         )}
-      </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => onOpen(recipe.id)}
+        aria-labelledby={[`${baseId}-time`, `${baseId}-title`, hasMeta ? metaId : null]
+          .filter(Boolean)
+          .join(" ")}
+        className="cursor-pointer after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-basil"
+      />
       {recipe.blocked ? (
-        <span className="absolute right-3 top-3 flex items-center gap-1 text-[11px] font-semibold text-tomato">
+        <span className="absolute right-3 top-3 z-10 flex items-center gap-1 text-[11px] font-semibold text-tomato">
           <Ban className="h-3 w-3" aria-hidden="true" /> Bloccata
         </span>
       ) : (
@@ -65,7 +84,7 @@ export function RecipeCard({ recipe, onOpen, onToggleFavorite }: RecipeCardProps
               ? `Rimuovi ${recipe.title} dai preferiti`
               : `Aggiungi ${recipe.title} ai preferiti`
           }
-          className="absolute right-1 top-1 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-stone transition-colors hover:text-saffron focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil"
+          className="absolute right-1 top-1 z-10 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-stone transition-colors hover:text-saffron focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil"
         >
           <Star
             className={cn("h-4 w-4", recipe.favorite ? "fill-saffron text-saffron" : "text-stone")}

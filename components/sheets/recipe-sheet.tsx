@@ -101,15 +101,33 @@ export function RecipeSheet({
   const [pendingDislikeIngredient, setPendingDislikeIngredient] =
     React.useState<RecipeIngredient | null>(null);
 
-  // Sync servings only when the recipe (id) or its base servings change: a new object for the
-  // same recipe (e.g. updated preferences) must not reset the servings chosen by the user.
-  const recipeId = recipe?.id;
-  const baseServingsProp = recipe?.servings;
-  React.useEffect(() => {
-    if (recipeId === undefined || baseServingsProp === undefined) return;
-    setServings(baseServingsProp);
+  // Riallineo porzioni e conferma solo quando cambiano ricetta (id) o porzioni base, durante il
+  // render (come `syncedInitialScreen` in plan-screen): un nuovo oggetto per la stessa ricetta
+  // (es. preferenze aggiornate) non deve azzerare le porzioni scelte né una conferma aperta.
+  const [syncedRecipe, setSyncedRecipe] = React.useState<{ id: string; servings: number } | null>(
+    recipe ? { id: recipe.id, servings: recipe.servings } : null
+  );
+  if (recipe && (syncedRecipe?.id !== recipe.id || syncedRecipe.servings !== recipe.servings)) {
+    setSyncedRecipe({ id: recipe.id, servings: recipe.servings });
+    setServings(recipe.servings);
     setPendingDislikeIngredient(null);
-  }, [recipeId, baseServingsProp]);
+  }
+
+  // Alla comparsa della conferma la porto in vista e sposto il focus su "Annulla" (azione meno
+  // distruttiva); alla chiusura con "Annulla" il focus torna sul 👎 che l'ha aperta.
+  const confirmRef = React.useRef<HTMLDivElement>(null);
+  const cancelRef = React.useRef<HTMLButtonElement>(null);
+  const dislikeTriggerRef = React.useRef<HTMLButtonElement | null>(null);
+  const pendingIngredientId = pendingDislikeIngredient?.id;
+  React.useEffect(() => {
+    if (pendingIngredientId === undefined) return;
+    const box = confirmRef.current;
+    if (box && typeof box.scrollIntoView === "function") {
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      box.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+    }
+    cancelRef.current?.focus({ preventScroll: true });
+  }, [pendingIngredientId]);
 
   if (!recipe) {
     if (!isLoading) return null;
@@ -222,14 +240,20 @@ export function RecipeSheet({
 
         {/* Confirmation banner for disliking ingredient */}
         {pendingDislikeIngredient && (
-          <div className="my-3 rounded-xl border border-tomato/30 bg-tomato/10 p-3.5 text-sm">
+          <div
+            ref={confirmRef}
+            role="alertdialog"
+            aria-labelledby="dislike-confirm-title"
+            aria-describedby="dislike-confirm-impact"
+            className="my-3 rounded-xl border border-tomato/30 bg-tomato/10 p-3.5 text-sm"
+          >
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-5 w-5 text-tomato shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="font-semibold text-tomato">
+                <p id="dislike-confirm-title" className="font-semibold text-tomato">
                   {`Scartare ${pendingDislikeIngredient.canonicalName ?? pendingDislikeIngredient.name}?`}
                 </p>
-                <p className="text-xs text-stone mt-0.5">
+                <p id="dislike-confirm-impact" className="text-xs text-stone mt-0.5">
                   {dislikeImpactText(pendingDislikeIngredient.recipesCount)}
                 </p>
                 <div className="mt-2.5 flex items-center gap-2">
@@ -249,9 +273,13 @@ export function RecipeSheet({
                     Conferma esclusione
                   </Button>
                   <Button
+                    ref={cancelRef}
                     size="sm"
                     variant="outline"
-                    onClick={() => setPendingDislikeIngredient(null)}
+                    onClick={() => {
+                      setPendingDislikeIngredient(null);
+                      dislikeTriggerRef.current?.focus();
+                    }}
                   >
                     Annulla
                   </Button>
@@ -309,10 +337,11 @@ export function RecipeSheet({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={(event) => {
                         if (ing.preference === "disliked") {
                           onIngredientPreference?.(ing.id, null);
                         } else {
+                          dislikeTriggerRef.current = event.currentTarget;
                           setPendingDislikeIngredient(ing);
                         }
                       }}

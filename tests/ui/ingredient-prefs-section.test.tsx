@@ -141,4 +141,76 @@ describe("IngredientPrefsSection", () => {
     expect(screen.getByText("Melanzane")).toBeInTheDocument();
     expect(screen.getByText("Nessuno per ora.")).toBeInTheDocument();
   });
+
+  describe("focus and announcement after a removal", () => {
+    function removeWithFocus(name: string): void {
+      const button = screen.getByRole("button", { name: `Rimuovi ${name}` });
+      button.focus();
+      fireEvent.click(button);
+    }
+
+    it("moves focus to the remove button of the next entry", () => {
+      vi.mocked(putIngredientPref).mockResolvedValue(removed("basilico"));
+      render(<IngredientPrefsSection initialPrefs={FULL} />);
+
+      removeWithFocus("basilico");
+
+      expect(screen.getByRole("button", { name: "Rimuovi zucchine" })).toHaveFocus();
+    });
+
+    it("moves focus to the previous entry when the removed one was last", () => {
+      vi.mocked(putIngredientPref).mockResolvedValue(removed("aglio"));
+      render(<IngredientPrefsSection initialPrefs={FULL} />);
+
+      removeWithFocus("aglio");
+
+      expect(screen.getByRole("button", { name: "Rimuovi zucchine" })).toHaveFocus();
+    });
+
+    it("moves focus to the group heading when its list becomes empty", () => {
+      vi.mocked(putIngredientPref).mockResolvedValue(removed("cipolla"));
+      render(
+        <IngredientPrefsSection
+          initialPrefs={{ likes: FULL.likes, dislikes: [FULL.dislikes[0]] }}
+        />
+      );
+
+      removeWithFocus("cipolla");
+
+      expect(screen.getByRole("heading", { name: "Scartati" })).toHaveFocus();
+    });
+
+    it("moves focus to the section heading when no entry is left at all", () => {
+      vi.mocked(putIngredientPref).mockResolvedValue(removed("cipolla"));
+      render(
+        <IngredientPrefsSection
+          initialPrefs={{ likes: [], dislikes: [FULL.dislikes[0]] }}
+        />
+      );
+
+      removeWithFocus("cipolla");
+
+      expect(screen.getByRole("heading", { name: "I miei ingredienti" })).toHaveFocus();
+    });
+
+    it("puts focus back on the restored entry when the removal fails", async () => {
+      vi.mocked(putIngredientPref).mockRejectedValueOnce(new Error("boom"));
+      render(<IngredientPrefsSection initialPrefs={FULL} />);
+
+      removeWithFocus("basilico");
+      await screen.findByRole("alert");
+
+      expect(screen.getByRole("button", { name: "Rimuovi basilico" })).toHaveFocus();
+    });
+
+    it("announces the removal in a polite live region once it is saved", async () => {
+      vi.mocked(putIngredientPref).mockResolvedValueOnce(removed("basilico"));
+      render(<IngredientPrefsSection initialPrefs={FULL} />);
+
+      removeWithFocus("basilico");
+
+      await waitFor(() => expect(screen.getByText("basilico rimosso.")).toBeInTheDocument());
+      expect(screen.getByText("basilico rimosso.")).toHaveAttribute("aria-live", "polite");
+    });
+  });
 });

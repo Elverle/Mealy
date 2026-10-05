@@ -124,6 +124,31 @@ describe("RecipeSheet dislike confirmation text", () => {
   });
 });
 
+describe("RecipeSheet dislike confirmation accessibility", () => {
+  it("exposes the confirmation as an alertdialog named by its title and described by the impact", () => {
+    renderSheet();
+    openDislikeConfirmation();
+    const box = screen.getByRole("alertdialog", { name: "Scartare Basilico?" });
+    expect(box).toHaveAccessibleDescription(
+      "Escluderà le ricette contenenti questo ingrediente dai prossimi piani."
+    );
+  });
+
+  it("moves focus to Annulla when the confirmation opens", () => {
+    renderSheet();
+    openDislikeConfirmation();
+    expect(screen.getByRole("button", { name: "Annulla" })).toHaveFocus();
+  });
+
+  it("returns focus to the discard button when the confirmation is cancelled", () => {
+    renderSheet();
+    openDislikeConfirmation();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Scarta Basilico" })).toHaveFocus();
+  });
+});
+
 describe("RecipeSheet servings sync", () => {
   it("keeps the chosen servings when the recipe object changes but id and servings do not", () => {
     const { rerenderWith } = renderSheet();

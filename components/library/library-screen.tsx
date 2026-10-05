@@ -74,6 +74,8 @@ export function LibraryScreen({ initialRecipes, persons }: LibraryScreenProps): 
         if (changes.rating !== undefined) next.rating = changes.rating ?? null;
         if (changes.favorite !== undefined) next.favorite = changes.favorite;
         if (changes.blocked !== undefined) next.blocked = changes.blocked;
+        // Una ricetta bloccata non è mai preferita: una risposta tardiva della ★ non lo annulla.
+        if (next.blocked) next.favorite = false;
         return next;
       })
     );

@@ -1057,6 +1057,36 @@ describe("PlanScreen", () => {
       );
     });
 
+    it("keeps a recipe blocked from the detail without a favorite when a pending star response arrives later", async () => {
+      const star = deferred<RecipePref>();
+      vi.mocked(putRecipePref)
+        .mockReturnValueOnce(star.promise)
+        .mockResolvedValueOnce(savedPref(RECIPES[0].id, { blocked: true }));
+      vi.mocked(fetchRecipeDetail).mockReturnValue(new Promise(() => {}));
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Aggiungi ai preferiti" })[0]);
+      fireEvent.click(screen.getByText(RECIPES[0].title));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Non proporre più" }));
+      await waitFor(() => expect(putRecipePref).toHaveBeenCalledTimes(2));
+      await act(async () => {});
+
+      // Arriva la risposta della ★, che non conosce il blocco.
+      await act(async () => star.resolve(savedPref(RECIPES[0].id, { favorite: true })));
+
+      fireEvent.keyDown(dialog, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      fireEvent.click(screen.getByText(RECIPES[0].title));
+      const reopened = await screen.findByRole("dialog");
+
+      expect(within(reopened).getByRole("button", { name: "Sblocca ricetta" })).toBeInTheDocument();
+      expect(within(reopened).getByRole("button", { name: "Preferita" })).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+    });
+
     it("shows the star on a read-only past week and saves it", async () => {
       vi.mocked(putRecipePref).mockResolvedValueOnce(savedPref(RECIPES[0].id, { favorite: true }));
       render(<PlanScreen initialScreen={makePastScreen()} />);

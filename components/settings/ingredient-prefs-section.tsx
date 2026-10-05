@@ -30,6 +30,10 @@ function countLabel(key: ListKey, count: number): string {
   return `${key === "likes" ? "in" : "esclude"} ${pluralizeRecipes(count)}`;
 }
 
+const SECTION_FOCUS_ID = "section";
+const groupFocusId = (key: ListKey): string => `group:${key}`;
+const removeFocusId = (key: ListKey, name: string): string => `remove:${key}:${name}`;
+
 function byName(a: IngredientPrefEntry, b: IngredientPrefEntry): number {
   return a.canonical_name.localeCompare(b.canonical_name, "it");
 }
@@ -51,18 +55,53 @@ export function IngredientPrefsSection({
   }
   const [removing, setRemoving] = React.useState<ReadonlySet<string>>(() => new Set());
   const [error, setError] = React.useState<string | null>(null);
+  const [announcement, setAnnouncement] = React.useState("");
+
+  // Focus dopo una rimozione: la riga col pulsante focalizzato sparisce, il focus non deve finire su `body`.
+  const focusTargets = React.useRef(new Map<string, HTMLElement>());
+  const pendingFocus = React.useRef<string | null>(null);
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const registerFocusTarget =
+    (id: string) =>
+    (element: HTMLElement | null): void => {
+      if (element) focusTargets.current.set(id, element);
+      else focusTargets.current.delete(id);
+    };
+  React.useEffect(() => {
+    if (pendingFocus.current === null) return;
+    focusTargets.current.get(pendingFocus.current)?.focus();
+    pendingFocus.current = null;
+  });
 
   const handleRemove = async (key: ListKey, entry: IngredientPrefEntry): Promise<void> => {
     const name = entry.canonical_name;
     setRemoving((prev) => new Set(prev).add(name));
     setError(null);
+    setAnnouncement("");
+    // Chi prende il posto del focus: la voce successiva, la precedente se era l'ultima, altrimenti
+    // il titolo del gruppo (o della sezione, se non resta nulla).
+    const list = prefs[key];
+    const index = list.findIndex((e) => e.canonical_name === name);
+    const neighbour = list[index + 1] ?? list[index - 1];
+    const otherKey: ListKey = key === "likes" ? "dislikes" : "likes";
+    pendingFocus.current = neighbour
+      ? removeFocusId(key, neighbour.canonical_name)
+      : prefs[otherKey].length > 0
+        ? groupFocusId(key)
+        : SECTION_FOCUS_ID;
     setPrefs((prev) => ({
       ...prev,
       [key]: prev[key].filter((e) => e.canonical_name !== name),
     }));
     try {
       await putIngredientPref(name, null);
+      setAnnouncement(`${name} rimosso.`);
     } catch {
+      // Se il focus è ancora sulla lista (o perso), lo riporto sulla voce ripristinata.
+      const active = document.activeElement;
+      if (active === null || active === document.body || listRef.current?.contains(active)) {
+        pendingFocus.current = removeFocusId(key, name);
+      }
       setPrefs((prev) => ({
         ...prev,
         [key]: [...prev[key].filter((e) => e.canonical_name !== name), entry].sort(byName),
@@ -80,8 +119,14 @@ export function IngredientPrefsSection({
   const isEmpty = prefs.likes.length === 0 && prefs.dislikes.length === 0;
 
   return (
-    <Card className="p-4 space-y-3">
-      <h2 className="font-display text-base font-bold text-ink">I miei ingredienti</h2>
+    <Card ref={listRef} className="p-4 space-y-3">
+      <h2
+        ref={registerFocusTarget(SECTION_FOCUS_ID)}
+        tabIndex={-1}
+        className="font-display text-base font-bold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil"
+      >
+        I miei ingredienti
+      </h2>
 
       {isEmpty ? (
         <p className="text-xs text-stone">
@@ -90,7 +135,13 @@ export function IngredientPrefsSection({
       ) : (
         GROUPS.map(({ key, title }) => (
           <div key={key} className="space-y-1">
-            <h3 className="text-sm font-semibold text-ink">{title}</h3>
+            <h3
+              ref={registerFocusTarget(groupFocusId(key))}
+              tabIndex={-1}
+              className="text-sm font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil"
+            >
+              {title}
+            </h3>
             {prefs[key].length === 0 ? (
               <p className="text-xs text-stone">Nessuno per ora.</p>
             ) : (
@@ -109,6 +160,7 @@ export function IngredientPrefsSection({
                       )}
                     </span>
                     <Button
+                      ref={registerFocusTarget(removeFocusId(key, entry.canonical_name))}
                       type="button"
                       variant="ghost"
                       size="icon"
@@ -125,6 +177,10 @@ export function IngredientPrefsSection({
           </div>
         ))
       )}
+
+      <p aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
 
       {error !== null && (
         <p
