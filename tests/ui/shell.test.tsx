@@ -17,7 +17,8 @@ import { EmptyState } from "@/components/feedback/empty-state";
 // Pages
 import { PlanScreen } from "@/components/plan/plan-screen";
 import ShoppingListPage from "@/app/(app)/lista/page";
-import LibraryPage from "@/app/(app)/libreria/page";
+import { LibraryScreen } from "@/components/library/library-screen";
+import { toLibraryCard } from "@/lib/domain/library";
 import { SettingsEditor } from "@/components/settings/settings-editor";
 import { DEFAULT_HOUSEHOLD, type PlanScreenView, type SettingsView } from "@/lib/domain/types";
 import { fixtureRecipesAsDomain } from "@/fixtures";
@@ -435,12 +436,17 @@ describe("Pages Integration", () => {
   });
 
   it("renders Library page with search and chip filters", () => {
-    render(<LibraryPage />);
+    render(
+      <LibraryScreen
+        initialRecipes={[toLibraryCard(fixtureRecipesAsDomain()[0])]}
+        persons={2}
+      />
+    );
     expect(
       screen.getByRole("heading", { level: 1, name: "Libreria Ricette" })
     ).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText("Cerca ricetta o ingrediente...")
+      screen.getByPlaceholderText("Cerca ricetta o ingrediente…")
     ).toBeInTheDocument();
   });
 
