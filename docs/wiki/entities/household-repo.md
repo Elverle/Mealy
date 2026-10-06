@@ -2,7 +2,7 @@
 title: Repository Nucleo Domestico (household-repo)
 type: entity
 created: 2026-09-15
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [database, repository, household, singleton, drizzle, onboarding, contract-u1, executor]
 ---
 
@@ -67,5 +67,6 @@ Per modificare i vincoli dall'applicazione si passa da `saveSettings` ([[setting
 - [[settings-service]] — Servizio impostazioni che usa `loadHousehold` e `updateHousehold`
 - [[recipe-generation]] — Generazione ricette che usa `loadHousehold`
 - [[plan-service]] — Servizio dei piani: `loadHousehold` e rilettura sotto lock con `getHouseholdById(id, tx)`
+- [[library-service]] e [[prefs-service]] — Servizi di libreria e preferenze, che risolvono l'household con `loadHousehold` (Feature 5)
 - [[e5-impostazioni]] — Panoramica della Feature 3
 - [[e3-pianificatore]] — Panoramica della Feature 4

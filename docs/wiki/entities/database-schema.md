@@ -2,14 +2,14 @@
 title: Schema del Database Relazionale Drizzle (db/schema)
 type: entity
 created: 2026-09-15
-updated: 2026-09-29
-tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans]
+updated: 2026-10-05
+tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans, ingredient-prefs]
 ---
 
 ## File e Responsabilità
 
 - **Percorso file**: `lib/db/schema.ts`
-- **Scopo**: Definizione delle 9 tabelle relazionali, delle relazioni Drizzle ORM, delle chiavi primarie/esterne, delle regole di cascata e degli indici ad alte prestazioni per PostgreSQL 16.
+- **Scopo**: Definizione delle 10 tabelle relazionali (9 fino alla Feature 4; la decima, `ingredient_prefs`, è della Feature 5), delle relazioni Drizzle ORM, delle chiavi primarie/esterne, delle regole di cascata e degli indici ad alte prestazioni per PostgreSQL 16.
 
 ## Mappa delle Tabelle
 
@@ -39,6 +39,10 @@ tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onb
 +----------------------+
 |  ingredient_aliases  |
 +----------------------+
+
++----------------+        +----------------------+
+|   households   |<-------|   ingredient_prefs   |   (Feature 5)
++----------------+   1:N  +----------------------+
 ```
 
 ## Dettaglio Tabelle e Indici
@@ -159,6 +163,21 @@ Tabella di mappatura sinonimi ("pelati" -> "pomodori pelati").
 - **Colonne**:
   - `alias`: `text` PK
   - `canonical_name`: `text` not null
+- Alla Feature 5 la tabella è popolata dal seed ma **non è letta da nessun codice applicativo**: né le preferenze ingrediente né il planner risolvono gli alias. Il suo uso è rinviato al consolidamento della lista della spesa (Feature 6).
+
+### 10. `ingredient_prefs` (Feature 5)
+Giudizi dell'household sui singoli ingredienti. Popolata in modo *lazy*: una riga esiste solo per gli ingredienti su cui è stato espresso un giudizio.
+- **Colonne**:
+  - `household_id`: `uuid` not null references `households.id` (`ON DELETE CASCADE`)
+  - `canonical_name`: `text` not null — nome canonico già normalizzato con `normalizeCanonicalName` (lo normalizza chi scrive, v. [[prefs-service]])
+  - `pref`: `text` not null (`like | dislike`)
+  - `created_at`: `timestamp with time zone` not null default now — resta quello del primo inserimento anche se il giudizio cambia
+- **Chiave primaria**: composta `(household_id, canonical_name)` (vincolo `ingredient_prefs_household_id_canonical_name_pk`). `ARCHITECTURE §4.2` prevedeva in origine il solo `canonical_name`: la chiave per household (requirements P2 della Feature 5) segue le ricette, che sono già per household, e tiene isolati i test DB che girano in parallelo; `ARCHITECTURE.md` e `BACKLOG.md` sono stati allineati.
+- Nessun indice oltre alla chiave primaria, nessun vincolo `CHECK` su `pref` (nessuna tabella ne ha: i valori sono validati da Zod in lettura) e nessuna relazione Drizzle dichiarata, come per `ingredient_aliases`.
+- Il nome si confronta per uguaglianza esatta con `recipe_ingredients.canonical_name` normalizzato; non c'è una chiave esterna verso gli ingredienti, quindi può esistere un giudizio su un nome che nessuna ricetta contiene.
+- Letture e scritture in [[ingredient-pref-repo]].
+
+Sulla tabella `recipe_prefs` la Feature 5 non cambia lo schema: `rating`, `favorite` e `blocked` diventano scrivibili dall'utente tramite `writeRecipePref` ([[recipe-repo]]).
 
 ## Migrazioni Versionate
 
@@ -170,6 +189,7 @@ File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e 
 | `0001` | `0001_unknown_wolf_cub` | DROP e CREATE degli stessi 9 indici (con metodo esplicito `btree`/`gin`); nessuna modifica alle colonne |
 | `0002` | `0002_add_household_onboarded_at` | Solo `ALTER TABLE "households" ADD COLUMN "onboarded_at" timestamp with time zone;` (Feature 3). Le righe esistenti ricevono `null`. |
 | `0003` | `0003_add_plan_generation_tracking` | Due `ALTER TABLE … ADD COLUMN` (Feature 4): `meal_plans.generated_at timestamp with time zone DEFAULT now() NOT NULL` e `shopping_lists.needs_regeneration boolean DEFAULT false NOT NULL`. Additiva: i piani esistenti ricevono `generated_at` = istante della migrazione. |
+| `0004` | `0004_add_ingredient_prefs` | `CREATE TABLE "ingredient_prefs"` con le 4 colonne e la chiave primaria `("household_id","canonical_name")`, più la chiave esterna verso `households` con `ON DELETE cascade` (Feature 5). Additiva: nessuna modifica alle altre tabelle. |
 
 ## Vedi anche
 
@@ -181,3 +201,5 @@ File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e 
 - [[e5-impostazioni]] — Panoramica della Feature 3
 - [[plan-repo]] — Operazioni su `meal_plans`, `plan_slots`, `recipe_prefs` (uso) e `shopping_lists` (flag)
 - [[e3-pianificatore]] — Panoramica della Feature 4
+- [[ingredient-pref-repo]] — Operazioni su `ingredient_prefs`
+- [[e2-libreria-preferenze]] — Panoramica della Feature 5

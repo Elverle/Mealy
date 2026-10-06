@@ -2,8 +2,8 @@
 title: Servizio di Generazione e Route API (recipe-generation)
 type: entity
 created: 2026-09-17
-updated: 2026-09-29
-tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches]
+updated: 2026-10-05
+tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches, ingredient-prefs]
 ---
 
 ## File e Responsabilità
@@ -19,21 +19,21 @@ tags: [recipes, generation, constraints, deduplication, api-route, transactions,
 
 La composizione e la validazione dei vincoli operano tramite due funzioni pure:
 
-### `buildConstraints(household, mealType, overrides?): RecipeConstraints`
+### `buildConstraints(household, mealType, overrides?, ingredientPrefs?): RecipeConstraints`
 Fonde i valori di base configurati nell'anagrafica del nucleo familiare ([[household-repo]]) con eventuali sovrascritture temporanee fornite dall'utente (`ConstraintOverrides`):
 - `persons`: numero di coperti (priorità ad `overrides.persons`, altrimenti `household.persons`); ammesso in `[PERSONS_MIN, PERSONS_MAX]` (1..12, costanti condivise con le impostazioni dalla Feature 3).
 - `meal_type`: pasto target (`pranzo` o `cena` o `null` per generazione mista).
 - `diet_tags`: array di regimi dietetici attivi.
 - `meal_style_tags`: stili desiderati (es. `veloce`, `salutare`).
 - `appliances`: elettrodomestici disponibili per la preparazione.
-- `ingredient_likes` e `ingredient_dislikes`: predisposti a liste vuote (verranno integrati nella Feature 5 con le preferenze ingredienti). Dalla Feature 4 il punto di lettura condiviso è `loadIngredientPreferences` in `lib/prefs/ingredient-prefs.ts` (modulo neutro importabile sia da `recipes` sia da `plans`, proposta R4 della review architetturale): la Feature 5 lo cablerà e lo userà anche qui. `buildConstraints` non è ancora stato toccato.
+- `ingredient_likes` e `ingredient_dislikes`: fino alla Feature 4 erano sempre liste vuote. Dalla Feature 5 arrivano dal quarto parametro opzionale `ingredientPrefs: IngredientPreferenceSets` ([[planner]]): i gradimenti in ordine alfabetico italiano, **al più `PROMPT_INGREDIENT_LIKES_MAX` = 30**; gli scarti in ordine alfabetico, **tutti**, perché servono anche a `findConstraintViolations`. Senza il parametro le due liste restano vuote. `buildConstraints` resta pura: gli insiemi li legge chi la chiama, tramite `loadIngredientPreferences` in `lib/prefs/ingredient-prefs.ts` (modulo neutro importabile sia da `recipes` sia da `plans`, proposta R4 della review architetturale di F4; v. [[prefs-service]]).
 
 ### `findConstraintViolations(recipe, constraints): string[]`
 Esegue un controllo deterministico a posteriori su ciascuna ricetta generata dall'LLM per verificare che il modello non abbia ignorato i vincoli richiesti:
 1. **Pasto mancante**: se `constraints.meal_type` è valorizzato ma assente in `recipe.meal_types` (es. `pasto "pranzo" mancante`).
 2. **Dieta non rispettata**: verifica che ogni dieta richiesta sia coperta, calcolando la chiusura transitiva tramite `expandDietFlags` (es. una ricetta dichiarata solo `vegano` soddisfa anche `vegetariano`, `senza-lattosio` e `pescetariano`). Eventuali mancanze generano `dieta "<dieta>" non rispettata`.
 3. **Elettrodomestico non disponibile**: controlla che nessun elemento di `recipe.appliances_required` sia assente da `constraints.appliances` (es. `richiede "forno" non disponibile`).
-4. **Ingrediente escluso**: controlla se uno degli ingredienti coincide, per nome canonico normalizzato (`normalizeCanonicalName`), con un elemento di `constraints.ingredient_dislikes`.
+4. **Ingrediente escluso**: controlla se uno degli ingredienti coincide, per nome canonico normalizzato (`normalizeCanonicalName`), con un elemento di `constraints.ingredient_dislikes` (messaggio `contiene "<nome>" (ingrediente escluso)`). Il confronto è per **uguaglianza esatta**: scartare `cipolla` non fa rifiutare una ricetta con `cipolla rossa` (decisione D1 della Feature 5, v. [[e2-libreria-preferenze]]). La funzione non è cambiata nella Feature 5: sono cambiati i dati, che ora non sono più vuoti.
 
 Restituisce l'elenco delle violazioni: un array vuoto attesta la piena conformità della ricetta.
 
@@ -57,10 +57,10 @@ Per preservare le performance del database e prevenire lock prolungati sulle con
 
 Il flusso operativo si articola nelle seguenti fasi:
 1. **Risoluzione Household**: `loadHousehold(input.householdId)` di [[household-repo]] carica il nucleo indicato o, se l'id è assente, il singleton di sistema; per un id inesistente lancia `Household <id> non trovato`. Dalla Feature 3 la regola, prima scritta in linea qui, è centralizzata nel repository e condivisa con il servizio impostazioni ([[settings-service]]); comportamento e messaggio sono invariati.
-2. **Calcolo Vincoli**: genera l'oggetto `RecipeConstraints` con `buildConstraints`.
+2. **Calcolo Vincoli**: dalla Feature 5 legge le preferenze ingrediente dell'household con `loadIngredientPreferences(household.id)` e genera l'oggetto `RecipeConstraints` con `buildConstraints(household, mealType, overrides, ingredientPrefs)`. Il prompt riporta così le righe `Ingredienti graditi: … (privilegiali quando sensato).` e `Ingredienti da non usare mai: ….`, che `lib/llm/prompts.ts` scriveva già ([[llm-adapter]], non modificato).
 3. **Esclusione Titoli Recenti**: estrae dalla libreria i titoli più recenti associati all'household (`listRecipeTitles` con limite `EXCLUDED_TITLES_IN_PROMPT = 150`), iniettandoli nel prompt dell'LLM per minimizzare alla radice il rischio di ripetizioni.
 4. **Invocazione LLM**: chiama `generateRecipes` ricevendo la lista di candidate normalizzate.
-5. **Transazione Atomica DB (`db.transaction`)**: apre una transazione con livello di isolamento standard, all'interno della quale esegue l'elaborazione protetta.
+5. **Transazione Atomica DB (`db.transaction`)**: apre una transazione con livello di isolamento standard, all'interno della quale esegue l'elaborazione protetta. Dalla Feature 5, subito dopo il lock, **rilegge gli scarti** con `loadIngredientPreferences(household.id, tx)` e li sostituisce in una copia dei vincoli (`currentConstraints`) usata per il controllo delle violazioni: un 👎 salvato mentre la chiamata LLM era in corso vale già per le ricette appena generate (fix della code review). Il prompt, ormai inviato, resta quello costruito con i vincoli letti al passo 2.
 
 ### Advisory Lock per Concorrenza
 All'avvio della transazione, viene invocato `acquireRecipeGenerationLock(tx)`, che acquisisce un lock di sessione a livello di transazione Postgres tramite:
@@ -76,7 +76,7 @@ All'interno della transazione, ogni ricetta generata attraversa una sequenza a 4
 ```
 [Ricetta Generata]
        │
-       ▼ Livello 1: findConstraintViolations(recipe, constraints)
+       ▼ Livello 1: findConstraintViolations(recipe, currentConstraints)
        ├─ (Violazioni riscontrate?) ──► Registra in `skipped` (reason: 'constraint_violation')
        │
        ▼ Livello 2: Titolo Esatto (normalizeTitle) vs Set `known`
@@ -92,7 +92,7 @@ All'interno della transazione, ogni ricetta generata attraversa una sequenza a 4
        └─ insertRecipeWith(tx, recipe, ingredients) ──► Aggiunta a `created` e aggiornamento Set `known`
 ```
 
-1. **Verifica Vincoli**: scarta le ricette non conformi tramite `findConstraintViolations`.
+1. **Verifica Vincoli**: scarta le ricette non conformi tramite `findConstraintViolations`, sui vincoli con gli scarti riletti nella transazione. È questo controllo deterministico, e non la sola obbedienza del modello al prompt, a garantire che un ingrediente scartato non venga più generato (requirements P16 della Feature 5).
 2. **Deduplicazione Esatta (intra-libreria e intra-batch)**: il titolo viene normalizzato via `normalizeTitle` (senza accenti, minuscolo, spazi compatti) e confrontato con il set dei titoli già noti (`known`). Se non presente, viene aggiunto a `known`, impedendo anche duplicati all'interno dello stesso lotto generato.
 3. **Similarità Trigrammi (`findSimilarRecipeTitle`)**: interroga PostgreSQL sfruttando l'estensione `pg_trgm` e l'indice GIN su `recipes.title`. Se il coefficiente `similarity()` supera la soglia `TITLE_SIMILARITY_THRESHOLD = 0.6`, la ricetta viene considerata un doppione e scartata (es. "Risotto ai Funghi Porcini" vs "Risotto con Funghi Porcini").
 4. **Generazione Slug Univoco (`uniqueSlug`)**: genera lo slug tramite `slugify(title)`. Se già esistente a livello globale (`slugExists`), tenta suffissi sequenziali `-2`, `-3` fino a `-99`, ricorrendo infine a un suffisso esadecimale casuale da 6 caratteri.
@@ -146,3 +146,5 @@ Dalla Feature 4 la rotta costruisce queste risposte con gli helper condivisi di 
 - [[plan-service]] — Feature 4: chiamante a lotti da 3
 - [[http-helpers]] — Helper di risposta usati dalla rotta
 - [[planner]] — `exclusionReason`, le stesse regole sulla libreria
+- [[prefs-service]] — `loadIngredientPreferences` e origine di scarti e gradimenti (Feature 5)
+- [[e2-libreria-preferenze]] — Panoramica della Feature 5

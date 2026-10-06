@@ -2,7 +2,7 @@
 title: Servizio Impostazioni Household e API (settings-service)
 type: entity
 created: 2026-09-28
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [settings, household, service, api-route, normalization, client-fetch, onboarding, contract-u1, feature-3]
 ---
 
@@ -109,6 +109,10 @@ Punti aperti consegnati al piano della Feature 4 (addendum della review 2026-09-
 - **R2** applicato: la pagina Piano è `app/(app)/page.tsx` ([[plan-screen]]).
 - **Q1** non adottato: la pagina Piano legge l'household tramite `getPlanScreen`, e due letture per richiesta su una LAN domestica non giustificano la modifica di F3 e dei suoi test.
 
+### Esito nella Feature 5
+- **R1 deciso in via definitiva** (requirements U2 della Feature 5, `ARCHITECTURE §5.4`). Nella Feature 4 era stato accettato quando le preferenze ingrediente erano ancora vuote; ora che `ingredient_prefs` esiste, l'utente ha confermato la regola: un giudizio, su ricetta o su ingrediente, **non modifica mai un piano esistente** e si applica dalla selezione successiva (generazione, rigenerazione, *Ripeti* o *Cambia*). Di conseguenza i servizi delle preferenze ([[prefs-service]]) non scrivono `households.updated_at`, la regola `superseded` resta legata ai soli 5 vincoli di questa pagina, e l'avviso "piano superato" non compare dopo un 👎. È la regola vincolante 0.3.6 del piano della Feature 5: nessun modulo delle preferenze chiama `lib/plans/service.ts`. All'utente lo comunica un toast al momento del giudizio (es. `Non proporrò più ricette con cipolla: vale dai prossimi piani.`).
+- `getSettings()` ha un nuovo chiamante, la pagina `/libreria`, che ne usa `persons` per scalare le quantità del dettaglio ([[library-screen]]); la pagina `/impostazioni` legge in parallelo anche `listIngredientPrefs()` ([[settings-editor]]). Le letture ripetute dell'household osservate in Q1 riguardano quindi anche la Libreria (layout del gruppo, `getSettings` della pagina e `listLibraryCards`, che risolve a sua volta l'household); Q1 resta non adottato.
+
 ## Test
 
 - `tests/settings/normalize.test.ts` (node): ordine e deduplica, `settingsEqual`, `toSettingsView`, `toggleInOrder`, default `onboarded_at: null` di `HouseholdSchema`, rifiuti di `UpdateSettingsRequestSchema` (`persons` 0 o 13, `meals: []`, diete sconosciute, chiavi extra).
@@ -126,3 +130,5 @@ Punti aperti consegnati al piano della Feature 4 (addendum della review 2026-09-
 - [[onboarding-guard]] — Guardia server-side che legge `getSettings().onboarded`
 - [[http-helpers]] — Helper di risposta e client generico introdotti dalla Feature 4
 - [[plan-service]] — Consumatore del contratto U1 (`superseded`)
+- [[prefs-service]] — Servizi delle preferenze, che non toccano `households.updated_at` (esito di R1)
+- [[e2-libreria-preferenze]] — Panoramica della Feature 5

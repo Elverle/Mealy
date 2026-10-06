@@ -2,7 +2,7 @@
 title: Scheda Pasto (meal-card)
 type: entity
 created: 2026-09-15
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [ui, components, meal-card, cards, planner, long-press, accessibility]
 ---
 
@@ -54,7 +54,9 @@ Il `Card` radice espone `data-testid="meal-card-<id>"`. La card è suddivisa in 
      - **Pulsante "Cambia" (`onSwap`)**, solo se `onSwap` è definito: icona `RefreshCw` con etichetta, colore `text-tomato hover:bg-tomato/10`, tap target ≥ 44px, disabilitato se `isLocked`;
      - **Pulsante Preferito (`onToggleFavorite`)**, solo se `onToggleFavorite` è definito: icona `Star` (44×44px, allineata a destra con `ml-auto`), riempita `fill-saffron text-saffron` se attiva, contorno `text-stone hover:text-saffron` se inattiva.
 
-Fino alla Feature 3 *Cambia* e ★ erano sempre visibili (con handler opzionali che non facevano nulla). Dalla Feature 4 compaiono solo con un handler: una card di sola lettura (settimana passata) non mostra azioni, e ★ resta nascosta fino alla Feature 5 (requirements U4; proposta R5 della review architetturale per *Cambia*).
+Fino alla Feature 3 *Cambia* e ★ erano sempre visibili (con handler opzionali che non facevano nulla). Dalla Feature 4 compaiono solo con un handler: una card di sola lettura (settimana passata) non mostra *Cambia* né lucchetto, e nella Feature 4 la ★ restava sempre nascosta (requirements U4; proposta R5 della review architetturale per *Cambia*).
+
+Dalla Feature 5 `PlanSlotCard` passa `isFavorite` e `onToggleFavorite`, quindi la ★ compare su ogni card la cui ricetta esiste e non è bloccata, **anche nelle settimane passate** (il giudizio riguarda la ricetta, non il piano). Il componente `MealCard` non è stato modificato: è cambiato solo chi lo configura ([[plan-screen]]).
 
 ## Long-press (Feature 4)
 
@@ -83,3 +85,4 @@ Attivo solo se `onLongPress` è definito; la pagina Piano lo usa per bloccare/sb
 - [[design-system-and-tokens]] — Palette colori `tomato`, `saffron`, `basil` e font `Fraunces`
 - [[e0-fondamenta]] — Panoramica della Feature 1
 - [[e3-pianificatore]] — Panoramica della Feature 4
+- [[e2-libreria-preferenze]] — Feature 5: ★ attiva sulle card del piano

@@ -2,7 +2,7 @@
 title: Planner Puro — Selezione Pesata, Settimane e RNG (planner)
 type: entity
 created: 2026-09-29
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [planner, domain, pure-functions, weighted-selection, rng, week, recency, feature-4]
 ---
 
@@ -56,7 +56,7 @@ Il fuso `Europe/Rome` (`APP_TIME_ZONE`) protegge dal container del Raspberry che
 ## API del Planner (`planner.ts`)
 
 ### Preferenze ingredienti
-`IngredientPreferenceSets { likes, dislikes }` (nomi canonici già normalizzati), `EMPTY_INGREDIENT_PREFERENCES` e `toIngredientPreferenceSets(likes, dislikes)` (applica `normalizeCanonicalName`). In F4 gli insiemi sono sempre vuoti: li popola `loadIngredientPreferences` (`lib/prefs/ingredient-prefs.ts`), che la Feature 5 cablerà su `ingredient_prefs` senza cambiare l'algoritmo.
+`IngredientPreferenceSets { likes, dislikes }` (nomi canonici già normalizzati), `EMPTY_INGREDIENT_PREFERENCES` e `toIngredientPreferenceSets(likes, dislikes)` (applica `normalizeCanonicalName`). In F4 gli insiemi erano sempre vuoti. Dalla Feature 5 li popola `loadIngredientPreferences` (`lib/prefs/ingredient-prefs.ts`, [[prefs-service]]) leggendo la tabella `ingredient_prefs`, **senza cambiare l'algoritmo**: in `planner.ts` è cambiato solo il commento sopra `IngredientPreferenceSets`. Uno scarto è un'esclusione dura (`'disliked_ingredient'`), un gradimento entra in `ingredientAffinity`. Il confronto è sul nome canonico esatto: scartare `cipolla` non esclude le ricette con `cipolla rossa` (decisione D1, v. [[e2-libreria-preferenze]]). Anche `blocked`, `favorite` e `rating`, già letti da `recipe.prefs`, sono ora davvero impostabili dall'utente.
 
 ### `exclusionReason(recipe, meal, ctx): ExclusionReason | null`
 Filtri duri, in quest'ordine (vince il primo che scatta): `'blocked'` (`prefs.blocked`), `'meal_type'`, `'diet'` (ogni dieta dell'household deve stare in `expandDietFlags(recipe.diet_flags)`), `'appliance'`, `'disliked_ingredient'`, `'excluded'` (id in `ctx.excludeRecipeIds`). Un commento incrociato ricorda che le stesse regole vivono in `findConstraintViolations` ([[recipe-generation]]), applicate all'output dell'LLM: chi modifica una deve controllare l'altra (proposta P3 della review architetturale).
@@ -96,10 +96,13 @@ Tutti puri, senza DB (`tests/domain/`):
 - `planner.test.ts`: ordine delle esclusioni, pesi attesi (incluse pausa morbida e preferite senza pausa), riproducibilità e indipendenza dall'ordine di input, max 1 occorrenza, `needMore` (anche sulle 18 fixture con 20 seed), tipo più scarso per primo, test statistici su 10 000 estrazioni (preferite ~1.5×, like ingredienti ~1.3×, preferita usata ieri contro mai usata ~1.25×), `computeGenerationCount`, lotti.
 - `plan-contracts.test.ts`: parse degli schemi del piano in `types.ts` ([[domain-types]]).
 
+Dalla Feature 5 il cablaggio con i dati reali è verificato su DB, senza toccare i test puri: `tests/prefs/ingredient-prefs.test.ts` (4000 estrazioni con due gradimenti letti dal DB, rapporto atteso 1.3), `tests/plans/ingredient-prefs.test.ts` e `tests/prefs/planner-integration.test.ts` (scarti e blocchi mai presenti in 20 piani seedati).
+
 ## Vedi anche
 
 - [[plan-service]] — Orchestratore che chiama il planner, genera e scrive
 - [[domain-types]] — `Recipe`, `Household`, `PlanWeek` e contratti del piano
 - [[plan-concurrency-pattern]] — Perché la selezione si ripete dentro il lock
 - [[recipe-generation]] — `findConstraintViolations`, le stesse regole sull'output LLM
+- [[prefs-service]] — `loadIngredientPreferences`, origine di scarti e gradimenti (Feature 5)
 - [[e3-pianificatore]] — Panoramica della Feature 4

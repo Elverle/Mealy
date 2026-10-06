@@ -2,7 +2,7 @@
 title: E3 Pianificatore — Piano Settimanale, Swap e Navigatore di Settimane
 type: topic
 created: 2026-09-29
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [planner, meal-plans, weighted-selection, swap, repeat, week-navigator, api, ui, e3, feature-4]
 ---
 
@@ -24,7 +24,7 @@ Il principio guida resta `ARCHITECTURE §1.3`: le ricette generate entrano nella
 | U1 | **Settimana "lun–dom smart"**: da lunedì a venerdì si pianifica la settimana corrente dai giorni da oggi in poi; sabato e domenica la settimana successiva completa |
 | U2 | **Generazione sincrona**, al massimo 2 giri, in parallelo per pranzo e cena; piano creato anche se l'LLM fallisce ma la libreria basta |
 | U3 | Un piano **confermato** non si rigenera per intero: si cambiano i singoli pasti; lo swap su piano confermato conta l'uso della nuova ricetta |
-| U4 | ★, voto, preferita e *Non proporre più* restano **nascosti fino alla Feature 5**: card e sheet li mostrano solo se ricevono un handler |
+| U4 | ★, voto, preferita e *Non proporre più* restano **nascosti fino alla Feature 5**: card e sheet li mostrano solo se ricevono un handler. **Chiuso dalla Feature 5** (decisione U1 di [[e2-libreria-preferenze]]): gli handler ora vengono passati e i controlli sono attivi anche nel Piano |
 | D1 | Generazione **a lotti da 3** e `LLM_TIMEOUT_MS` di default a **90 s** |
 | D2 | **Navigatore di settimane** con storico in sola lettura; si archiviano solo le settimane concluse |
 | D3 | **Pausa morbida**: una ricetta usata da poco pesa 0.15 invece di 0; preferite senza pausa; ultimo uso = giorno del pasto |
@@ -77,7 +77,7 @@ Le regole di concorrenza sono descritte in [[plan-concurrency-pattern]].
 - [[household-repo]]: `getHouseholdById(id, executor?)` per rileggere le impostazioni dentro il lock.
 
 ### 3. Servizio, API e trasporto
-- [[plan-service]]: `getPlanScreen`, `generatePlan`, `repeatPlan`, `confirmPlan`, `setSlotLock`, `swapSlot`, errori `PlanError`, rotte `app/api/plans/**`, client fetch, formattazione date. `lib/prefs/ingredient-prefs.ts` con `loadIngredientPreferences` (vuota fino alla Feature 5).
+- [[plan-service]]: `getPlanScreen`, `generatePlan`, `repeatPlan`, `confirmPlan`, `setSlotLock`, `swapSlot`, errori `PlanError`, rotte `app/api/plans/**`, client fetch, formattazione date. `lib/prefs/ingredient-prefs.ts` con `loadIngredientPreferences` (vuota nella Feature 4; dalla Feature 5 legge `ingredient_prefs`, v. [[prefs-service]]).
 - [[http-helpers]]: busta d'errore, `readJsonBody`, `llmErrorResponse` e client generico `requestJson` / `ApiRequestError`; rifattorizzate anche le rotte di generazione ricette e impostazioni.
 - [[recipe-generation]] e [[llm-adapter]]: `maxDuration` della rotta di generazione a 300 s, timeout LLM di default a 90 s per un lotto da 3.
 
@@ -105,6 +105,7 @@ Le regole di concorrenza sono descritte in [[plan-concurrency-pattern]].
 ## Contratti Consegnati alle Feature Successive
 
 - **Feature 5 (preferenze)**: like/dislike si cablano in `loadIngredientPreferences` (`lib/prefs/ingredient-prefs.ts`), da usare anche in `buildConstraints` (`lib/recipes/constraints.ts`); il servizio dei piani la rilegge già sotto lock. `blocked`, `favorite` e `rating` sono già letti dal planner tramite `recipe.prefs` (una ★ attiva automaticamente `favoriteRecencyFloor`). ★ e controlli della sheet si attivano passando gli handler a `MealCard` / `RecipeSheet` in `PlanSlotCard` / `PlanScreen`.
+  - **Esito nella Feature 5** ([[e2-libreria-preferenze]]): contratto rispettato senza modifiche a `lib/plans/service.ts` né all'algoritmo del planner. `loadIngredientPreferences` legge `ingredient_prefs` ed è usata anche da `generateAndStoreRecipes`, che passa gli insiemi a `buildConstraints`; la ★ è attiva sulle card del piano; al posto di `RecipeSheet` la pagina monta [[recipe-detail-sheet]], che passa tutti gli handler. Un giudizio non modifica il piano in corso: vale dalla selezione successiva.
 - **Feature 6 (lista della spesa)**: stato della lista in `PlanView.shopping_list`; `shopping_lists.needs_regeneration` va rimesso a `false` alla rigenerazione della lista. Il pulsante *Crea lista della spesa* porta a `/lista?piano={plan.id}`: la lista si lega sempre a un piano esplicito, perché nel weekend possono esistere due piani non chiusi. Per scegliere il piano di default di `/lista` ci sono `PlanScreenView.target_plan_status` e `current_plan_id`.
 - **Punti aperti di F3 chiusi qui**: R1 (le preferenze ingredienti non rendono "superato" un piano: accettato), R2 (la pagina Piano è `app/(app)/page.tsx`), Q1 (`React.cache()` su `getSettings` **non adottato**: due letture dell'household per richiesta su una LAN domestica non ne giustificano il costo).
 
@@ -130,3 +131,4 @@ Adeguati: `tests/home.test.tsx` (pagina server), `tests/ui/shell.test.tsx` (rend
 - [[http-helpers]] — Helper di trasporto condivisi
 - [[e5-impostazioni]] — Feature 3: vincoli e contratto U1
 - [[e1-motore-ricette]] — Feature 2: generazione delle ricette usata dal planner
+- [[e2-libreria-preferenze]] — Feature 5: preferenze su ricette e ingredienti cablate nel planner e nel Piano

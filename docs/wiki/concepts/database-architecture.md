@@ -2,7 +2,7 @@
 title: Architettura del Database Relazionale e Migrazioni
 type: concept
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-10-05
 tags: [database, postgresql, drizzle, migrations, pg_trgm, architecture]
 ---
 
@@ -37,11 +37,19 @@ PostgreSQL supporta nativamente le colonne di tipo array (`text[].array()`). Nel
 
 Questi indici consentono al generatore di piani e ai filtri della libreria di verificare la presenza o sovrapposizione di etichette (operatori `@>` o `&&`) in tempo sub-millisecondo.
 
+### Uso effettivo degli indici (stato alla Feature 5)
+Le due sezioni sopra descrivono l'intento di progetto della Feature 1. Il codice, alla Feature 5, si comporta in modo diverso:
+- l'indice trigram `recipes_title_trgm_idx` è usato **solo** dalla deduplicazione dei titoli generati (`findSimilarRecipeTitle`, [[recipe-repo]]), non dalla ricerca della Libreria;
+- la Libreria non interroga il DB per cercare o filtrare: la pagina legge tutte le ricette dell'household e ricerca, filtri e ordinamento avvengono **in memoria** con funzioni pure ([[library-service]], requirements P8 della Feature 5). Anche il planner filtra in memoria ([[planner]]);
+- nessuna query del codice applicativo usa oggi gli indici GIN su `tags` e `diet_flags`.
+
+La lettura completa della libreria a ogni richiesta è un costo noto e accettato per la v1; il rimedio previsto, se servirà, è un conteggio in SQL sull'indice `recipe_ingredients_canonical_name_idx` ([[e2-libreria-preferenze]]).
+
 ## Integrità Referenziale e Vincoli a Cascata
 
 La coerenza relazionale è salvaguardata a livello di engine DB:
 - **Cascade Deletion (`ON DELETE CASCADE`)**:
-  - L'eliminazione di un `household` rimuove automaticamente tutte le sue ricette e i piani associati.
+  - L'eliminazione di un `household` rimuove automaticamente tutte le sue ricette e i piani associati; dalla Feature 5 anche i suoi giudizi sugli ingredienti (`ingredient_prefs`).
   - L'eliminazione di una `recipe` cancella in cascata i relativi `recipe_ingredients` e le `recipe_prefs`.
   - L'eliminazione di un `meal_plan` rimuove tutti i suoi `plan_slots` e la corrispondente `shopping_list` con i rispettivi `shopping_items`.
 - **Set Null Deletion (`ON DELETE SET NULL`)**:
@@ -64,7 +72,8 @@ Il ciclo di vita dello schema è governato da `drizzle-kit`:
 
 ## Vedi anche
 
-- [[database-schema]] — Descrizione dettagliata delle 9 tabelle e relazioni
+- [[database-schema]] — Descrizione dettagliata delle 10 tabelle e relazioni
 - [[recipe-repo]] — Implementazione dei metodi con transazioni DB
 - [[household-repo]] — Repository singleton del nucleo domestico
+- [[ingredient-pref-repo]] — Repository dei giudizi sugli ingredienti (Feature 5)
 - [[e0-fondamenta]] — Panoramica della Feature 1

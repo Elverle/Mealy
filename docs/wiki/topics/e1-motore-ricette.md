@@ -2,7 +2,7 @@
 title: E1 Motore Ricette — Generazione, Adapter LLM e Libreria Persistente
 type: topic
 created: 2026-09-17
-updated: 2026-09-17
+updated: 2026-10-05
 tags: [recipes, llm, generation, fixtures, seed, architecture, e1, feature-2]
 ---
 
@@ -72,6 +72,8 @@ Il flusso end-to-end garantisce la separazione delle responsabilità, la resilie
 [ Risultato: { requested, created: Recipe[], skipped: Skip[] } ]
 ```
 
+Dalla Feature 5 ([[e2-libreria-preferenze]]) due passi di questa pipeline usano le preferenze ingrediente dell'household: al passo 1 `buildConstraints` riceve come quarto parametro gli insiemi letti da `loadIngredientPreferences` (gradimenti e scarti finiscono nel prompt), e dentro la transazione gli scarti vengono riletti prima di `findConstraintViolations`, così una ricetta che contiene un ingrediente scartato non entra in libreria. Dettagli in [[recipe-generation]]; l'adapter e i prompt non sono cambiati.
+
 ## Moduli e Componenti Introdotti
 
 ### 1. Adapter LLM (`lib/llm/`)
@@ -116,3 +118,4 @@ In piena osservanza delle regole architetturali di progetto (`CLAUDE.md § Regol
 - [[recipe-repo]] — Repository persistente e supporto transazionale
 - [[domain-types]] — Schemi Zod di generazione e funzioni di testo pure
 - [[e0-fondamenta]] — Architettura fondamentale di Mealy (Feature 1)
+- [[e2-libreria-preferenze]] — Feature 5: scarti e gradimenti nei vincoli di generazione

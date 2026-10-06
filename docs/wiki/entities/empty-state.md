@@ -2,7 +2,7 @@
 title: Stato Vuoto (empty-state)
 type: entity
 created: 2026-09-15
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [ui, components, feedback, empty-state, placeholders]
 ---
 
@@ -54,10 +54,18 @@ import { CalendarPlus } from 'lucide-react';
 
 [[plan-screen]] usa tre stati vuoti: `Nessun piano in programma` con azione `Genera piano` sulla settimana da pianificare; `Nessun piano per questa settimana` con azione `Pianifica la prossima settimana` sulla settimana corrente nel weekend; lo stesso titolo senza azioni per una settimana passata. Il componente accetta **una sola** azione e solo come callback (niente `href`): il secondo pulsante `Ripeti questa settimana` è reso sotto il componente, e `Pianifica la prossima settimana` naviga via JavaScript (scelta confermata dalla code review, Q2).
 
+## Uso nella Libreria (Feature 5)
+
+[[library-screen]] usa tre stati vuoti, tutti con l'icona di default:
+- libreria senza ricette: `Ancora nessuna ricetta` / `Genera il primo piano e la libreria si riempie da sola.`, azione `Vai al piano` (`router.push('/')`);
+- nessun risultato con il filtro *Bloccate*: `Nessuna ricetta bloccata` / `Le ricette che segni con «Non proporre più» le ritrovi qui.`, azione `Azzera filtri`;
+- nessun risultato negli altri casi: `Nessuna ricetta trovata` / `Prova a cambiare i filtri o il testo cercato.`, azione `Azzera filtri`.
+
 ## Vedi anche
 
 - [[design-system-and-tokens]] — Specifiche tipografiche di `Fraunces` e colori
 - [[meal-card]] — Componente visualizzato dopo la popolazione del piano
 - [[plan-screen]] — Stati vuoti della pagina Piano
+- [[library-screen]] — Stati vuoti della Libreria (Feature 5)
 - [[toast]] — Altro componente di feedback in `components/feedback/`
 - [[e0-fondamenta]] — Panoramica della Feature 1
