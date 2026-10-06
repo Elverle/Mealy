@@ -2,8 +2,8 @@
 title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-09-29
-tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans]
+updated: 2026-10-05
+tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences]
 ---
 
 ## File e Responsabilità
@@ -12,6 +12,7 @@ tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, r
   - `lib/domain/types.ts`: definizione degli schemi di validazione runtime (Zod), tipi statici TypeScript inferiti e liste enum chiuse.
   - `lib/domain/recipe-text.ts`: funzioni pure per la normalizzazione di titoli, slug, nomi canonici, diete transitive e sanitizzazione delle ricette generate.
   - Dalla Feature 4 `lib/domain/` contiene anche il planner puro (`planner.ts`, `planner-config.ts`, `rng.ts`, `week.ts`), documentato in [[planner]].
+  - Dalla Feature 5 contiene anche le regole pure della Libreria (`library.ts`, documentato in [[library-service]]) e delle preferenze (`prefs.ts`, documentato in [[prefs-service]]).
 - **Scopo**: Costituire la **single source of truth** del modello dati dell'intera applicazione (`CLAUDE.md § Regole di architettura`). Nessun tipo di dominio viene ridefinito localmente nei moduli applicativi.
 
 ## Costanti Enum Chiuse
@@ -139,7 +140,7 @@ I provider LLM con supporto a structured output (come Gemini o OpenAI) richiedon
 - **`GenerateRecipesOutputSchema`**: radice dell'output strutturato contenente l'array `recipes: z.array(GeneratedRecipeSchema).min(1)`.
 
 ### 2. Vincoli e Sovrascritture
-- **`RecipeConstraintsSchema`**: parametri consolidati passati all'adapter LLM (`persons` in `[PERSONS_MIN, PERSONS_MAX]`, `meal_type: MealType | null`, `diet_tags`, `meal_style_tags`, `appliances`, `ingredient_likes`, `ingredient_dislikes`).
+- **`RecipeConstraintsSchema`**: parametri consolidati passati all'adapter LLM (`persons` in `[PERSONS_MIN, PERSONS_MAX]`, `meal_type: MealType | null`, `diet_tags`, `meal_style_tags`, `appliances`, `ingredient_likes`, `ingredient_dislikes`). Lo schema non è cambiato nella Feature 5, ma le due liste di ingredienti, vuote fino alla Feature 4, contengono ora i nomi canonici normalizzati letti da `ingredient_prefs` ([[recipe-generation]]).
 - **`ConstraintOverridesSchema`**: modifiche temporanee strict e parziali consentite nella richiesta (`persons` in `[PERSONS_MIN, PERSONS_MAX]`, `diet_tags`, `meal_style_tags`, `appliances`).
 
 ### 3. Contratti API HTTP e Scarti
@@ -197,6 +198,30 @@ Sezione `// Meal Plans (Feature 4)` in coda a `types.ts`, usata da [[plan-servic
 | `UpdateSlotRequestSchema` / `UpdateSlotRequest` | `{ locked: boolean }` strict | Body di `PATCH /api/plans/:id/slots/:slotId` |
 
 L'Addendum D2 della review architetturale ha sostituito il `PlanScreenView` del piano originale (`{ today, plan, target, action }`) con la struttura a navigatore; `target_plan_status` e `current_plan_id` sono stati aggiunti per il pulsante *Ripeti questa settimana* e per la Feature 6. Le interfacce di funzione del planner (`PlannerInput`, `MealTypeShortage`, …) e i tipi riga del repository non stanno qui ma nei rispettivi moduli ([[planner]], [[plan-repo]]), costruiti a partire da questi tipi.
+
+## Contratti di Libreria e Preferenze (Feature 5)
+
+Sezione `// Library & Preferences (Feature 5)` in coda a `types.ts`, usata da [[library-service]], [[prefs-service]], [[library-screen]], [[recipe-detail-sheet]] e [[ingredient-prefs-section]]. Nessuno schema preesistente è stato modificato: `RecipeSchema`, `RecipePrefSchema` e `IngredientPrefSchema` restano quelli delle feature precedenti.
+
+| Schema / Tipo | Forma | Uso |
+|---|---|---|
+| `LIBRARY_QUERY_MAX = 100` | — | Lunghezza massima del testo cercato |
+| `LibraryFilterSchema` / `LibraryFilter` | strict: `q` (max 100, default `''`), `meals: MealType[]`, `tags: MealStyleTag[]`, `diets: DietFlag[]`, `favorites: boolean`, `blocked: boolean` (tutti con default vuoto o `false`) | Filtri della Libreria, in AND; `blocked: true` mostra solo le bloccate, `false` le nasconde. Vale per `GET /api/recipes` e per il filtro in memoria della schermata |
+| `EMPTY_LIBRARY_FILTER` | `LibraryFilter` senza criteri | Stato iniziale dei filtri |
+| `LibraryRecipeCardSchema` / `LibraryRecipeCard` | `{ id, title, prep_minutes, meal_types, tags, diet_flags, ingredient_names, rating: 1–5 \| null, favorite, blocked, created_at }` | Vista leggera di una ricetta: `ingredient_names` sono i nomi canonici normalizzati e distinti (servono alla ricerca), `created_at` è una stringa ISO datetime |
+| `LibraryViewSchema` / `LibraryView` | `{ recipes: LibraryRecipeCard[], total }` | Risposta di `GET /api/recipes`: card filtrate e ordinate, `total` = ricette in libreria senza filtri |
+| `INGREDIENT_NAME_MAX = 80` | — | Lunghezza massima del nome di un **giudizio** su ingrediente |
+| `RecipeIngredientInfoSchema` / `RecipeIngredientInfo` | `{ canonical_name (min 1, **senza massimo**), pref: IngredientPref \| null, recipes_count ≥ 0 }` | Giudizio e impatto di un ingrediente di una ricetta. Senza massimo perché i nomi generati dall'LLM e salvati in libreria non ne hanno (`GeneratedIngredientSchema.canonical_name` è solo `min(1)`): con il limite a 80 previsto dal piano, il client avrebbe scartato come `invalid_response` il dettaglio di una ricetta con un nome più lungo (fix della code review) |
+| `RecipeDetailViewSchema` / `RecipeDetailView` | `{ recipe: Recipe, ingredients: RecipeIngredientInfo[] }` | Risposta di `GET /api/recipes/:id`: ricetta completa più una voce per nome canonico distinto, nell'ordine della ricetta |
+| `UpdateRecipePrefRequestSchema` / `UpdateRecipePrefRequest` | parziale e strict: `rating: 1–5 \| null`, `favorite`, `blocked`; **almeno un campo** (`Indica almeno un campo.`) | Body di `PUT /api/recipes/:id/pref`; `rating: null` toglie il voto |
+| `RecipePrefResultSchema` / `RecipePrefResult` | `{ prefs: RecipePref }` | Risposta di `PUT /api/recipes/:id/pref` |
+| `IngredientPrefEntrySchema` / `IngredientPrefEntry` | `{ canonical_name (1–80), pref: IngredientPref, recipes_count ≥ 0 }` | Una voce di *I miei ingredienti* |
+| `IngredientPrefsViewSchema` / `IngredientPrefsView` | `{ likes: IngredientPrefEntry[], dislikes: IngredientPrefEntry[] }` | Risposta di `GET /api/ingredient-prefs` e dato iniziale della sezione; due liste in ordine alfabetico |
+| `EMPTY_INGREDIENT_PREFS_VIEW` | `{ likes: [], dislikes: [] }` | Default di `SettingsEditor` senza `initialIngredientPrefs` |
+| `SetIngredientPrefRequestSchema` / `SetIngredientPrefRequest` | `{ pref: IngredientPref \| null }` strict | Body di `PUT /api/ingredient-prefs/:canonicalName`; `null` rimuove il giudizio |
+| `SetIngredientPrefResultSchema` / `SetIngredientPrefResult` | `{ canonical_name (1–80), pref: IngredientPref \| null, recipes_count ≥ 0 }` | Risposta della stessa rotta, con il nome normalizzato e il conteggio aggiornato |
+
+Come per i piani, le interfacce di funzione (`RecipePrefFields`, `LibraryQueryResult`) e i tipi riga dei repository (`IngredientPrefRow`, `RecipePrefValues`) vivono nei rispettivi moduli. Il tipo `RecipePrefChanges` del dettaglio è definito nel componente ([[recipe-detail-sheet]]) a partire da `RecipePref`.
 
 ## Funzioni Pure di Normalizzazione Testo (`recipe-text.ts`)
 
@@ -272,3 +297,6 @@ Questi valori sono quelli con cui il wizard di primo avvio si presenta precompil
 - [[planner]] — Funzioni pure del planner in `lib/domain/` (`planner`, `planner-config`, `rng`, `week`)
 - [[plan-service]] — Uso dei contratti dei piani in servizio, API e client
 - [[e3-pianificatore]] — Panoramica della Feature 4
+- [[library-service]] — Funzioni pure della Libreria in `lib/domain/library.ts` e uso dei contratti
+- [[prefs-service]] — Funzioni pure delle preferenze in `lib/domain/prefs.ts` e uso dei contratti
+- [[e2-libreria-preferenze]] — Panoramica della Feature 5

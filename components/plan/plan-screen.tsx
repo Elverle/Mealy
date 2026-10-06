@@ -15,17 +15,22 @@ import { GenerationProgress } from "@/components/plan/generation-progress";
 import { PlanSlotCard } from "@/components/plan/plan-slot-card";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { Toast } from "@/components/feedback/toast";
-import { RecipeSheet } from "@/components/sheets/recipe-sheet";
-import { toRecipeDetail } from "@/components/sheets/recipe-detail";
+import {
+  RecipeDetailSheet,
+  type RecipePrefChanges,
+} from "@/components/recipes/recipe-detail-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { applyRecipePrefPatch, defaultRecipePref } from "@/lib/domain/prefs";
 import type {
   GeneratePlanResult,
   PlanScreenView,
   PlanSlotView,
   PlanView,
 } from "@/lib/domain/types";
+import { apiErrorMessage } from "@/lib/http/client";
+import { putRecipePref } from "@/lib/prefs/client";
 import {
   PlanRequestError,
   fetchPlanScreen,
@@ -45,13 +50,14 @@ type TargetRequestKind = "generate" | "repeat";
 type TargetBaseline = string | null | undefined;
 
 const NETWORK_ERROR_CODE = "network_error";
-const FALLBACK_ERROR_MESSAGE = "Qualcosa è andato storto. Riprova.";
 const GENERATION_SKELETON_CARDS = 4;
 
 const TOAST_GENERATED = "Piano generato";
 const TOAST_GENERATED_FALLBACK = "Piano generato con le ricette della libreria.";
 const TOAST_REPEATED = "Piano ripetuto";
 const TOAST_CONFIRMED = "Piano confermato";
+const TOAST_BLOCKED_IN_PLAN =
+  "Non la proporrò più. In questo piano resta: usa Cambia per sostituirla.";
 
 const RECOVERY_WAIT_MESSAGE = "La connessione si è interrotta: controllo se il piano è pronto…";
 // Dopo un `network_error` il server di solito sta ancora generando: si ricontrolla con
@@ -71,10 +77,6 @@ let pendingToast: { message: string; weekStart: string } | null = null;
 /** Scarta il toast in attesa di rimontaggio (usato dai test per isolarsi). */
 export function discardPendingPlanToast(): void {
   pendingToast = null;
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof PlanRequestError ? err.message : FALLBACK_ERROR_MESSAGE;
 }
 
 function weekHref(weekStart: string): string {
@@ -239,10 +241,46 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     () => plan?.slots.find((slot) => slot.id === sheetSlotId) ?? null,
     [plan, sheetSlotId]
   );
-  const sheetRecipe = React.useMemo(
-    () => (sheetSlot?.recipe ? toRecipeDetail(sheetSlot.recipe, sheetSlot.servings) : null),
-    [sheetSlot]
-  );
+
+  /** Fonde i campi cambiati nelle preferenze della ricetta, in tutti gli slot del piano mostrato. */
+  const applyRecipePrefs = (recipeId: string, changed: RecipePrefChanges): void => {
+    setScreen((prev) => {
+      const current = prev.view.plan;
+      if (!current || !current.slots.some((slot) => slot.recipe?.id === recipeId)) return prev;
+      const slots = current.slots.map((slot) => {
+        if (slot.recipe?.id !== recipeId) return slot;
+        const merged = { ...(slot.recipe.prefs ?? defaultRecipePref(recipeId)), ...changed };
+        // Una ricetta bloccata non è mai preferita: una risposta tardiva della ★ non lo annulla.
+        const prefs = merged.blocked ? { ...merged, favorite: false } : merged;
+        return { ...slot, recipe: { ...slot.recipe, prefs } };
+      });
+      return { ...prev, view: { ...prev.view, plan: { ...current, slots } } };
+    });
+  };
+
+  // Ricette con un salvataggio della ★ in corso: un secondo tocco viene ignorato.
+  const savingFavoriteRef = React.useRef<Set<string>>(new Set());
+
+  const handleToggleFavorite = async (recipeId: string): Promise<void> => {
+    const recipe = plan?.slots.find((slot) => slot.recipe?.id === recipeId)?.recipe;
+    if (!recipe || savingFavoriteRef.current.has(recipeId)) return;
+    const current = recipe.prefs ?? defaultRecipePref(recipeId);
+    const nextFavorite = !current.favorite;
+    savingFavoriteRef.current.add(recipeId);
+    // Solo `favorite`: un voto dato nel frattempo dal dettaglio non va sovrascritto.
+    applyRecipePrefs(recipeId, {
+      favorite: applyRecipePrefPatch(current, { favorite: nextFavorite }).favorite,
+    });
+    try {
+      const saved = await putRecipePref(recipeId, { favorite: nextFavorite });
+      applyRecipePrefs(recipeId, { favorite: saved.favorite });
+    } catch (err) {
+      applyRecipePrefs(recipeId, { favorite: current.favorite });
+      setToast(apiErrorMessage(err));
+    } finally {
+      savingFavoriteRef.current.delete(recipeId);
+    }
+  };
 
   /**
    * Adotta l'esito di Genera/Rigenera/Ripeti: aggiorna lo stato o passa alla settimana
@@ -354,9 +392,9 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
       } else if (!mountedRef.current) {
         return;
       } else if (kind === "generate") {
-        setGenerateError(errorMessage(err));
+        setGenerateError(apiErrorMessage(err));
       } else {
-        setToast(errorMessage(err));
+        setToast(apiErrorMessage(err));
       }
     } finally {
       // Se si naviga, la vecchia settimana resta visibile finché arriva la nuova: niente
@@ -381,7 +419,7 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
       setScreen((prev) => withPlan(prev, result.plan));
       setToast(TOAST_CONFIRMED);
     } catch (err) {
-      setToast(errorMessage(err));
+      setToast(apiErrorMessage(err));
     } finally {
       setIsConfirming(false);
     }
@@ -409,7 +447,7 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
       );
     } catch (err) {
       setSlotLocked(slotId, !nextLocked);
-      setToast(errorMessage(err));
+      setToast(apiErrorMessage(err));
     }
   };
 
@@ -461,6 +499,7 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
                 }
                 onToggleLock={(slotId) => void handleToggleLock(slotId)}
                 onSelectRecipe={(selected) => setSheetSlotId(selected.id)}
+                onToggleFavorite={(recipeId) => void handleToggleFavorite(recipeId)}
                 onError={setToast}
               />
             ))}
@@ -621,10 +660,14 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
         )}
       </div>
 
-      <RecipeSheet
-        recipe={sheetRecipe}
-        isOpen={sheetSlot !== null}
+      <RecipeDetailSheet
+        recipeId={sheetSlot?.recipe?.id ?? null}
+        servings={sheetSlot?.servings ?? 1}
+        initialRecipe={sheetSlot?.recipe ?? null}
         onClose={() => setSheetSlotId(null)}
+        onRecipePrefsChange={applyRecipePrefs}
+        onNotify={setToast}
+        blockedMessage={TOAST_BLOCKED_IN_PLAN}
       />
 
       <Toast

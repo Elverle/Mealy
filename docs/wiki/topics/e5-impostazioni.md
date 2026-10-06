@@ -2,7 +2,7 @@
 title: E5 Impostazioni — Onboarding e Vincoli Household
 type: topic
 created: 2026-09-28
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [settings, onboarding, household, api, route-group, ui, e5, feature-3]
 ---
 
@@ -78,7 +78,7 @@ L'iniziativa **E5 Impostazioni** (implementata nella Feature 3, story `S5.1 Onbo
 ### 4. Interfaccia (`components/settings/`)
 - [[settings-fields]]: controlli dei 5 campi condivisi tra wizard e form (stepper persone, chip `ChipFilter` per le scelte multiple), con copy e validità in un solo punto.
 - [[onboarding-wizard]]: pagina `/benvenuto` e wizard a 5 passi con barra di avanzamento e gestione del focus.
-- [[settings-editor]]: pagina `/impostazioni` e form con Salva, banner, errori, `router.refresh()` e segnaposto "I miei ingredienti" (sostituito in F5).
+- [[settings-editor]]: pagina `/impostazioni` e form con Salva, banner, errori, `router.refresh()` e segnaposto "I miei ingredienti". Dalla Feature 5 il segnaposto è sostituito dalla sezione reale [[ingredient-prefs-section]], con le liste lette da `ingredient_prefs` e la rimozione a un tap; la pagina legge anche `listIngredientPrefs()`.
 
 ## Contratto Consegnato alla Feature 4 (U1)
 
@@ -90,6 +90,8 @@ Punti aperti per il piano di F4 (review architetturale 2026-09-28 e addendum):
 - **Q1** — valutare `React.cache()` su `getSettings`/`loadHousehold` per evitare la doppia lettura layout + pagina.
 
 **Esito nella Feature 4** ([[e3-pianificatore]]): il confronto usa ora `meal_plans.generated_at` al posto di `created_at` (si aggiorna a ogni rigenerazione); R1 accettato così com'è, R2 applicato, Q1 non adottato. Dettagli in [[settings-service]].
+
+**Esito nella Feature 5** ([[e2-libreria-preferenze]]): **R1 è deciso in via definitiva**. Con le preferenze ingrediente ora reali, l'utente ha confermato che un giudizio (su ricetta o ingrediente) non modifica mai un piano esistente e vale dalla selezione successiva: generazione, rigenerazione, *Ripeti* o *Cambia* (requirements U2 della Feature 5, `ARCHITECTURE §5.4`). Quindi `setIngredientPref` e `updateRecipePref` **non** toccano `households.updated_at`, nessun 👎 rende "superato" un piano, e la regola del contratto U1 resta legata ai soli 5 vincoli dell'household. Un toast lo dice all'utente al momento del giudizio.
 
 ## Innesti della Review Architetturale
 
@@ -119,3 +121,5 @@ I test di F1 sono stati adeguati solo nei percorsi (`@/app/(app)/…`) e nel tes
 - [[e1-motore-ricette]] — Feature 2, consumatrice dei vincoli tramite `buildConstraints`
 - [[e0-fondamenta]] — Feature 1, shell e mock originari
 - [[e3-pianificatore]] — Feature 4, consumatrice del contratto U1
+- [[e2-libreria-preferenze]] — Feature 5, che sostituisce il segnaposto "I miei ingredienti" e chiude R1
+- [[ingredient-prefs-section]] — Sezione reale "I miei ingredienti"

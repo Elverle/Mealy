@@ -2,7 +2,7 @@
 title: Servizio Piani, API e Client (plan-service)
 type: entity
 created: 2026-09-29
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat, week-navigator, feature-4]
 ---
 
@@ -14,7 +14,7 @@ tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat
   - `lib/plans/http.ts`: `handlePlanRouteError(err, tag)`, gestione errori comune alle rotte dei piani (solo server).
   - `lib/plans/client.ts`: funzioni fetch per i componenti client, costruite su `requestJson` di [[http-helpers]].
   - `lib/plans/format.ts`: etichette di giorni e settimane in italiano (puro, senza `Intl`, sicuro per il client).
-  - `lib/prefs/ingredient-prefs.ts`: `loadIngredientPreferences(householdId, executor = db)`, punto di lettura condiviso delle preferenze ingredienti (in F4 restituisce sempre insiemi vuoti).
+  - `lib/prefs/ingredient-prefs.ts`: `loadIngredientPreferences(householdId, executor = db)`, punto di lettura condiviso delle preferenze ingredienti. In F4 restituiva sempre insiemi vuoti; dalla Feature 5 legge la tabella `ingredient_prefs` con la stessa firma, ed è documentata in [[prefs-service]]. `lib/plans/service.ts` non è stato modificato: la chiama già fuori dal lock e di nuovo dentro la transazione (`loadConstraints`), quindi scarti e gradimenti valgono per generazione, rigenerazione, *Ripeti* e swap, e un 👎 salvato durante una generazione lunga è visto dalla selezione finale.
   - `app/api/plans/**`: route handler HTTP.
 - **Regola di confine client/server** (requirements P1): i componenti `"use client"` importano da `lib/plans/` **solo** `client.ts`, `format.ts` ed `errors.ts`. Non esiste un barrel `lib/plans/index.ts`, come per `lib/settings/` ([[settings-service]]).
 
@@ -134,6 +134,7 @@ Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte
 - `tests/plans/swap.test.ts` e `tests/plans/repeat.test.ts` (DB): mai ripetizioni, generazione solo senza alternative, errori di dominio, uso su piano confermato, lista marcata da rigenerare, swap concorrenti, `slot_past`, pre-assegnazioni di *Ripeti*.
 - `tests/api/plans.test.ts`, `tests/api/plans-swap.test.ts`, `tests/api/plans-repeat.test.ts` (servizio mockato): status, corpi, `maxDuration`, mappatura di ogni `PlanErrorCode` e degli errori LLM, nessun messaggio interno nei 500.
 - `tests/plans/client.test.ts` e `tests/plans/format.test.ts`.
+- `tests/plans/ingredient-prefs.test.ts` (Feature 5, DB): con uno scarto attivo 20 piani seedati non contengono mai le ricette con quell'ingrediente e `generate` non viene chiamata; controprova senza lo scarto; swap senza alternative dopo uno scarto → `no_alternatives`. `tests/prefs/planner-integration.test.ts` fa lo stesso passando dai servizi delle preferenze, anche per una ricetta bloccata.
 
 ## Vedi anche
 
@@ -144,4 +145,5 @@ Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte
 - [[plan-screen]] — Pagina Piano che usa il client
 - [[recipe-generation]] — `generateAndStoreRecipes`, chiamata a lotti
 - [[household-repo]] — `loadHousehold` e rilettura con `executor`
+- [[prefs-service]] — `loadIngredientPreferences` e origine di scarti, gradimenti e blocchi (Feature 5)
 - [[e3-pianificatore]] — Panoramica della Feature 4

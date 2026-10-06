@@ -65,8 +65,8 @@ Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Im
 - FAB *Aggiungi* per item manuali; pull-to-refresh rigenera dalla versione corrente del piano (con conferma se ci sono spunte)
 
 ### 4.4 Libreria
-- Ricerca + filtri a chip (pasto, tag, dieta, preferite)
-- Card compatte con rating e ★; da qui si gestiscono le bloccate
+- Ricerca (per titolo o ingrediente) + filtri a chip combinabili: sempre visibili *Preferite*, *Pranzo*, *Cena* e il pulsante *Filtri* (con contatore), che apre il pannello con tipo di pasti, dieta e *Bloccate*
+- Card compatte con rating e ★, preferite in alto e poi le più recenti; le bloccate compaiono solo con il filtro *Bloccate*, da dove si sbloccano
 
 ### 4.5 Impostazioni (wizard al primo avvio, poi form)
 - Persone · Pasti da pianificare · Tipo pasti · Esigenze alimentari · Elettrodomestici

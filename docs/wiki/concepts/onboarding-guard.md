@@ -2,7 +2,7 @@
 title: Guardia di Onboarding e Route Group (app)
 type: concept
 created: 2026-09-28
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [architecture, app-router, route-group, layout, redirect, onboarding, server-components, feature-3]
 ---
 
@@ -59,7 +59,7 @@ Al completamento il wizard esegue `router.replace('/')` seguito da `router.refre
 ## Conseguenze per le Feature Successive
 
 - **Percorsi dei file (R2 della review)**: la pagina Piano è `app/(app)/page.tsx` (non più `app/page.tsx`); ogni nuova schermata con la barra di navigazione va creata sotto `app/(app)/`. I test importano le pagine da `@/app/(app)/…`.
-- **Doppia lettura dell'household (Q1)**: il layout chiama `getSettings()` e anche le pagine del gruppo possono chiamarlo (oggi `/impostazioni`, in F4 il Piano). Il piano della Feature 4 deve valutare `React.cache()` su `getSettings` / `loadHousehold` per deduplicare la lettura nella stessa richiesta. **Esito (Feature 4)**: non adottato. La pagina Piano (`app/(app)/page.tsx`, [[plan-screen]]) segue lo stesso schema di `/impostazioni` (`await connection()` + servizio + componente client) e legge l'household tramite `getPlanScreen`; la doppia lettura resta e su una LAN domestica è stata giudicata accettabile.
+- **Doppia lettura dell'household (Q1)**: il layout chiama `getSettings()` e anche le pagine del gruppo possono chiamarlo (oggi `/impostazioni`, in F4 il Piano). Il piano della Feature 4 deve valutare `React.cache()` su `getSettings` / `loadHousehold` per deduplicare la lettura nella stessa richiesta. **Esito (Feature 4)**: non adottato. La pagina Piano (`app/(app)/page.tsx`, [[plan-screen]]) segue lo stesso schema di `/impostazioni` (`await connection()` + servizio + componente client) e legge l'household tramite `getPlanScreen`; la doppia lettura resta e su una LAN domestica è stata giudicata accettabile. Dalla Feature 5 vale anche per `/libreria`, la cui pagina chiama `getSettings()` per il numero di persone ([[library-screen]]).
 - **Autenticazione**: la guardia verifica solo l'onboarding, non l'identità; in v1 l'app è raggiungibile solo in locale (Raspberry + Tailscale, `ARCHITECTURE §8`).
 
 ## Test

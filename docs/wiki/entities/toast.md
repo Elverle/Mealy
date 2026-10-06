@@ -2,14 +2,14 @@
 title: Notifica Temporanea (toast)
 type: entity
 created: 2026-09-29
-updated: 2026-09-29
-tags: [ui, components, feedback, toast, accessibility, live-region, feature-4]
+updated: 2026-10-05
+tags: [ui, components, feedback, toast, accessibility, live-region, z-index, feature-4]
 ---
 
 ## File e Responsabilità
 
 - **Percorso file**: `components/feedback/toast.tsx` (`"use client"`)
-- **Scopo**: mostrare per qualche secondo un messaggio breve di conferma o di errore (es. `Piano generato`, `Piano confermato`, `Piano ripetuto`, gli errori di swap e blocco). È un componente **locale** e controllato dal genitore: non esiste un provider globale né una coda di messaggi (requirements P19). Oggi lo usa solo [[plan-screen]].
+- **Scopo**: mostrare per qualche secondo un messaggio breve di conferma o di errore (es. `Piano generato`, `Piano confermato`, `Piano ripetuto`, gli errori di swap e blocco). È un componente **locale** e controllato dal genitore: non esiste un provider globale né una coda di messaggi (requirements P19). Nella Feature 4 lo usava solo [[plan-screen]]; dalla Feature 5 anche [[library-screen]], ed entrambe ci mostrano i messaggi che [[recipe-detail-sheet]] passa con `onNotify` (es. `Non la proporrò più.`, `Non proporrò più ricette con cipolla: vale dai prossimi piani.`, gli errori di salvataggio delle preferenze).
 
 ## Interfaccia Props (`ToastProps`)
 
@@ -27,7 +27,7 @@ A ogni nuovo `message` non nullo parte un timer che chiama `onDismiss` dopo `dur
 ## Struttura e Accessibilità
 
 - Il contenitore `role="status" aria-live="polite"` è **sempre montato** e vuoto a riposo; il testo compare al suo interno. Le live region inserite già piene sono annunciate male da VoiceOver iOS (fix m7 della code review).
-- Posizione: `fixed inset-x-0 bottom-24 z-50`, centrato; pillola `rounded-xl bg-ink px-4 py-3 text-sm font-medium text-paper shadow-lg`.
+- Posizione: `fixed inset-x-0 bottom-24 z-[60]`, centrato; pillola `rounded-xl bg-ink px-4 py-3 text-sm font-medium text-paper shadow-lg`. Fino alla Feature 4 era `z-50`, lo stesso livello della sheet (`components/ui/sheet.tsx`, senza portal), e stava sopra solo perché veniva dopo nel DOM. I messaggi della Feature 5 compaiono **mentre la sheet è aperta**, quindi il livello è stato alzato a `z-[60]`: il toast sta sopra la sheet qualunque sia l'ordine nel DOM (proposta R5 della review architetturale). Nessun test lo verifica (jsdom non ha layout): va controllato su un dispositivo reale.
 - Il toast non ha azioni: contenitore e pillola sono `pointer-events-none`, così non intercetta i tap sugli elementi sottostanti. [[plan-screen]] lo alza con `className` sopra il footer sticky (*Conferma piano* / *Crea lista della spesa*) quando il footer è visibile.
 
 ## Esempio d'Uso
@@ -46,7 +46,9 @@ setToast('Piano confermato');
 
 ## Vedi anche
 
-- [[plan-screen]] — Unico consumatore attuale
+- [[plan-screen]] — Primo consumatore (Feature 4)
+- [[library-screen]] — Secondo consumatore (Feature 5)
+- [[recipe-detail-sheet]] — Origine dei messaggi sulle preferenze, tramite `onNotify`
 - [[empty-state]] — Altro componente di feedback in `components/feedback/`
 - [[design-system-and-tokens]] — Colori `ink` / `paper`
 - [[e3-pianificatore]] — Panoramica della Feature 4

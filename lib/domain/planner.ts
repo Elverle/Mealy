@@ -8,7 +8,7 @@ const MS_PER_DAY = 86_400_000;
 const RATING_BASE = 0.25;
 const RATING_DIVISOR = 4;
 
-/** canonical_name già normalizzati con normalizeCanonicalName. Vuoti fino a F5 (S2.3). */
+/** Nomi canonici già normalizzati con normalizeCanonicalName, letti da ingredient_prefs. */
 export interface IngredientPreferenceSets {
   likes: ReadonlySet<string>;
   dislikes: ReadonlySet<string>;

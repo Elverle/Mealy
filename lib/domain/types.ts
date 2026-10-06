@@ -294,8 +294,8 @@ export const GenerateRecipesOutputSchema = z.object({
 });
 export type GenerateRecipesOutput = z.infer<typeof GenerateRecipesOutputSchema>;
 
-// Vincoli passati all'adapter. ingredient_likes/dislikes: canonical_name,
-// vuoti fino alla Feature 5 (S2.3), che li popolerà da ingredient_prefs.
+// Vincoli passati all'adapter. ingredient_likes/dislikes: nomi canonici normalizzati,
+// letti da ingredient_prefs (Feature 5, S2.3).
 export const RecipeConstraintsSchema = z.object({
   persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
   meal_type: MealTypeSchema.nullable(),
@@ -502,3 +502,118 @@ export type PlanMutationResult = z.infer<typeof PlanMutationResultSchema>;
 // Body di PATCH /api/plans/:id/slots/:slotId
 export const UpdateSlotRequestSchema = z.object({ locked: z.boolean() }).strict();
 export type UpdateSlotRequest = z.infer<typeof UpdateSlotRequestSchema>;
+
+// ============================================================================
+// Library & Preferences (Feature 5)
+// ============================================================================
+
+// Filtri della Libreria (GET /api/recipes e filtro in memoria della pagina).
+// Tutti i criteri sono in AND. `blocked: true` mostra solo le bloccate, `false` le nasconde.
+export const LIBRARY_QUERY_MAX = 100;
+export const LibraryFilterSchema = z
+  .object({
+    q: z.string().max(LIBRARY_QUERY_MAX).default(''),
+    meals: z.array(MealTypeSchema).default([]),
+    tags: z.array(MealStyleTagSchema).default([]),
+    diets: z.array(DietFlagSchema).default([]),
+    favorites: z.boolean().default(false),
+    blocked: z.boolean().default(false),
+  })
+  .strict();
+export type LibraryFilter = z.infer<typeof LibraryFilterSchema>;
+
+export const EMPTY_LIBRARY_FILTER: LibraryFilter = {
+  q: '',
+  meals: [],
+  tags: [],
+  diets: [],
+  favorites: false,
+  blocked: false,
+};
+
+// Vista leggera di una ricetta per la griglia della Libreria.
+export const LibraryRecipeCardSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1),
+  prep_minutes: z.number().int().min(1),
+  meal_types: z.array(MealTypeSchema),
+  tags: z.array(MealStyleTagSchema),
+  diet_flags: z.array(DietFlagSchema),
+  ingredient_names: z.array(z.string().min(1)), // nomi canonici normalizzati, distinti, nell'ordine della ricetta
+  rating: z.number().int().min(1).max(5).nullable(),
+  favorite: z.boolean(),
+  blocked: z.boolean(),
+  created_at: z.string().datetime(),
+});
+export type LibraryRecipeCard = z.infer<typeof LibraryRecipeCardSchema>;
+
+// Risposta di GET /api/recipes
+export const LibraryViewSchema = z.object({
+  recipes: z.array(LibraryRecipeCardSchema), // filtrate e ordinate
+  total: z.number().int().min(0), // ricette in libreria senza filtri (bloccate comprese)
+});
+export type LibraryView = z.infer<typeof LibraryViewSchema>;
+
+// Giudizio e impatto di un ingrediente di una ricetta.
+export const INGREDIENT_NAME_MAX = 80;
+export const RecipeIngredientInfoSchema = z.object({
+  canonical_name: z.string().min(1), // normalizzato; senza max: i nomi generati dall'LLM non ne hanno
+  pref: IngredientPrefSchema.nullable(),
+  recipes_count: z.number().int().min(0), // ricette non bloccate della libreria che lo contengono
+});
+export type RecipeIngredientInfo = z.infer<typeof RecipeIngredientInfoSchema>;
+
+// Risposta di GET /api/recipes/:id
+export const RecipeDetailViewSchema = z.object({
+  recipe: RecipeSchema, // completa: ingredients e prefs
+  ingredients: z.array(RecipeIngredientInfoSchema), // una voce per nome canonico distinto, nell'ordine della ricetta
+});
+export type RecipeDetailView = z.infer<typeof RecipeDetailViewSchema>;
+
+// Body di PUT /api/recipes/:id/pref: aggiornamento parziale, almeno un campo.
+// rating null = togli il voto. Bloccare toglie dalle preferite (v. lib/domain/prefs.ts).
+export const UpdateRecipePrefRequestSchema = z
+  .object({
+    rating: z.number().int().min(1).max(5).nullable(),
+    favorite: z.boolean(),
+    blocked: z.boolean(),
+  })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, { message: 'Indica almeno un campo.' });
+export type UpdateRecipePrefRequest = z.infer<typeof UpdateRecipePrefRequestSchema>;
+
+// Risposta di PUT /api/recipes/:id/pref
+export const RecipePrefResultSchema = z.object({ prefs: RecipePrefSchema });
+export type RecipePrefResult = z.infer<typeof RecipePrefResultSchema>;
+
+// Una voce di "I miei ingredienti".
+export const IngredientPrefEntrySchema = z.object({
+  canonical_name: z.string().min(1).max(INGREDIENT_NAME_MAX),
+  pref: IngredientPrefSchema,
+  recipes_count: z.number().int().min(0),
+});
+export type IngredientPrefEntry = z.infer<typeof IngredientPrefEntrySchema>;
+
+// Risposta di GET /api/ingredient-prefs: due liste in ordine alfabetico.
+export const IngredientPrefsViewSchema = z.object({
+  likes: z.array(IngredientPrefEntrySchema),
+  dislikes: z.array(IngredientPrefEntrySchema),
+});
+export type IngredientPrefsView = z.infer<typeof IngredientPrefsViewSchema>;
+
+export const EMPTY_INGREDIENT_PREFS_VIEW: IngredientPrefsView = { likes: [], dislikes: [] };
+
+// Body di PUT /api/ingredient-prefs/:canonicalName (null = rimuovi il giudizio)
+export const SetIngredientPrefRequestSchema = z
+  .object({ pref: IngredientPrefSchema.nullable() })
+  .strict();
+export type SetIngredientPrefRequest = z.infer<typeof SetIngredientPrefRequestSchema>;
+
+// Risposta di PUT /api/ingredient-prefs/:canonicalName
+export const SetIngredientPrefResultSchema = z.object({
+  canonical_name: z.string().min(1).max(INGREDIENT_NAME_MAX),
+  pref: IngredientPrefSchema.nullable(),
+  recipes_count: z.number().int().min(0),
+});
+export type SetIngredientPrefResult = z.infer<typeof SetIngredientPrefResultSchema>;

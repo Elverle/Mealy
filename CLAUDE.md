@@ -25,13 +25,14 @@ docker compose -f docker-compose.dev.yml up -d   # Postgres locale (necessario p
 pnpm dev            # sviluppo
 pnpm test           # Vitest
 pnpm lint           # ESLint
+pnpm typecheck      # tsc --noEmit
 pnpm build          # build di produzione
 pnpm db:migrate     # migrazioni drizzle-kit
 pnpm db:seed        # seed idempotente (fixtures + household default + alias)
 pnpm llm:record     # registra una risposta LLM reale in tests/fixtures/llm/recorded/ (richiede chiave API)
 ```
 
-Gate di verifica completo: `lint + typecheck (tsc --noEmit) + test + build` — tutti verdi.
+Gate di verifica completo: `lint + typecheck + test + build` — tutti verdi. Lo stesso gate gira in CI su ogni pull request (`.github/workflows/gate.yml`).
 
 ## Regole di architettura (vincolanti)
 
@@ -50,4 +51,4 @@ Gate di verifica completo: `lint + typecheck (tsc --noEmit) + test + build` — 
 
 ## Pipeline di sviluppo
 
-Il progetto si sviluppa con il plugin `agentic-feature-factory` (`/feature-plan` → `/arch-review` → `/feature-dev`); layout dei piani in `.claude/agentic-feature-factory.local.md` (`plans_dir: docs/planning`, `wiki_dir: docs/wiki`). Una feature alla volta, nell'ordine di `docs/planning/execution-strategy.md`. Commit solo a chiusura feature, su conferma esplicita.
+Il progetto si sviluppa con il plugin `agentic-feature-factory` (`/feature-plan` → `/arch-review` → `/feature-dev`, poi `/feature-review` e `/feature-docs`); layout dei piani e comportamento git in `.claude/agentic-feature-factory.local.md` (`plans_dir: docs/planning`, `wiki_dir: docs/wiki`). Una feature alla volta, nell'ordine di `docs/planning/execution-strategy.md`, su un branch `feature/<n>-<slug>`. Un commit per work package a gate verde, poi un commit di chiusura con planning, wiki e versione; push e pull request su conferma esplicita.

@@ -37,7 +37,7 @@ export function Toast({
       role="status"
       aria-live="polite"
       className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4",
+        "pointer-events-none fixed inset-x-0 bottom-24 z-[60] flex justify-center px-4",
         className
       )}
     >

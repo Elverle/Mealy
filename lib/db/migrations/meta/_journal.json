@@ -29,6 +29,13 @@
       "when": 1790681198301,
       "tag": "0003_add_plan_generation_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791218715544,
+      "tag": "0004_add_ingredient_prefs",
+      "breakpoints": true
     }
   ]
 }

@@ -2,8 +2,8 @@
 title: Repository Ricette (recipe-repo)
 type: entity
 created: 2026-09-15
-updated: 2026-09-29
-tags: [database, repository, recipes, ingredients, preferences, drizzle, transactions, trigram, advisory-lock, executor]
+updated: 2026-10-05
+tags: [database, repository, recipes, ingredients, preferences, drizzle, transactions, trigram, advisory-lock, executor, row-lock]
 ---
 
 ## File e Responsabilità
@@ -30,6 +30,7 @@ Dalla Feature 4 (proposta P4 della review architetturale) la definizione vive in
   - `category: Category`: non una stringa generica, ma ristretto rigidamente ai 9 reparti spesa da [[domain-types]].
 - `InsertRecipePrefInput`: preferenze opzionali (`rating`, `favorite`, `blocked`, `times_used`, `last_used_at`).
 - `RecipeWithDetails`: tipo composito validato da Zod che unisce la `Recipe` con l'array tipato di `Ingredient[]` e l'oggetto `RecipePref | null`.
+- `RecipePrefValues` (Feature 5): `{ rating: number | null; favorite: boolean; blocked: boolean }`, i tre campi che l'utente può modificare.
 
 ### Costanti di Deduplicazione
 - `TITLE_SIMILARITY_THRESHOLD = 0.6`: soglia minima per il coefficiente `similarity()` di PostgreSQL `pg_trgm`. Se una ricetta candidata supera tale soglia rispetto a un titolo già esistente nel nucleo, viene considerata duplicata.
@@ -91,6 +92,26 @@ Come `listRecipesWith(db, filter)`; comportamento invariato.
 ### `toRecipeWithDetails(row): RecipeWithDetails` (Feature 4)
 Converte una riga di `db.query.recipes` con `ingredients` e `prefs` in `RecipeWithDetails`. È la funzione interna `formatRecipe` delle feature precedenti, rinominata ed esportata senza cambiarne il comportamento: [[plan-repo]] la usa per le ricette annidate negli slot del piano.
 
+## Scrittura delle Preferenze sulla Ricetta (Feature 5)
+
+Quattro funzioni aggiunte in coda al file, tutte con `executor` come primo argomento; nessuna funzione esistente è cambiata. Le usa `updateRecipePref` in `lib/prefs/service.ts` ([[prefs-service]]), dentro una sola transazione e in quest'ordine.
+
+| Funzione | Comportamento |
+|---|---|
+| `recipeBelongsToHousehold(executor, recipeId, householdId)` | `true` se la ricetta esiste **e** appartiene all'household; `false` per un altro household o un id inesistente |
+| `ensureRecipePrefRow(executor, recipeId)` | `insert … on conflict (recipe_id) do nothing`: crea la riga di default se manca, senza toccare una riga esistente |
+| `lockRecipePref(executor, recipeId)` | `SELECT … FOR UPDATE` sulla riga di `recipe_prefs`; `null` se assente. **Solo dentro una transazione** |
+| `writeRecipePref(executor, recipeId, values)` | Upsert di `rating`, `favorite`, `blocked`; restituisce la riga validata con `RecipePrefSchema`. **Non tocca** `times_used` né `last_used_at` |
+
+- `ensureRecipePrefRow` prima di `lockRecipePref` è un fix della code review: senza riga `FOR UPDATE` non blocca nulla, e due prime scritture concorrenti sulla stessa ricetta potevano perdere un aggiornamento. `insertRecipeWith` crea sempre la riga, quindi il caso riguarda le ricette la cui riga manca per altre vie.
+- La divisione dei campi evita aggiornamenti persi tra giudizi e uso: `writeRecipePref` scrive solo i tre campi di giudizio, `incrementRecipeUsage` ([[plan-repo]]) solo `times_used` e `last_used_at`.
+- `lockRecipePref` blocca una riga sola e `updateRecipePref` non prende l'advisory lock dei piani: non può formarsi un ciclo di attese con la conferma del piano (osservazione della review architetturale di F5).
+
+Test: `tests/db/recipe-pref-repo.test.ts` (DB reale): appartenenza all'household, riga letta in transazione e `null` se manca, creazione della riga di default e riga esistente intatta, scrittura che conserva `times_used` e `last_used_at`, creazione della riga se assente.
+
+### Nota sul costo di `listRecipes` (Feature 5)
+Dalla Feature 5 `listRecipes` è chiamata anche a ogni visita della Libreria, a ogni apertura del dettaglio e a ogni giudizio su un ingrediente ([[library-service]], [[prefs-service]]), non più solo da generazione, *Ripeti* e swap. Restituisce e valida con Zod tutte le ricette dell'household con ingredienti e preferenze: il costo cresce in modo lineare con la libreria (misure e rimedio in [[e2-libreria-preferenze]]). `getRecipeById` non ha `executor` e non controlla l'household; il dettaglio della Libreria non la usa e cerca la ricetta nella libreria dell'household già letta, che gli serve comunque per i conteggi d'impatto.
+
 ## Esempio d'Uso con Transazione Esterna
 
 ```ts
@@ -141,3 +162,6 @@ await db.transaction(async (tx) => {
 - [[fixtures-and-seed]] — Inserimento ricette di base tramite `insertRecipe`
 - [[plan-repo]] — Repository dei piani, che usa `toRecipeWithDetails`
 - [[plan-service]] — Lettura della libreria con `listRecipesWith` dentro il lock
+- [[prefs-service]] — `updateRecipePref`, che usa le funzioni di scrittura delle preferenze (Feature 5)
+- [[library-service]] — Lettura della libreria per card e dettaglio (Feature 5)
+- [[ingredient-pref-repo]] — Repository dei giudizi sugli ingredienti (Feature 5)

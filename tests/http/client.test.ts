@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { z } from 'zod';
-import { ApiRequestError, requestJson } from '@/lib/http/client';
+import { ApiRequestError, apiErrorMessage, requestJson } from '@/lib/http/client';
 
 const Schema = z.object({ ok: z.literal(true), n: z.number().default(0) });
 
@@ -106,5 +106,19 @@ describe('requestJson', () => {
       status: 200,
       code: 'invalid_response',
     });
+  });
+});
+
+describe('apiErrorMessage', () => {
+  it('returns the message of an ApiRequestError', () => {
+    expect(apiErrorMessage(new ApiRequestError(422, 'x', 'Messaggio del server.'))).toBe(
+      'Messaggio del server.'
+    );
+  });
+
+  it('returns the generic message for any other error', () => {
+    expect(apiErrorMessage(new Error('boom'))).toBe('Qualcosa è andato storto. Riprova.');
+    expect(apiErrorMessage('boom')).toBe('Qualcosa è andato storto. Riprova.');
+    expect(apiErrorMessage(undefined)).toBe('Qualcosa è andato storto. Riprova.');
   });
 });

@@ -7,6 +7,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -252,3 +253,19 @@ export const ingredient_aliases = pgTable('ingredient_aliases', {
   alias: text('alias').primaryKey(),
   canonical_name: text('canonical_name').notNull(),
 });
+
+// ============================================================================
+// 10. Ingredient Prefs Table (popolata lazy: solo gli ingredienti giudicati)
+// ============================================================================
+export const ingredient_prefs = pgTable(
+  'ingredient_prefs',
+  {
+    household_id: uuid('household_id')
+      .notNull()
+      .references(() => households.id, { onDelete: 'cascade' }),
+    canonical_name: text('canonical_name').notNull(), // normalizzato (normalizeCanonicalName)
+    pref: text('pref').notNull(), // 'like' | 'dislike'
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.household_id, table.canonical_name] })]
+);

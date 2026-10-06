@@ -6,15 +6,25 @@ import {
   type GeneratedRecipe,
   RecipeConstraintsSchema,
 } from '@/lib/domain/types';
+import type { IngredientPreferenceSets } from '@/lib/domain/planner';
 import { expandDietFlags, normalizeCanonicalName } from '@/lib/domain/recipe-text';
+
+/** Massimo di ingredienti graditi riportati nel prompt (gli scarti vanno sempre tutti). */
+export const PROMPT_INGREDIENT_LIKES_MAX = 30;
+
+const sortItalian = (names: Iterable<string>): string[] =>
+  [...names].sort((a, b) => a.localeCompare(b, 'it'));
 
 /**
  * Builds recipe constraints for generation from household profile and optional overrides.
+ * Le preferenze ingredienti (se presenti) popolano `ingredient_likes` (primi
+ * PROMPT_INGREDIENT_LIKES_MAX in ordine alfabetico) e `ingredient_dislikes` (tutti).
  */
 export function buildConstraints(
   household: Household,
   mealType: MealType | null,
-  overrides?: ConstraintOverrides
+  overrides?: ConstraintOverrides,
+  ingredientPrefs?: IngredientPreferenceSets
 ): RecipeConstraints {
   return RecipeConstraintsSchema.parse({
     persons: overrides?.persons ?? household.persons,
@@ -22,8 +32,11 @@ export function buildConstraints(
     diet_tags: overrides?.diet_tags ?? household.diet_tags,
     meal_style_tags: overrides?.meal_style_tags ?? household.meal_style_tags,
     appliances: overrides?.appliances ?? household.appliances,
-    ingredient_likes: [], // F5 (S2.3): popolare da ingredient_prefs
-    ingredient_dislikes: [], // F5 (S2.3): popolare da ingredient_prefs
+    ingredient_likes: sortItalian(ingredientPrefs?.likes ?? []).slice(
+      0,
+      PROMPT_INGREDIENT_LIKES_MAX
+    ),
+    ingredient_dislikes: sortItalian(ingredientPrefs?.dislikes ?? []),
   });
 }
 

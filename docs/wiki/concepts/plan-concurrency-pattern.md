@@ -2,7 +2,7 @@
 title: Generazione Fuori, Selezione Dentro il Lock
 type: concept
 created: 2026-09-29
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [architecture, concurrency, transactions, advisory-lock, llm, planner, feature-4]
 ---
 
@@ -55,6 +55,13 @@ Il lock è `pg_advisory_xact_lock(hashtext('mealy:plans:' + householdId))` ([[pl
 - I test DB verificano le race davvero nella finestra critica: una transazione tiene il lock mentre `generatePlan` è in coda (attesa rilevata su `pg_locks`), cambia lo slot e fa commit; con la selezione esterna riusata i test falliscono (fix m1 della code review).
 - Le Feature 5 e 6 che scrivono su piani o liste devono seguire la stessa regola se combinano letture, decisioni e chiamate lente.
 
+### Esito nella Feature 5
+La Feature 5 **non scrive su piani né liste**: un giudizio vale dalla selezione successiva ([[e2-libreria-preferenze]]). La regola si vede però all'opera in due punti:
+- `loadIngredientPreferences(id, tx)` ora legge dati reali: uno scarto salvato mentre una generazione è in corso viene visto dalla selezione della fase 2, senza modifiche a `lib/plans/service.ts`;
+- `generateAndStoreRecipes` applica la stessa idea alla libreria: i vincoli del prompt si leggono prima della chiamata LLM, ma gli scarti si **rileggono dentro** la transazione di salvataggio per il controllo delle violazioni ([[recipe-generation]]).
+
+Le scritture delle preferenze non usano l'advisory lock dei piani: `updateRecipePref` serializza le scritture concorrenti sulla stessa ricetta con un blocco di riga (`ensureRecipePrefRow` + `SELECT … FOR UPDATE`, [[prefs-service]]), e i giudizi sugli ingredienti sono singoli upsert o delete.
+
 ## Vedi anche
 
 - [[plan-service]] — Implementazione di generazione, swap, conferma e blocco
@@ -62,4 +69,5 @@ Il lock è `pg_advisory_xact_lock(hashtext('mealy:plans:' + householdId))` ([[pl
 - [[planner]] — La selezione pura che si ripete dentro il lock
 - [[recipe-generation]] — Contratto "LLM fuori dalle transazioni" della Feature 2
 - [[database-architecture]] — Transazioni e advisory lock in PostgreSQL
+- [[prefs-service]] — Preferenze rilette nella fase 2 e blocco di riga su `recipe_prefs` (Feature 5)
 - [[e3-pianificatore]] — Panoramica della Feature 4

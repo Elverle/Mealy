@@ -2,7 +2,7 @@
 title: Chip Filtro a Pillola (chip-filter)
 type: entity
 created: 2026-09-15
-updated: 2026-09-28
+updated: 2026-10-05
 tags: [ui, components, filters, chip-filter, pills, accessibility]
 ---
 
@@ -51,9 +51,14 @@ import { ChipFilter } from '@/components/filters/chip-filter';
 />
 ```
 
+## Uso nella Libreria (Feature 5)
+
+`LibraryFilters` ([[library-screen]]) usa i chip per la riga rapida (`Preferite` con icona `Star`, `Pranzo`, `Cena`) e per il pannello *Filtri* (7 tipi di pasti, 5 diete, `Bloccate` con icona `Ban`). La prop `count` non è usata: la Libreria non mostra quante ricette corrispondono a ogni chip. Il pulsante `Filtri` non è un `ChipFilter` (ha `aria-expanded`, non `role="checkbox"`) ma ne riprende le classi dello stato non selezionato.
+
 ## Vedi anche
 
 - [[design-system-and-tokens]] — Palette `basil`, `stone` e principi di tocco
 - [[meal-card]] — Tag stile associati ai filtri
 - [[settings-fields]] — Riuso nei 4 campi a scelta multipla di wizard e Impostazioni (Feature 3)
+- [[library-screen]] — Riga rapida e pannello dei filtri della Libreria (Feature 5)
 - [[e0-fondamenta]] — Panoramica della Feature 1

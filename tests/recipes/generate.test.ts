@@ -2,8 +2,10 @@
 
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { db } from '@/lib/db';
+import { upsertIngredientPref } from '@/lib/db/repositories/ingredient-pref-repo';
 import { insertRecipe, listRecipeTitles } from '@/lib/db/repositories/recipe-repo';
 import { APPLIANCE_VALUES } from '@/lib/domain/types';
+import { generateRecipes } from '@/lib/llm';
 import { LlmError } from '@/lib/llm/errors';
 import { generateAndStoreRecipes } from '@/lib/recipes/generate';
 import {
@@ -257,5 +259,63 @@ describe.skipIf(!dbUp)('generateAndStoreRecipes', () => {
       created: [],
       skipped: [],
     });
+  });
+
+  it('rejects a generated recipe containing a disliked ingredient and lists it in the prompt', async () => {
+    const householdId = await createHousehold();
+    await upsertIngredientPref(db, householdId, 'zucchina', 'dislike');
+
+    const { model, calls } = createRecordedModel([loadLlmRecording('valid-2-recipes')]);
+    const result = await generateAndStoreRecipes(
+      { householdId, count: 2, mealType: 'cena' },
+      { model }
+    );
+
+    expect(result.created.map((r) => r.title)).toEqual(['Cosce di pollo al forno con patate']);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0].title).toBe('Tofu croccante con verdure saltate');
+    expect(result.skipped[0].reason).toBe('constraint_violation');
+    expect(result.skipped[0].detail).toContain('contiene "zucchina" (ingrediente escluso)');
+    expect(JSON.stringify(calls[0])).toContain('Ingredienti da non usare mai: zucchina.');
+  });
+
+  it('skips a recipe whose ingredient is disliked while the LLM call is in flight', async () => {
+    const householdId = await createHousehold();
+    const { model, calls } = createRecordedModel([loadLlmRecording('valid-2-recipes')]);
+
+    const generateWithLateDislike: typeof generateRecipes = async (...args) => {
+      await upsertIngredientPref(db, householdId, 'zucchina', 'dislike');
+      return generateRecipes(...args);
+    };
+    const result = await generateAndStoreRecipes(
+      { householdId, count: 2, mealType: 'cena' },
+      { model, generate: generateWithLateDislike }
+    );
+
+    expect(result.created.map((r) => r.title)).toEqual(['Cosce di pollo al forno con patate']);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0].title).toBe('Tofu croccante con verdure saltate');
+    expect(result.skipped[0].reason).toBe('constraint_violation');
+    expect(result.skipped[0].detail).toContain('contiene "zucchina" (ingrediente escluso)');
+    // il prompt resta quello letto prima della chiamata
+    expect(JSON.stringify(calls[0])).toContain('Ingredienti da non usare mai: nessuno.');
+    expect(await listRecipeTitles(db, householdId)).toEqual(['Cosce di pollo al forno con patate']);
+  });
+
+  it('keeps both recipes and lists a liked ingredient in the prompt', async () => {
+    const householdId = await createHousehold();
+    await upsertIngredientPref(db, householdId, 'patata', 'like');
+
+    const { model, calls } = createRecordedModel([loadLlmRecording('valid-2-recipes')]);
+    const result = await generateAndStoreRecipes(
+      { householdId, count: 2, mealType: 'cena' },
+      { model }
+    );
+
+    expect(result.created).toHaveLength(2);
+    expect(result.skipped).toHaveLength(0);
+    expect(JSON.stringify(calls[0])).toContain(
+      'Ingredienti graditi: patata (privilegiali quando sensato).'
+    );
   });
 });

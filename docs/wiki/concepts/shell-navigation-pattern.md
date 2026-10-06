@@ -2,7 +2,7 @@
 title: Pattern di Shell e Navigazione Mobile-First
 type: concept
 created: 2026-09-15
-updated: 2026-09-29
+updated: 2026-10-05
 tags: [ui, navigation, shell, mobile-first, layout, app-router, route-group]
 ---
 
@@ -42,7 +42,8 @@ La barra di navigazione inferiore indirizza l'utente verso le quattro sezioni fo
    - Prodotti raggruppati per corsia/reparto del supermercato, spuntabili al tocco con barra di avanzamento visuale.
 3. **Libreria (`/libreria`)**:
    - Archivio persistente di tutte le ricette memorizzate nel database.
-   - Ricerca rapida con matching trigram e filtri per tag, tempo ed esigenze alimentari.
+   - Ricerca rapida con matching trigram e filtri per tag, tempo ed esigenze alimentari (descrizione di progetto della Feature 1, quando la pagina aveva dati finti).
+   - Dalla Feature 5 è la pagina reale ([[library-screen]]), e differisce dalla riga sopra: la ricerca è **in memoria**, per parole su titolo e nomi canonici degli ingredienti (senza accenti né maiuscole), e non usa l'indice trigram; i filtri sono *Preferite*, *Pranzo*, *Cena*, tipo di pasti, dieta e *Bloccate*, **senza** un filtro per tempo di preparazione. Il dettaglio si apre in una sheet dentro la tab, senza rotte nuove.
 4. **Impostazioni (`/impostazioni`)**:
    - Gestione dei parametri del nucleo domestico: numero di coperti, pasti abituali, tipo di pasti, vincoli dietetici ed elettrodomestici disponibili. Dalla Feature 3 è un form reale con salvataggio esplicito ([[settings-editor]]).
 
@@ -75,6 +76,7 @@ Un problema frequente nelle layout web mobili con barre fisse è il mascherament
 - [[onboarding-guard]] — Route group `(app)` e guardia di onboarding che montano la shell
 - [[meal-card]] — Componente visualizzato nella schermata Piano
 - [[plan-screen]] — Pagina Piano reale con navigatore di settimane (Feature 4)
+- [[library-screen]] — Pagina Libreria reale con ricerca e filtri (Feature 5)
 - [[shopping-item-row]] — Componente della schermata Lista
 - [[design-system-and-tokens]] — Standard di accessibilità e touch target
 - [[e0-fondamenta]] — Panoramica della Feature 1
