@@ -7,6 +7,7 @@ import type {
   GeneratePlanResult,
   PlanScreenView,
   PlanMutationResult,
+  PlanShoppingListView,
   PlanStatus,
   PlanView,
   PlanWeekView,
@@ -47,6 +48,11 @@ vi.mock("@/lib/prefs/client", async (importOriginal) => {
   return { ...original, putRecipePref: vi.fn(), putIngredientPref: vi.fn() };
 });
 
+vi.mock("@/lib/shopping/client", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/shopping/client")>();
+  return { ...original, requestBuildShoppingList: vi.fn() };
+});
+
 import { fetchRecipeDetail } from "@/lib/library/client";
 import { putRecipePref } from "@/lib/prefs/client";
 import {
@@ -58,6 +64,7 @@ import {
   requestSlotLock,
   requestSwapSlot,
 } from "@/lib/plans/client";
+import { requestBuildShoppingList } from "@/lib/shopping/client";
 
 const RECIPES = fixtureRecipesAsDomain();
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
@@ -77,6 +84,7 @@ interface PlanOptions {
   weekStart?: string;
   generatedAt?: string;
   recipeOffset?: number;
+  shoppingList?: PlanView["shopping_list"];
 }
 
 function makePlan({
@@ -86,6 +94,7 @@ function makePlan({
   weekStart = TARGET.week_start,
   generatedAt = GENERATED_AT,
   recipeOffset = 0,
+  shoppingList = { exists: false, needs_regeneration: false },
 }: PlanOptions = {}): PlanView {
   return {
     id,
@@ -112,7 +121,7 @@ function makePlan({
         recipe: RECIPES[recipeOffset + 1],
       },
     ],
-    shopping_list: { exists: false, needs_regeneration: false },
+    shopping_list: shoppingList,
   };
 }
 
@@ -453,22 +462,77 @@ describe("PlanScreen", () => {
       expect(await screen.findByText("Confermato")).toBeInTheDocument();
       expect(requestConfirmPlan).toHaveBeenCalledWith(PLAN_ID);
       expect(screen.getByText("Piano confermato")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Crea lista della spesa" })).toHaveAttribute(
-        "href",
-        `/lista?piano=${PLAN_ID}`
-      );
+      expect(screen.getByRole("button", { name: "Crea lista della spesa" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Conferma piano" })).toBeNull();
       expect(screen.queryByRole("button", { name: "Rigenera" })).toBeNull();
     });
 
-    it("shows the shopping-list link for an already confirmed plan", () => {
+    it("creates the list and opens it", async () => {
+      vi.mocked(requestBuildShoppingList).mockResolvedValueOnce({} as never);
       render(<PlanScreen initialScreen={makeScreen({ plan: { status: "active" } })} />);
 
-      expect(screen.getByRole("link", { name: "Crea lista della spesa" })).toHaveAttribute(
+      fireEvent.click(screen.getByRole("button", { name: "Crea lista della spesa" }));
+
+      await waitFor(() =>
+        expect(router.push).toHaveBeenCalledWith(`/lista?piano=${PLAN_ID}`)
+      );
+      expect(requestBuildShoppingList).toHaveBeenCalledWith(PLAN_ID);
+      expect(screen.getByRole("link", { name: "Vai alla lista della spesa" })).toHaveAttribute(
         "href",
         `/lista?piano=${PLAN_ID}`
       );
+    });
+
+    it("shows a busy label and toasts the error when creating the list fails", async () => {
+      const pending = deferred<PlanShoppingListView>();
+      vi.mocked(requestBuildShoppingList).mockReturnValueOnce(pending.promise);
+      render(<PlanScreen initialScreen={makeScreen({ plan: { status: "active" } })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Crea lista della spesa" }));
+
+      const busy = screen.getByRole("button", { name: "Creo la lista…" });
+      expect(busy).toBeDisabled();
+
+      await act(async () =>
+        pending.reject(new PlanRequestError(409, "plan_archived", "Questa settimana è conclusa."))
+      );
+
+      expect(await screen.findByText("Questa settimana è conclusa.")).toBeInTheDocument();
+      const button = screen.getByRole("button", { name: "Crea lista della spesa" });
+      expect(button).toBeEnabled();
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it("links to an existing list and flags a stale one", () => {
+      const { unmount } = render(
+        <PlanScreen
+          initialScreen={makeScreen({
+            plan: { status: "active", shoppingList: { exists: true, needs_regeneration: false } },
+          })}
+        />
+      );
+
+      expect(screen.getByRole("link", { name: "Vai alla lista della spesa" })).toHaveAttribute(
+        "href",
+        `/lista?piano=${PLAN_ID}`
+      );
+      expect(screen.queryByRole("button", { name: "Crea lista della spesa" })).toBeNull();
       expect(screen.getByText("Confermato")).toBeInTheDocument();
+      unmount();
+
+      render(
+        <PlanScreen
+          initialScreen={makeScreen({
+            plan: { status: "active", shoppingList: { exists: true, needs_regeneration: true } },
+          })}
+        />
+      );
+
+      expect(screen.getByRole("link", { name: "Lista della spesa da aggiornare" })).toHaveAttribute(
+        "href",
+        `/lista?piano=${PLAN_ID}`
+      );
+      expect(screen.queryByRole("link", { name: "Vai alla lista della spesa" })).toBeNull();
     });
 
     it("toasts the error message when confirming fails", async () => {
@@ -546,7 +610,8 @@ describe("PlanScreen", () => {
       expect(screen.queryByRole("button", { name: /^Cambia/ })).toBeNull();
       expect(screen.queryByRole("button", { name: /Blocca pasto|Sblocca pasto/ })).toBeNull();
       expect(screen.queryByRole("button", { name: "Conferma piano" })).toBeNull();
-      expect(screen.queryByRole("link", { name: "Crea lista della spesa" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Crea lista della spesa" })).toBeNull();
+      expect(screen.queryByRole("link", { name: /lista della spesa/i })).toBeNull();
       expect(screen.queryByRole("button", { name: "Genera piano" })).toBeNull();
 
       fireEvent.click(screen.getByText(RECIPES[0].title));
