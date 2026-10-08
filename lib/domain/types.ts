@@ -617,3 +617,81 @@ export const SetIngredientPrefResultSchema = z.object({
   recipes_count: z.number().int().min(0),
 });
 export type SetIngredientPrefResult = z.infer<typeof SetIngredientPrefResultSchema>;
+
+// ============================================================================
+// Shopping List (Feature 6)
+// ============================================================================
+
+export const SHOPPING_ITEM_NAME_MAX = 80;
+
+// Un articolo della lista. `unit` è null solo per gli articoli aggiunti a mano;
+// `qty` è null per 'qb' e per gli articoli a mano.
+export const ShoppingItemViewSchema = z.object({
+  id: z.string().uuid(),
+  canonical_name: z.string().min(1), // normalizzato, alias già risolti
+  qty: z.number().positive().nullable(),
+  unit: UnitSchema.nullable(),
+  category: CategorySchema,
+  checked: z.boolean(),
+  manual: z.boolean(),
+  recipe_ids: z.array(z.string().uuid()), // ricette per cui serve; vuoto per gli articoli a mano
+});
+export type ShoppingItemView = z.infer<typeof ShoppingItemViewSchema>;
+
+export const ShoppingRecipeRefSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1),
+});
+export type ShoppingRecipeRef = z.infer<typeof ShoppingRecipeRefSchema>;
+
+export const ShoppingListViewSchema = z.object({
+  id: z.string().uuid(),
+  generated_at: z.string().datetime(),
+  needs_regeneration: z.boolean(), // il piano è cambiato dopo l'ultima costruzione
+  items: z.array(ShoppingItemViewSchema), // ordinati per reparto, nome, unità
+  recipes: z.array(ShoppingRecipeRefSchema), // ricette citate in recipe_ids che esistono ancora
+});
+export type ShoppingListView = z.infer<typeof ShoppingListViewSchema>;
+
+export const ShoppingPlanRefSchema = z.object({
+  id: z.string().uuid(),
+  week_start: IsoDateSchema, // lunedì
+  last_day: IsoDateSchema, // domenica = week_start + 6
+  status: PlanStatusSchema,
+  has_list: z.boolean(),
+});
+export type ShoppingPlanRef = z.infer<typeof ShoppingPlanRefSchema>;
+
+// Risposta di GET e POST /api/plans/:id/shopping-list
+export const PlanShoppingListViewSchema = z.object({
+  plan: ShoppingPlanRefSchema,
+  editable: z.boolean(), // piano non chiuso: spunte e articoli a mano consentiti
+  can_build: z.boolean(), // piano confermato e non chiuso: la lista si può creare o aggiornare
+  list: ShoppingListViewSchema.nullable(), // null: la lista non è ancora stata creata
+});
+export type PlanShoppingListView = z.infer<typeof PlanShoppingListViewSchema>;
+
+// Dato iniziale della pagina Lista.
+export const ShoppingScreenViewSchema = z.object({
+  plans: z.array(ShoppingPlanRefSchema), // piani confermati e non chiusi, per week_start crescente
+  selected: PlanShoppingListViewSchema.nullable(), // piano mostrato; null se non c'è nulla da mostrare
+});
+export type ShoppingScreenView = z.infer<typeof ShoppingScreenViewSchema>;
+
+// Body di PATCH /api/shopping-items/:id
+export const UpdateShoppingItemRequestSchema = z.object({ checked: z.boolean() }).strict();
+export type UpdateShoppingItemRequest = z.infer<typeof UpdateShoppingItemRequestSchema>;
+
+// Body di POST /api/plans/:id/shopping-list/items
+export const AddShoppingItemRequestSchema = z
+  .object({ name: z.string().trim().min(1).max(SHOPPING_ITEM_NAME_MAX) })
+  .strict();
+export type AddShoppingItemRequest = z.infer<typeof AddShoppingItemRequestSchema>;
+
+// Risposta di PATCH /api/shopping-items/:id e di POST …/shopping-list/items
+export const ShoppingItemResultSchema = z.object({ item: ShoppingItemViewSchema });
+export type ShoppingItemResult = z.infer<typeof ShoppingItemResultSchema>;
+
+// Risposta di DELETE /api/shopping-items/:id
+export const DeleteShoppingItemResultSchema = z.object({ id: z.string().uuid() });
+export type DeleteShoppingItemResult = z.infer<typeof DeleteShoppingItemResultSchema>;
