@@ -63,13 +63,20 @@ describe.skipIf(!dbUp)('Database Seeding', () => {
   });
 
   it('seedIngredientAliases is idempotent and inserts no recipes', async () => {
-    const [{ value: recipesBefore }] = await db.select({ value: count() }).from(recipes);
+    // Repeatable read: the snapshot ignores recipes written concurrently by other
+    // test files, while writes made inside this transaction remain visible to it.
+    await db.transaction(
+      async (tx) => {
+        const [{ value: recipesBefore }] = await tx.select({ value: count() }).from(recipes);
 
-    await seedIngredientAliases();
-    const second = await seedIngredientAliases();
+        await seedIngredientAliases(tx);
+        const second = await seedIngredientAliases(tx);
 
-    const [{ value: recipesAfter }] = await db.select({ value: count() }).from(recipes);
-    expect(second).toBe(0);
-    expect(recipesAfter).toBe(recipesBefore);
+        const [{ value: recipesAfter }] = await tx.select({ value: count() }).from(recipes);
+        expect(second).toBe(0);
+        expect(recipesAfter).toBe(recipesBefore);
+      },
+      { isolationLevel: 'repeatable read' },
+    );
   });
 });
