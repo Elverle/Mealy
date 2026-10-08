@@ -59,10 +59,13 @@ Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Im
 - Barra azioni: rating 1–5, ★ preferita, ⛔ *Non proporre più* (blocca)
 
 ### 4.3 Lista della spesa
+- Legata a un piano confermato: si crea dal footer del Piano (*Crea lista della spesa*). La tab *Lista* apre l'ultima lista dei piani aperti; quando i piani aperti sono due (weekend) un selettore in alto passa da una settimana all'altra
 - Sezioni per reparto nell'ordine del giro al supermercato (vedi ARCHITECTURE §5.5)
-- Riga item: checkbox 44×44 px a sinistra, nome + quantità, tap sulla riga = spunta (tutta la riga è target)
-- Item spuntati: barrati e ammassati in fondo alla sezione; progress "12/23" nell'header
-- FAB *Aggiungi* per item manuali; pull-to-refresh rigenera dalla versione corrente del piano (con conferma se ci sono spunte)
+- Riga item: checkbox 44×44 px a sinistra, nome + quantità e, sotto il nome, le ricette per cui serve ("Per: …"); tap sulla riga = spunta (tutta la riga è target)
+- Item spuntati: barrati e ammassati in fondo alla sezione; progress "12/23" nell'header e per sezione
+- Pulsante flottante *Aggiungi* per gli articoli a mano: solo il nome (il reparto si deduce dalla libreria, altrimenti *Altro*); si rimuovono con ✕
+- *Aggiorna lista* rigenera dalla versione corrente del piano, con conferma se ci sono spunte: sta nell'avviso "Il piano è cambiato" quando serve, altrimenti nell'header. Nessun gesto personalizzato: il pull-to-refresh resta quello del browser
+- Senza rete, a pagina già aperta, le spunte restano a schermo e partono da sole quando la connessione torna ("N spunte in attesa di rete")
 
 ### 4.4 Libreria
 - Ricerca (per titolo o ingrediente) + filtri a chip combinabili: sempre visibili *Preferite*, *Pranzo*, *Cena* e il pulsante *Filtri* (con contatore), che apre il pannello con tipo di pasti, dieta e *Bloccate*
