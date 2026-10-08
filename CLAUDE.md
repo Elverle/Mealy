@@ -29,6 +29,7 @@ pnpm typecheck      # tsc --noEmit
 pnpm build          # build di produzione
 pnpm db:migrate     # migrazioni drizzle-kit
 pnpm db:seed        # seed idempotente (fixtures + household default + alias)
+pnpm db:seed:aliases # solo gli alias degli ingredienti (idempotente); è il comando per la produzione: mai db:seed, che inserisce anche le ricette di esempio
 pnpm llm:record     # registra una risposta LLM reale in tests/fixtures/llm/recorded/ (richiede chiave API)
 ```
 

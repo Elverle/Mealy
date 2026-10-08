@@ -18,6 +18,7 @@ import {
 } from '@/lib/domain/types';
 import {
   normalizeTitle,
+  normalizeCanonicalName,
   slugify,
   normalizeGeneratedRecipe,
 } from '@/lib/domain/recipe-text';
@@ -163,12 +164,23 @@ describe('Fixtures Data & Validation', () => {
 
   it('ensures no canonical_name is an alias from ingredient-aliases.json', () => {
     const aliasNames = new Set(FIXTURE_INGREDIENT_ALIASES.map((a) => a.alias));
-    expect(aliasNames.size).toBe(24);
+    expect(aliasNames.size).toBe(35);
 
     for (const r of FIXTURE_RECIPES) {
       for (const ing of r.ingredients) {
         expect(aliasNames.has(ing.canonical_name)).toBe(false);
       }
+    }
+  });
+
+  it('has normalized aliases without chains', () => {
+    const aliasNames = new Set(FIXTURE_INGREDIENT_ALIASES.map((a) => a.alias));
+
+    for (const entry of FIXTURE_INGREDIENT_ALIASES) {
+      expect(entry.alias).toBe(normalizeCanonicalName(entry.alias));
+      expect(entry.canonical_name).toBe(normalizeCanonicalName(entry.canonical_name));
+      expect(entry.alias).not.toBe(entry.canonical_name);
+      expect(aliasNames.has(entry.canonical_name)).toBe(false);
     }
   });
 

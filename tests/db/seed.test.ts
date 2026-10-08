@@ -2,11 +2,11 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { isDbAvailable, assertDbMigrated } from '@/tests/helpers/db';
-import { seedDatabase } from '@/lib/db/seed-core';
+import { seedDatabase, seedIngredientAliases } from '@/lib/db/seed-core';
 import { getRecipeById } from '@/lib/db/repositories/recipe-repo';
 import { FIXTURE_RECIPES, FIXTURE_INGREDIENT_ALIASES } from '@/fixtures';
-import { client, db, ingredient_aliases } from '@/lib/db';
-import { eq } from 'drizzle-orm';
+import { client, db, ingredient_aliases, recipes } from '@/lib/db';
+import { count, eq } from 'drizzle-orm';
 
 const dbUp = await isDbAvailable();
 
@@ -60,5 +60,16 @@ describe.skipIf(!dbUp)('Database Seeding', () => {
       where a.id = any(${ids}) and b.id = any(${ids}) and similarity(a.title, b.title) > 0.6
     `;
     expect(rows).toHaveLength(0);
+  });
+
+  it('seedIngredientAliases is idempotent and inserts no recipes', async () => {
+    const [{ value: recipesBefore }] = await db.select({ value: count() }).from(recipes);
+
+    await seedIngredientAliases();
+    const second = await seedIngredientAliases();
+
+    const [{ value: recipesAfter }] = await db.select({ value: count() }).from(recipes);
+    expect(second).toBe(0);
+    expect(recipesAfter).toBe(recipesBefore);
   });
 });
