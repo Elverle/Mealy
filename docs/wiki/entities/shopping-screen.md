@@ -128,7 +128,7 @@ Si inserisce solo il nome: il reparto lo deduce il server (requirements P11).
 
 ## Limiti Noti
 
-- Solo le spunte hanno un limite di tempo: aggiunta, rimozione, creazione, aggiornamento e rilettura restano in attesa finché lo decide il browser ([[e4-lista-spesa]]).
+- Aggiunta, rimozione, creazione, aggiornamento e rilettura si interrompono dopo 10 s senza risposta e danno l'errore di rete, ma non vengono ritentati da soli come le spunte: l'utente ripete il gesto ([[shopping-service]]).
 - Non verificato su un dispositivo reale (jsdom non ha layout): posizione del pulsante *Aggiungi* rispetto al pollice e al toast, tastiera sopra il campo del pannello, rimozione a un tap (`requirements.md §5`).
 - `components/ui/sheet.tsx` non gestisce il focus (limite preesistente, annotato in [[e2-libreria-preferenze]]); il pannello porta il focus sul campo con `autoFocus`.
 

@@ -121,7 +121,7 @@ export async function postShoppingItem(planId: string, name: string): Promise<Sh
 export async function deleteShoppingItem(itemId: string): Promise<void>;                    // DELETE /api/shopping-items/{id}
 ```
 
-Gli id sono codificati con `encodeURIComponent`; ogni risposta 2xx è validata con lo schema Zod corrispondente e gli errori sono `ApiRequestError` così com'è, senza sottoclassi (come `lib/prefs/client.ts`). `patchShoppingItem` è l'unica funzione con un `signal`: la coda lo usa per il limite di tempo, e una richiesta interrotta diventa `network_error` con `status 0`, cioè un ritentativo ([[check-queue]]). Le altre quattro non hanno limite di tempo.
+Gli id sono codificati con `encodeURIComponent`; ogni risposta 2xx è validata con lo schema Zod corrispondente e gli errori sono `ApiRequestError` così com'è, senza sottoclassi (come `lib/prefs/client.ts`). `patchShoppingItem` riceve il `signal` dal chiamante: la coda lo usa per il limite di tempo, e una richiesta interrotta diventa `network_error` con `status 0`, cioè un ritentativo ([[check-queue]]). Le altre quattro si danno da sole un limite di 10 s (`SHOPPING_REQUEST_TIMEOUT_MS`, un `AbortController` per richiesta con il timer annullato alla risposta): allo scadere lanciano lo stesso `network_error`, che la schermata mostra come errore di rete. Non c'è ritentativo automatico: l'utente ripete il gesto.
 
 Li usano [[shopping-screen]] (tutte) e [[plan-screen]] (`fetchPlanShoppingList` e `requestBuildShoppingList`, per il footer).
 
@@ -129,7 +129,7 @@ Li usano [[shopping-screen]] (tutte) e [[plan-screen]] (`fetchPlanShoppingList` 
 
 - `tests/shopping/service.test.ts`: test di purezza degli import (senza DB); con DB reale, lista creata dal piano confermato con quantità, reparti e ricette; pasti passati esclusi; bozza rifiutata senza creare la lista; piano chiuso consultabile ma non modificabile; altro household e id inesistenti; aggiornamento che conserva spunte e articoli a mano e azzera `needs_regeneration`; spunta conservata se la quantità non aumenta; alias a un solo passo sommati sotto il nome canonico; spunta con i controlli di appartenenza e stato; articolo a mano con reparto dalla libreria e idempotente sul nome; rifiuti dell'aggiunta; rimozione dei soli articoli a mano; scelta del piano della schermata (compresi bozza richiesta, `planId` non valido, piani conclusi); **due costruzioni concorrenti** senza doppioni; **due aggiunte a mano sovrapposte** dello stesso nome con un solo articolo. I nomi d'ingrediente dei test non sono alias del seed, perché `ingredient_aliases` è globale.
 - `tests/api/shopping-list.test.ts`, `tests/api/shopping-items.test.ts` (servizio mockato): `runtime` e `dynamic`, status e corpi, 201 e 200 dell'aggiunta, nome passato già rifilato, body vuoto o con campi in più, id non UUID senza chiamare il servizio, ogni `ShoppingErrorCode` con lo status della tabella, nessun messaggio interno nei 500.
-- `tests/shopping/client.test.ts`: URL, metodi e body, `signal` passato o assente, 200 per un articolo già presente, codifica degli id, mappatura degli errori, `network_error` anche per una richiesta interrotta.
+- `tests/shopping/client.test.ts`: URL, metodi e body, `signal` passato o assente, 200 per un articolo già presente, codifica degli id, mappatura degli errori, `network_error` anche per una richiesta interrotta, limite di tempo delle quattro chiamate senza coda (timer finti) e nessun timer lasciato dopo la risposta.
 - `tests/domain/shopping-contracts.test.ts`: schemi delle richieste e delle viste.
 
 ## Vedi anche

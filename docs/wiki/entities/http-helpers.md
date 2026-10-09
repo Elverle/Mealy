@@ -54,7 +54,7 @@ export async function requestJson<T>(url: string, init: RequestInit, schema: z.Z
 
 ### Uso nella Feature 6: `signal` e classificazione degli errori
 `lib/shopping/client.ts` segue lo stesso modello ([[shopping-service]]). Due aspetti di `requestJson`, invariato, diventano portanti:
-- `init` passa a `fetch` così com'è, quindi un `signal` interrompe la richiesta; l'interruzione fa lanciare `fetch` e ricade nel caso `status 0` / `network_error`. Lo usa solo `patchShoppingItem`, per il limite di tempo di 10 s della coda delle spunte ([[check-queue]]). **Nessun'altra chiamata del client ha un limite di tempo**: una richiesta senza risposta resta in sospeso finché lo decide il browser (osservazione P2 della review architetturale della Feature 6).
+- `init` passa a `fetch` così com'è, quindi un `signal` interrompe la richiesta; l'interruzione fa lanciare `fetch` e ricade nel caso `status 0` / `network_error`. Lo usano solo le chiamate della lista della spesa: `patchShoppingItem` per il limite di tempo di 10 s della coda delle spunte ([[check-queue]]) e le altre quattro per il proprio limite di 10 s (`SHOPPING_REQUEST_TIMEOUT_MS`, [[shopping-service]]). **Gli altri client (piani, libreria, preferenze, impostazioni) non hanno un limite di tempo**: una richiesta senza risposta resta in sospeso finché lo decide il browser (osservazione P2 della review architetturale della Feature 6).
 - la coda classifica gli errori sullo `status` di `ApiRequestError`: `0`, `408`, `429` e `≥ 500` si ritentano; un `invalid_response` (status 2xx) vale come spunta applicata; gli altri sono definitivi.
 
 ### `apiErrorMessage(err)` (Feature 5)

@@ -5,6 +5,7 @@ import {
   patchShoppingItem,
   postShoppingItem,
   requestBuildShoppingList,
+  SHOPPING_REQUEST_TIMEOUT_MS,
 } from '@/lib/shopping/client';
 import { ApiRequestError } from '@/lib/http/client';
 
@@ -70,6 +71,7 @@ function stubFetch(response: Response): ReturnType<typeof vi.fn> {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('shopping list client requests', () => {
@@ -201,4 +203,65 @@ describe('shopping list client errors', () => {
 
     expect(error).toMatchObject({ status: 0, code: 'network_error' });
   });
+});
+
+describe('shopping list client time limit', () => {
+  // Una richiesta che non riceve mai risposta: si chiude solo se il suo signal viene interrotto.
+  function stubHangingFetch(): ReturnType<typeof vi.fn> {
+    const fetchMock = vi.fn().mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError'))
+          );
+        })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  const timedRequests: Array<[string, () => Promise<unknown>, unknown]> = [
+    ['fetchPlanShoppingList', () => fetchPlanShoppingList(PLAN_ID), VIEW],
+    ['requestBuildShoppingList', () => requestBuildShoppingList(PLAN_ID), VIEW],
+    ['postShoppingItem', () => postShoppingItem(PLAN_ID, 'carta forno'), { item: MANUAL_ITEM }],
+    ['deleteShoppingItem', () => deleteShoppingItem(MANUAL_ITEM_ID), { id: MANUAL_ITEM_ID }],
+  ];
+
+  it.each(timedRequests)(
+    '%s gives up with network_error after the time limit',
+    async (_name, request) => {
+      vi.useFakeTimers();
+      stubHangingFetch();
+
+      const outcome = request().catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(SHOPPING_REQUEST_TIMEOUT_MS - 1);
+      let settled = false;
+      void outcome.then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+
+      const error = await outcome;
+      expect(error).toBeInstanceOf(ApiRequestError);
+      expect(error).toMatchObject({ status: 0, code: 'network_error' });
+    }
+  );
+
+  it.each(timedRequests)(
+    '%s leaves no timer behind once the server has answered',
+    async (_name, request, body) => {
+      vi.useFakeTimers();
+      const fetchMock = stubFetch(jsonResponse(200, body));
+
+      await request();
+
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      expect(init.signal?.aborted).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    }
+  );
 });

@@ -155,7 +155,7 @@ Non applicati perché facoltativi: **R3-b** (la ricostruzione che toglie soltant
 ## Punti Aperti e Limiti Noti
 
 - **Confronto tra orizzonti diversi** (R7, `ARCHITECTURE §5.5`): la spunta conservata confronta la quantità di prima con quella dei soli pasti che restano. Dopo un cambio a metà settimana può restare spuntato un articolo di cui serve ancora una parte.
-- **Solo le spunte hanno un limite di tempo** (10 s). Aggiunta, rimozione, ricostruzione e rilettura chiamano `requestJson` senza `signal`: una richiesta che non riceve risposta resta in sospeso finché lo decide il browser.
+- **Solo le spunte vengono ritentate da sole.** Aggiunta, rimozione, ricostruzione e rilettura hanno lo stesso limite di 10 s (`SHOPPING_REQUEST_TIMEOUT_MS`) e allo scadere danno l'errore di rete; se la risposta si interrompe quando il server ha già eseguito la scrittura, la schermata lo vede alla rilettura successiva. Il tempo della ricostruzione sul Raspberry non è stato misurato.
 - **La coda protegge una pagina già aperta**. Senza service worker la Lista non si carica senza rete, e se il browser scarta la scheda in background il ritorno richiede la connessione (osservazione della review architetturale; la PWA è fuori ambito per U2).
 - **`pnpm db:seed:aliases` inserisce soltanto** (`onConflictDoNothing`): una voce corretta o tolta in `fixtures/ingredient-aliases.json` non raggiunge un database già popolato. Da decidere prima della Feature 7.
 - **La ricostruzione fa un `UPDATE` per articolo** anche quando nulla è cambiato: `reconcileShoppingItems` mette in `toUpdate` ogni chiave che resta.
