@@ -178,7 +178,7 @@ Accettazione: suite verde su fixtures; nessun accesso a rete/LLM.
 
 ### S4.2 UI Lista spesa — dipende da S4.1 + S3.2
 - [ ] `POST/GET /api/plans/:id/shopping-list`, `PATCH /api/shopping-items/:id`
-- [ ] Sezioni per reparto, riga intera come target di spunta, spuntati in fondo, progress per sezione
+- [ ] Sezioni per reparto, riga intera come target di spunta, spuntati barrati al loro posto (ordine fisso per nome), progress per sezione
 - [ ] Item manuali (FAB); rigenerazione che preserva le spunte per canonical_name; spunta optimistic
 
 Accettazione: uso reale al supermercato: spunte immediate anche con rete lenta, stato preservato al ritorno dall'app in background.

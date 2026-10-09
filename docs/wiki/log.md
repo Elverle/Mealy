@@ -2,6 +2,9 @@
 
 Append-only operation log per le modifiche alla documentazione tecnica di Mealy.
 
+## [2026-10-09] fix | Ordine fisso delle righe nella Lista
+- Aggiornate [[shopping-list]], [[shopping-screen]] ed [[e4-lista-spesa]]: dentro un reparto le righe restano in ordine alfabetico e una spunta non le sposta più in fondo (esito della prova da telefono); rimosso `compareShoppingItemsForDisplay`.
+
 ## [2026-10-09] feat-6 | Documentazione Feature 6 (E4 Lista della spesa)
 - Documentato il topic aggregato [[e4-lista-spesa]] (flusso Piano e pagina Lista → client e coda → API → servizio → funzioni pure/repository, decisioni U1–U4, regole di dominio, tabella della concorrenza, regola "una rilettura non annulla una modifica confermata", innesti R1–R7 dell'architecture review e fix della code review, contratti per F7/v2, punti aperti di F4 e F5 chiusi, limiti noti, strategia di test con 80 file di test).
 - Create le entità [[shopping-list]] (`lib/domain/shopping-list.ts`, `lib/domain/plan-status.ts`: alias a un passo, `buildShoppingList`, `roundShoppingQuantity`, `reconcileShoppingItems`, `inferShoppingCategory`, ordinamenti, `groupShoppingItems`, formattazione, `pickDefaultShoppingPlan`, `isPlanClosed`), [[shopping-repo]] (`lib/db/repositories/shopping-repo.ts`) e [[shopping-service]] (`lib/shopping/{service,errors,http,client}.ts`, rotte `GET`/`POST /api/plans/:id/shopping-list`, `POST /api/plans/:id/shopping-list/items`, `PATCH`/`DELETE /api/shopping-items/:id`: schermata, costruzione sotto `acquirePlanLock`, spunta, articoli a mano, `ShoppingError` con sei codici).

@@ -273,7 +273,7 @@ describe("ShoppingScreen: lista e avanzamento", () => {
     expect(progressBar).toHaveAttribute("aria-valuemax", "3");
   });
 
-  it("lists unchecked items before checked ones, with quantities and the recipes of each item", () => {
+  it("lists the items of a section by name, with quantities and the recipes of each item", () => {
     renderScreen();
 
     const ortofrutta = within(sectionOf("Ortofrutta")).getAllByRole("checkbox");
@@ -286,6 +286,28 @@ describe("ShoppingScreen: lista e avanzamento", () => {
 
     expect(within(sectionOf("Macelleria")).getByRole("checkbox")).toHaveTextContent("700 g");
     expect(screen.getByText("Per: Pollo al limone, Insalata di pollo")).toBeInTheDocument();
+  });
+
+  it("keeps every row in its place when an item is checked or unchecked", async () => {
+    await renderSettled(makeView({ items: [cipolla(), zucchina({ checked: false }), petto()] }));
+    const names = (): string[] =>
+      within(sectionOf("Ortofrutta"))
+        .getAllByRole("checkbox")
+        .map((row) => (row.textContent?.includes("Cipolla") ? "cipolla" : "zucchina"));
+
+    await act(async () => {
+      fireEvent.click(box("Cipolla"));
+    });
+
+    expect(box("Cipolla")).toHaveAttribute("aria-checked", "true");
+    expect(names()).toEqual(["cipolla", "zucchina"]);
+
+    await act(async () => {
+      fireEvent.click(box("Cipolla"));
+    });
+
+    expect(box("Cipolla")).toHaveAttribute("aria-checked", "false");
+    expect(names()).toEqual(["cipolla", "zucchina"]);
   });
 
   it("shows a tap as checked at once and keeps it while the server confirms", async () => {

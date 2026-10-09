@@ -47,7 +47,7 @@ export interface ShoppingListChanges {
 export interface ShoppingSection {
   category: Category;
   label: string; // CATEGORY_LABELS[category]
-  items: ShoppingItemView[]; // non spuntati prima, poi spuntati
+  items: ShoppingItemView[]; // per nome, unità, id: le spunte non spostano le righe
   checked: number;
   total: number;
 }
@@ -300,22 +300,15 @@ export function compareShoppingItemsByAisle(a: ShoppingItemView, b: ShoppingItem
   );
 }
 
-/** Ordine di visualizzazione dentro un reparto: non spuntati prima, poi nome, unità, id. */
-export function compareShoppingItemsForDisplay(a: ShoppingItemView, b: ShoppingItemView): number {
-  return (
-    Number(a.checked) - Number(b.checked) ||
-    a.canonical_name.localeCompare(b.canonical_name, 'it') ||
-    unitIndex(a.unit) - unitIndex(b.unit) ||
-    compareIds(a.id, b.id)
-  );
-}
-
-/** Sezioni per reparto, solo quelle non vuote, nell'ordine del giro. Non muta l'input. */
+/**
+ * Sezioni per reparto, solo quelle non vuote, nell'ordine del giro. Non muta l'input.
+ * Dentro il reparto l'ordine non dipende dalle spunte: una riga spuntata resta dov'è.
+ */
 export function groupShoppingItems(items: readonly ShoppingItemView[]): ShoppingSection[] {
   return CATEGORY_VALUES.flatMap((category) => {
     const inCategory = items.filter((item) => item.category === category);
     if (inCategory.length === 0) return [];
-    const sorted = inCategory.sort(compareShoppingItemsForDisplay);
+    const sorted = inCategory.sort(compareShoppingItemsByAisle);
     const { checked, total } = shoppingProgress(sorted);
     return [{ category, label: CATEGORY_LABELS[category], items: sorted, checked, total }];
   });

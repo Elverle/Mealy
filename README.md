@@ -4,7 +4,7 @@ App web personale di meal planning: genera il piano settimanale con una selezion
 
 ## Stato
 
-Versione **0.5.0**. Feature completate:
+Versione **0.5.1**. Feature completate:
 
 - **E0 Fondamenta** — scaffold Next.js, schema DB, shell UI a 4 tab
 - **E1 Motore ricette** — adapter LLM multi-provider, generazione e persistenza delle ricette, fixtures e seed
