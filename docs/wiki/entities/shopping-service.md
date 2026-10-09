@@ -79,7 +79,7 @@ Normalizza il nome con `normalizeCanonicalName`, poi **in una transazione sotto 
 
 Il nome dell'articolo a mano **non** passa dagli alias: resta quello digitato, normalizzato. Gli alias servono solo a dedurre il reparto.
 
-Ricerca e inserimento sotto lock sono un fix della code review (commit `e502c9b`): `shopping_items` non ha un vincolo di unicità sul nome, e due aggiunte sovrapposte dello stesso nome potevano creare due righe. Ora la seconda trova l'articolo della prima. È una deroga esplicita al requisito P9, che prevedeva l'aggiunta senza lock; `ARCHITECTURE §5.5` la riporta. Il piano prevedeva inoltre `listRecipes`: nel codice è `listRecipesWith`, perché la lettura avviene dentro la transazione.
+Ricerca e inserimento sotto lock sono un fix della code review (commit `e502c9b`): `shopping_items` non ha un vincolo di unicità sul nome, e due aggiunte sovrapposte dello stesso nome potevano creare due righe. Ora la seconda trova l'articolo della prima. Il requisito P9, che in origine prevedeva l'aggiunta senza lock, è stato aggiornato di conseguenza; `ARCHITECTURE §5.5` riporta il comportamento. Il piano prevedeva inoltre `listRecipes`: nel codice è `listRecipesWith`, perché la lettura avviene dentro la transazione.
 
 ### `removeManualShoppingItem`
 Controlla appartenenza e piano chiuso, poi `item_not_manual` se l'articolo viene dal piano; altrimenti lo elimina e restituisce il suo id. Senza lock.

@@ -68,7 +68,7 @@ La Feature 6 **scrive sulle liste** e usa lo stesso advisory lock dei piani ([[s
 | Operazione | Sotto `acquirePlanLock` | Perché |
 |---|---|---|
 | `buildPlanShoppingList` (crea o aggiorna la lista) | sì: rilettura del piano con la transazione, controlli di stato, alias, `buildShoppingList`, riconciliazione, scritture, `markShoppingListGenerated` | La lista si costruisce su un piano coerente, e l'azzeramento di `needs_regeneration` non può incrociare uno swap, che lo accende sotto lo stesso lock. Due costruzioni concorrenti non creano due liste né doppioni |
-| `addManualShoppingItem` | sì: ricerca dell'articolo a mano con quel nome e inserimento | `shopping_items` non ha un vincolo di unicità sul nome: senza serializzazione due aggiunte sovrapposte creavano due righe. Fix della code review (commit `e502c9b`), in **deroga esplicita** al requisito P9 della feature, che prevedeva l'aggiunta senza lock |
+| `addManualShoppingItem` | sì: ricerca dell'articolo a mano con quel nome e inserimento | `shopping_items` non ha un vincolo di unicità sul nome: senza serializzazione due aggiunte sovrapposte creavano due righe. Fix della code review (commit `e502c9b`): il requisito P9 della feature, che in origine prevedeva l'aggiunta senza lock, è stato aggiornato di conseguenza |
 | `checkShoppingItem`, `removeManualShoppingItem` | no | Singole scritture: la spunta è un valore assoluto e si può ripetere, la rimozione riguarda una riga sola |
 
 Conseguenze:

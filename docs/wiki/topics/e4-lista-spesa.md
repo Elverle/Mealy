@@ -107,7 +107,7 @@ Il testo di riferimento di queste regole è `ARCHITECTURE §5.5`, aggiornato dal
 | `addManualShoppingItem` | Ricerca e inserimento in una transazione sotto lo stesso lock: due aggiunte sovrapposte dello stesso nome danno un solo articolo |
 | `checkShoppingItem`, `removeManualShoppingItem` | Singole scritture, senza lock e senza transazione |
 
-Il lock sull'aggiunta a mano è una **deroga esplicita** al requisito P9 di `requirements.md`, che prevedeva l'aggiunta senza lock: è entrata con il commit di review `e502c9b` ed è scritta in `ARCHITECTURE §5.5` (v. [[plan-concurrency-pattern]]).
+Il lock sull'aggiunta a mano è entrato con il commit di review `e502c9b`: il requisito P9 di `requirements.md`, che in origine prevedeva l'aggiunta senza lock, è stato aggiornato di conseguenza, e il comportamento è scritto in `ARCHITECTURE §5.5` (v. [[plan-concurrency-pattern]]).
 
 ### Spunte, coda e riletture
 
