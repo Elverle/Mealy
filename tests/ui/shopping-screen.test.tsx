@@ -190,7 +190,23 @@ function renderScreen(
   selected: PlanShoppingListView | null = makeView(),
   plans: ShoppingPlanRef[] = [PLAN_REF]
 ) {
+  // Alla apertura la schermata rilegge la lista: di norma il server risponde con quella già a schermo.
+  if (selected !== null) {
+    vi.mocked(fetchPlanShoppingList).mockImplementation(() => Promise.resolve(selected));
+  }
   return render(<ShoppingScreen initialScreen={makeScreen(selected, plans)} />);
+}
+
+/** Come `renderScreen`, ma aspetta la rilettura di apertura e ne azzera le chiamate. */
+async function renderSettled(
+  selected: PlanShoppingListView | null = makeView(),
+  plans: ShoppingPlanRef[] = [PLAN_REF]
+) {
+  const utils = renderScreen(selected, plans);
+  await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(1));
+  await act(async () => {});
+  vi.mocked(fetchPlanShoppingList).mockClear();
+  return utils;
 }
 
 function deferred<T>() {
@@ -231,6 +247,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  // Ripristina il getter del prototipo, nascosto dai test che fingono il passaggio in secondo piano.
+  Reflect.deleteProperty(document, "visibilityState");
 });
 
 describe("ShoppingScreen: lista e avanzamento", () => {
@@ -273,7 +291,7 @@ describe("ShoppingScreen: lista e avanzamento", () => {
   it("shows a tap as checked at once and keeps it while the server confirms", async () => {
     const save = deferred<ShoppingItemView>();
     vi.mocked(patchShoppingItem).mockReturnValueOnce(save.promise);
-    renderScreen();
+    await renderSettled();
 
     fireEvent.click(box("Cipolla"));
 
@@ -352,7 +370,7 @@ describe("ShoppingScreen: lista e avanzamento", () => {
     vi.mocked(patchShoppingItem)
       .mockRejectedValueOnce(new ApiRequestError(409, "plan_archived", refusal))
       .mockRejectedValueOnce(new ApiRequestError(404, "not_found", "Articolo non trovato."));
-    renderScreen();
+    await renderSettled();
 
     fireEvent.click(box("Cipolla"));
 
@@ -368,7 +386,7 @@ describe("ShoppingScreen: lista e avanzamento", () => {
   });
 
   it("rereads the list when the page comes back to the foreground or the network returns", async () => {
-    renderScreen();
+    await renderSettled();
 
     Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
     document.dispatchEvent(new Event("visibilitychange"));
@@ -600,8 +618,8 @@ describe("ShoppingScreen: selettore, stati speciali e aggiornamenti dal server",
     ).toBeInTheDocument();
   });
 
-  it("replaces the shown state when a new initial screen arrives for the same plan", () => {
-    const { rerender } = renderScreen(makeView());
+  it("replaces the shown state when a new initial screen arrives for the same plan", async () => {
+    const { rerender } = await renderSettled(makeView());
     expect(screen.getByText("Cipolla")).toBeInTheDocument();
 
     const basilico = cipolla({
@@ -619,11 +637,11 @@ describe("ShoppingScreen: selettore, stati speciali e aggiornamenti dal server",
   it("does not let a reread that started before a confirmed tap undo that tap", async () => {
     const staleReread = deferred<PlanShoppingListView>();
     const save = deferred<ShoppingItemView>();
+    vi.mocked(patchShoppingItem).mockReturnValueOnce(save.promise);
+    await renderSettled();
     vi.mocked(fetchPlanShoppingList)
       .mockReturnValueOnce(staleReread.promise)
       .mockResolvedValueOnce(makeView({ items: [cipolla({ checked: true }), zucchina(), petto()] }));
-    vi.mocked(patchShoppingItem).mockReturnValueOnce(save.promise);
-    renderScreen();
 
     act(() => {
       window.dispatchEvent(new Event("online"));
@@ -642,5 +660,208 @@ describe("ShoppingScreen: selettore, stati speciali e aggiornamenti dal server",
 
     await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(box("Cipolla")).toHaveAttribute("aria-checked", "true"));
+  });
+});
+
+describe("ShoppingScreen: spunta riuscita con risposta illeggibile", () => {
+  it("rereads the list when the server answers 2xx but the body cannot be read, and shows what the server has", async () => {
+    vi.mocked(patchShoppingItem).mockRejectedValueOnce(
+      new ApiRequestError(200, "invalid_response", "Risposta non valida.")
+    );
+    await renderSettled();
+    vi.mocked(fetchPlanShoppingList).mockResolvedValueOnce(
+      makeView({ items: [cipolla({ checked: true }), zucchina(), petto()] })
+    );
+
+    fireEvent.click(box("Cipolla"));
+
+    await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull());
+    expect(box("Cipolla")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("2/3")).toBeInTheDocument();
+  });
+});
+
+describe("ShoppingScreen: modifiche durante una rilettura", () => {
+  it("keeps an item added while a reread was in flight and rereads again", async () => {
+    const user = userEvent.setup();
+    const staleReread = deferred<PlanShoppingListView>();
+    vi.mocked(postShoppingItem).mockResolvedValueOnce(latte());
+    await renderSettled();
+    vi.mocked(fetchPlanShoppingList)
+      .mockReturnValueOnce(staleReread.promise)
+      .mockResolvedValueOnce(makeView({ items: [...baseItems(), latte()] }));
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi un articolo alla lista" }));
+    await user.type(screen.getByLabelText("Cosa manca?"), "latte{Enter}");
+    expect(await screen.findByText("Aggiunto: Latte")).toBeInTheDocument();
+
+    await act(async () => {
+      staleReread.resolve(makeView());
+    });
+
+    expect(screen.getByText("Latte")).toBeInTheDocument();
+    await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Latte")).toBeInTheDocument();
+  });
+
+  it("keeps an item removed while a reread was in flight removed and rereads again", async () => {
+    const items = [...baseItems(), latte()];
+    const staleReread = deferred<PlanShoppingListView>();
+    vi.mocked(deleteShoppingItem).mockResolvedValueOnce(undefined);
+    await renderSettled(makeView({ items }));
+    vi.mocked(fetchPlanShoppingList)
+      .mockReturnValueOnce(staleReread.promise)
+      .mockResolvedValueOnce(makeView({ items: baseItems() }));
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Rimuovi Latte" }));
+    await waitFor(() => expect(deleteShoppingItem).toHaveBeenCalledWith(ID_LATTE));
+    await act(async () => {});
+
+    await act(async () => {
+      staleReread.resolve(makeView({ items }));
+    });
+
+    expect(screen.queryByText("Latte")).not.toBeInTheDocument();
+    await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Latte")).not.toBeInTheDocument();
+  });
+
+  it("applies the rebuilt list and rereads when a tap was confirmed while the rebuild was in flight", async () => {
+    const items = [cipolla(), zucchina({ checked: false }), petto()];
+    const build = deferred<PlanShoppingListView>();
+    const reread = deferred<PlanShoppingListView>();
+    vi.mocked(requestBuildShoppingList).mockReturnValueOnce(build.promise);
+    await renderSettled(makeView({ items, needsRegeneration: true }));
+    vi.mocked(fetchPlanShoppingList).mockReturnValueOnce(reread.promise);
+
+    fireEvent.click(screen.getByRole("button", { name: "Aggiorna lista" }));
+    await waitFor(() => expect(requestBuildShoppingList).toHaveBeenCalledWith(PLAN_ID));
+
+    fireEvent.click(box("Cipolla"));
+    await waitFor(() => expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull());
+    expect(patchShoppingItem).toHaveBeenCalledTimes(1);
+    expect(fetchPlanShoppingList).not.toHaveBeenCalled();
+
+    const basilico = cipolla({ id: ID_BASILICO, canonical_name: "basilico", qty: 50, unit: "g" });
+    await act(async () => {
+      build.resolve(makeView({ items: [basilico] }));
+    });
+
+    expect(screen.getByText("Basilico")).toBeInTheDocument();
+    expect(screen.getByText("Lista aggiornata")).toBeInTheDocument();
+    await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      reread.resolve(makeView({ items: [basilico] }));
+    });
+    expect(screen.getByText("Basilico")).toBeInTheDocument();
+  });
+});
+
+describe("ShoppingScreen: rilettura all'apertura", () => {
+  it("rereads the list when the screen opens and shows what the server has now", async () => {
+    vi.mocked(fetchPlanShoppingList).mockResolvedValueOnce(
+      makeView({ items: [cipolla({ checked: true }), zucchina(), petto()] })
+    );
+    render(<ShoppingScreen initialScreen={makeScreen(makeView())} />);
+
+    expect(box("Cipolla")).toHaveAttribute("aria-checked", "false");
+
+    await waitFor(() => expect(box("Cipolla")).toHaveAttribute("aria-checked", "true"));
+    expect(fetchPlanShoppingList).toHaveBeenCalledTimes(1);
+    expect(fetchPlanShoppingList).toHaveBeenCalledWith(PLAN_ID);
+  });
+
+  it("shows the list when the screen opens on the empty state but the server already has the list", async () => {
+    vi.mocked(fetchPlanShoppingList).mockResolvedValueOnce(makeView());
+    render(<ShoppingScreen initialScreen={makeScreen(makeView({ list: null }))} />);
+
+    expect(screen.getByRole("heading", { level: 3, name: "Lista da creare" })).toBeInTheDocument();
+
+    expect(await screen.findByRole("heading", { level: 2, name: "Ortofrutta" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Lista da creare" })).not.toBeInTheDocument();
+    expect(box("Zucchina")).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("waits for the saved taps to be sent before rereading", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ [ID_CIPOLLA]: true }));
+    const save = deferred<ShoppingItemView>();
+    vi.mocked(patchShoppingItem).mockReturnValueOnce(save.promise);
+    renderScreen();
+
+    await waitFor(() => expect(patchShoppingItem).toHaveBeenCalledTimes(1));
+    expect(fetchPlanShoppingList).not.toHaveBeenCalled();
+
+    await act(async () => {
+      save.resolve(savedItem(ID_CIPOLLA, true));
+    });
+
+    await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not reread when the screen is closed before the saved taps are sent", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ [ID_CIPOLLA]: true }));
+    const save = deferred<ShoppingItemView>();
+    vi.mocked(patchShoppingItem).mockReturnValueOnce(save.promise);
+    const { unmount } = renderScreen();
+    await waitFor(() => expect(patchShoppingItem).toHaveBeenCalledTimes(1));
+
+    unmount();
+    await act(async () => {
+      save.resolve(savedItem(ID_CIPOLLA, true));
+    });
+
+    expect(fetchPlanShoppingList).not.toHaveBeenCalled();
+  });
+});
+
+describe("ShoppingScreen: avviso di attesa rete e creazione della lista", () => {
+  it("keeps the pending notice region mounted and empty until a tap is stuck, then fills it", async () => {
+    vi.mocked(patchShoppingItem).mockRejectedValue(
+      new ApiRequestError(0, "network_error", NETWORK_MESSAGE)
+    );
+    await renderSettled();
+    const notice = screen.getAllByRole("status").find((region) => region.className === "");
+    expect(notice).toBeDefined();
+    expect(notice).toBeEmptyDOMElement();
+
+    fireEvent.click(box("Cipolla"));
+
+    const text = await screen.findByText("1 spunta in attesa di rete");
+    expect(text).toBe(notice);
+    expect(text).toHaveAttribute("role", "status");
+    expect(text.className).toContain("border");
+  });
+
+  it("disables the create button and shows the waiting label while the list is being built", async () => {
+    const build = deferred<PlanShoppingListView>();
+    vi.mocked(requestBuildShoppingList).mockReturnValueOnce(build.promise);
+    await renderSettled(makeView({ list: null }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Crea lista della spesa" }));
+
+    const busy = screen.getByRole("button", { name: "Creo la lista…" });
+    expect(busy).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Crea lista della spesa" })).not.toBeInTheDocument();
+    fireEvent.click(busy);
+    await waitFor(() => expect(requestBuildShoppingList).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      build.resolve(makeView());
+    });
+
+    expect(await screen.findByText("Lista creata")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Ortofrutta" })).toBeInTheDocument();
   });
 });

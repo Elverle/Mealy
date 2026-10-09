@@ -56,9 +56,23 @@ const ALL_DONE = "Hai preso tutto.";
 const MANUAL_DETAIL = "Aggiunto a mano";
 const pendingLabel = (count: number) =>
   count === 1 ? "1 spunta in attesa di rete" : `${count} spunte in attesa di rete`;
+const LIST_CREATE_LABEL = "Crea lista della spesa";
+// Stessa etichetta di attesa del footer del Piano (components/plan/plan-screen.tsx).
+const LIST_CREATING_LABEL = "Creo la lista…";
 const HTTP_NOT_FOUND = 404;
+const HTTP_SUCCESS_MIN = 200;
+const HTTP_SUCCESS_MAX_EXCLUSIVE = 300;
 
 const NO_PLAN_ERROR_MESSAGE = "Nessun piano selezionato.";
+
+/** Risposta 2xx rifiutata solo perché illeggibile: il server ha comunque applicato la richiesta. */
+function isUnreadableSuccess(err: unknown): boolean {
+  return (
+    err instanceof ApiRequestError &&
+    err.status >= HTTP_SUCCESS_MIN &&
+    err.status < HTTP_SUCCESS_MAX_EXCLUSIVE
+  );
+}
 
 /** Articoli con le spunte in coda al posto dello stato del server. */
 function withPending(
@@ -115,8 +129,9 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
   const mountedRef = React.useRef(false);
   const queueRef = React.useRef<CheckQueue | null>(null);
   const refreshRef = React.useRef<() => Promise<void>>(() => Promise.resolve());
-  // Conta le spunte confermate dal server: una rilettura che parte prima di una spunta non la può cancellare.
-  const checkSeqRef = React.useRef(0);
+  // Conta le modifiche confermate dal server (spunte, aggiunte, rimozioni, creazioni): una rilettura
+  // che parte prima di una modifica non la può cancellare.
+  const mutationSeqRef = React.useRef(0);
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -146,7 +161,7 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
 
   const refresh = async (): Promise<void> => {
     if (planId === null) return;
-    const seq = checkSeqRef.current;
+    const seq = mutationSeqRef.current;
     let fresh: PlanShoppingListView;
     try {
       fresh = await fetchPlanShoppingList(planId);
@@ -155,8 +170,8 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
       return;
     }
     if (!mountedRef.current) return;
-    if (checkSeqRef.current !== seq) {
-      // Una spunta è stata confermata mentre la vista era in viaggio: la vista potrebbe non contenerla.
+    if (mutationSeqRef.current !== seq) {
+      // Una modifica è stata confermata mentre la vista era in viaggio: la vista potrebbe non contenerla.
       void refreshRef.current();
       return;
     }
@@ -173,8 +188,18 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
     const queue = new CheckQueue({
       storage: createLocalCheckStorage(planId),
       send: async (itemId, checked, signal) => {
-        const saved = await patchShoppingItem(itemId, checked, signal);
-        checkSeqRef.current += 1;
+        let saved: ShoppingItemView;
+        try {
+          saved = await patchShoppingItem(itemId, checked, signal);
+        } catch (err) {
+          if (isUnreadableSuccess(err)) {
+            // La coda la darà per inviata: il server ha la spunta, la vista a schermo va riletta.
+            mutationSeqRef.current += 1;
+            void refreshRef.current();
+          }
+          throw err;
+        }
+        mutationSeqRef.current += 1;
         applyServerItem(saved);
       },
       onChange: setQueueState,
@@ -187,7 +212,11 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
     });
     queueRef.current = queue;
     setQueueState(queue.state);
-    void queue.flush();
+    // Anche la schermata riaperta con il tasto Indietro riparte da dati del server, non dalla cache del router.
+    // Se nel frattempo la coda è stata smontata, la rilettura non parte.
+    void queue.flush().then(() => {
+      if (queueRef.current === queue) void refreshRef.current();
+    });
     return () => {
       queue.dispose();
       queueRef.current = null;
@@ -226,6 +255,7 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
   const sections = React.useMemo(() => groupShoppingItems(items), [items]);
   const progress = shoppingProgress(items);
 
+  const showPendingNotice = queueState.stalled && queueState.pending.size > 0;
   const showFab = view !== null && list !== null && view.editable;
 
   const handleToggle = (id: string): void => {
@@ -245,12 +275,15 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
         setToast(TOAST_PENDING_BLOCK);
         return;
       }
-      const seq = checkSeqRef.current;
+      const seq = mutationSeqRef.current;
       const fresh = await requestBuildShoppingList(planId);
       if (!mountedRef.current) return;
+      const changedMeanwhile = mutationSeqRef.current !== seq;
+      // Una rilettura partita prima della costruzione non deve sostituirla.
+      mutationSeqRef.current += 1;
       setView(fresh);
       setToast(hadList ? TOAST_UPDATED : TOAST_CREATED);
-      if (checkSeqRef.current !== seq) void refreshRef.current();
+      if (changedMeanwhile) void refreshRef.current();
     } catch (err) {
       if (mountedRef.current) setToast(apiErrorMessage(err));
     } finally {
@@ -270,6 +303,7 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
   const handleAdd = async (name: string): Promise<string> => {
     if (planId === null) throw new Error(NO_PLAN_ERROR_MESSAGE);
     const item = await postShoppingItem(planId, name);
+    mutationSeqRef.current += 1;
     setView((prev) => {
       if (!prev?.list) return prev;
       const exists = prev.list.items.some((existing) => existing.id === item.id);
@@ -294,9 +328,13 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
     );
     try {
       await deleteShoppingItem(id);
+      mutationSeqRef.current += 1;
     } catch (err) {
       // 404: l'articolo non c'è più sul server, il risultato è già quello voluto.
-      if (err instanceof ApiRequestError && err.status === HTTP_NOT_FOUND) return;
+      if (err instanceof ApiRequestError && err.status === HTTP_NOT_FOUND) {
+        mutationSeqRef.current += 1;
+        return;
+      }
       if (!mountedRef.current) return;
       setView((prev) =>
         prev && prev.list && !prev.list.items.some((item) => item.id === removed.id)
@@ -328,13 +366,20 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
     );
   } else if (view.list === null) {
     if (view.can_build) {
+      // Il pulsante è fuori da EmptyState, che non ne prevede lo stato disabilitato.
       body = (
-        <EmptyState
-          title="Lista da creare"
-          description={`Raccolgo gli ingredienti del piano ${weekRange} e li ordino per reparto.`}
-          actionLabel="Crea lista della spesa"
-          onAction={() => void runBuild()}
-        />
+        <>
+          <EmptyState
+            title="Lista da creare"
+            description={`Raccolgo gli ingredienti del piano ${weekRange} e li ordino per reparto.`}
+            className="pb-0"
+          />
+          <div className="flex justify-center pb-12">
+            <Button onClick={() => void runBuild()} disabled={isBuilding}>
+              {isBuilding ? LIST_CREATING_LABEL : LIST_CREATE_LABEL}
+            </Button>
+          </div>
+        </>
       );
     } else if (view.editable) {
       body = (
@@ -385,14 +430,15 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
           </div>
         )}
 
-        {queueState.stalled && queueState.pending.size > 0 && (
-          <p
-            role="status"
-            className="mb-4 rounded-xl border border-stone/30 bg-stone/10 p-3 text-sm text-ink"
-          >
-            {pendingLabel(queueState.pending.size)}
-          </p>
-        )}
+        {/* Regione sempre montata: una live region che compare già piena non viene annunciata bene. */}
+        <div
+          role="status"
+          className={cn(
+            showPendingNotice && "mb-4 rounded-xl border border-stone/30 bg-stone/10 p-3 text-sm text-ink"
+          )}
+        >
+          {showPendingNotice ? pendingLabel(queueState.pending.size) : null}
+        </div>
 
         {progress.total > 0 && (
           <div className="mb-5 rounded-xl border border-stone/20 bg-white p-3.5">

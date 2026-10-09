@@ -40,7 +40,7 @@ import {
   requestSlotLock,
 } from "@/lib/plans/client";
 import { formatDayLabel, formatWeekRange } from "@/lib/plans/format";
-import { requestBuildShoppingList } from "@/lib/shopping/client";
+import { fetchPlanShoppingList, requestBuildShoppingList } from "@/lib/shopping/client";
 
 export interface PlanScreenProps {
   initialScreen: PlanScreenView;
@@ -226,6 +226,49 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     const pending = pendingToast;
     pendingToast = null;
     if (pending && pending.weekStart === mountedWeekStart.current) setToast(pending.message);
+  }, []);
+
+  // Stato della lista già deciso da un'azione dell'utente: la rilettura di apertura, più vecchia, non lo sovrascrive.
+  const shoppingListTouchedRef = React.useRef(false);
+  const mountedScreenRef = React.useRef(initialScreen);
+
+  // Tornando indietro il router può riproporre un piano in cache: lo stato della lista (solo quello) si rilegge.
+  React.useEffect(() => {
+    const mountedPlan = mountedScreenRef.current.view.plan;
+    if (!mountedPlan || mountedPlan.status !== "active" || !mountedScreenRef.current.view.editable) {
+      return;
+    }
+    const planId = mountedPlan.id;
+    let cancelled = false;
+    void (async () => {
+      let fresh: Awaited<ReturnType<typeof fetchPlanShoppingList>>;
+      try {
+        fresh = await fetchPlanShoppingList(planId);
+      } catch {
+        // Senza rete resta lo stato già a schermo.
+        return;
+      }
+      if (cancelled || shoppingListTouchedRef.current || fresh.plan.id !== planId) return;
+      const next = {
+        exists: fresh.list !== null,
+        needs_regeneration: fresh.list?.needs_regeneration ?? false,
+      };
+      setScreen((prev) => {
+        const current = prev.view.plan;
+        if (!current || current.id !== planId) return prev;
+        const same =
+          current.shopping_list.exists === next.exists &&
+          current.shopping_list.needs_regeneration === next.needs_regeneration;
+        if (same) return prev;
+        return {
+          ...prev,
+          view: { ...prev.view, plan: { ...current, shopping_list: next } },
+        };
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const { view, target } = screen;
@@ -437,6 +480,7 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     setIsCreatingList(true);
     try {
       await requestBuildShoppingList(planId);
+      shoppingListTouchedRef.current = true;
       if (!mountedRef.current) return;
       setScreen((prev) =>
         prev.view.plan && prev.view.plan.id === planId
@@ -515,7 +559,8 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
                 slot={slot}
                 editable={view.editable}
                 swappable={slot.day >= screen.today}
-                onPlanChange={(next) =>
+                onPlanChange={(next) => {
+                  shoppingListTouchedRef.current = true;
                   setScreen((prev) =>
                     withSlotFrom(
                       prev,
@@ -524,8 +569,8 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
                       (serverSlot) => ({ recipe: serverSlot.recipe, servings: serverSlot.servings }),
                       { shopping_list: next.shopping_list }
                     )
-                  )
-                }
+                  );
+                }}
                 onToggleLock={(slotId) => void handleToggleLock(slotId)}
                 onSelectRecipe={(selected) => setSheetSlotId(selected.id)}
                 onToggleFavorite={(recipeId) => void handleToggleFavorite(recipeId)}

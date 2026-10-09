@@ -177,14 +177,17 @@ export class CheckQueue {
           return;
         }
         this.attempt = 0;
-        this.stalled = false;
-        if (this.desired.get(itemId) === value) {
-          this.desired.delete(itemId);
-          this.settle();
-          return;
-        }
-        // Nel frattempo l'utente ha toccato di nuovo: si manda il valore più recente.
-        this.notify();
+        const finished = this.desired.get(itemId) === value;
+        if (finished) this.desired.delete(itemId);
+        // Un invio riuscito prova che la rete c'è: le spunte ferme non aspettano il loro timer.
+        // `stalled` resta com'è: lo decide l'esito del ritentativo.
+        const retryWaiting = this.timer !== null && this.desired.size > 0;
+        if (!retryWaiting) this.stalled = false;
+        if (finished) this.settle();
+        // Altrimenti l'utente ha toccato di nuovo: si manda il valore più recente.
+        else this.notify();
+        if (retryWaiting) void this.flush();
+        if (finished) return;
       }
     } finally {
       this.inFlight.delete(itemId);

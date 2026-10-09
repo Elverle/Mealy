@@ -40,7 +40,7 @@ export function AddShoppingItemSheet({
     setError(null);
   }, [open]);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = name.trim();
     if (trimmed === "" || saving) return;
@@ -50,7 +50,8 @@ export function AddShoppingItemSheet({
     try {
       const label = await onAdd(trimmed);
       setAdded(label);
-      setName("");
+      // Si svuota solo se il testo è quello appena mandato: chi ha già cominciato un altro articolo lo tiene.
+      setName((current) => (current.trim() === trimmed ? "" : current));
       inputRef.current?.focus();
     } catch (err) {
       setError(apiErrorMessage(err));

@@ -278,6 +278,59 @@ describe('CheckQueue retries on network failure', () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
+  it('retries a stuck check at once when a send for another item succeeds, without waiting for its timer', async () => {
+    let stuckCalls = 0;
+    const send = vi.fn<Send>((itemId) => {
+      if (itemId !== ITEM_ID) return Promise.resolve();
+      stuckCalls += 1;
+      return stuckCalls <= 2 ? Promise.reject(NETWORK_ERROR) : Promise.resolve();
+    });
+    const queue = new CheckQueue({ send, storage: createMemoryCheckStorage() });
+
+    queue.enqueue(ITEM_ID, true);
+    await settle();
+    await vi.advanceTimersByTimeAsync(CHECK_RETRY_FIRST_DELAY_MS);
+    expect(stuckCalls).toBe(2);
+    expect(queue.state.stalled).toBe(true);
+
+    queue.enqueue(OTHER_ID, true);
+    await settle();
+
+    expect(stuckCalls).toBe(3);
+    expect(queue.state).toEqual({ pending: new Map(), stalled: false });
+    // Il vecchio timer (4 s) non ha lasciato invii in più.
+    await vi.advanceTimersByTimeAsync(CHECK_RETRY_FIRST_DELAY_MS * 4);
+    expect(stuckCalls).toBe(3);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('stays stalled and backs off again when the immediate retry of a stuck check also fails', async () => {
+    let stuckCalls = 0;
+    const send = vi.fn<Send>((itemId) => {
+      if (itemId !== ITEM_ID) return Promise.resolve();
+      stuckCalls += 1;
+      return stuckCalls <= 3 ? Promise.reject(NETWORK_ERROR) : Promise.resolve();
+    });
+    const queue = new CheckQueue({ send, storage: createMemoryCheckStorage() });
+
+    queue.enqueue(ITEM_ID, true);
+    await settle();
+    await vi.advanceTimersByTimeAsync(CHECK_RETRY_FIRST_DELAY_MS);
+    expect(stuckCalls).toBe(2);
+
+    queue.enqueue(OTHER_ID, true);
+    await settle();
+
+    expect(stuckCalls).toBe(3);
+    expect(queue.state).toEqual({ pending: new Map([[ITEM_ID, true]]), stalled: true });
+
+    await vi.advanceTimersByTimeAsync(CHECK_RETRY_FIRST_DELAY_MS - 1);
+    expect(stuckCalls).toBe(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stuckCalls).toBe(4);
+    expect(queue.state).toEqual({ pending: new Map(), stalled: false });
+  });
+
   it('gives up on a send that hangs after CHECK_SEND_TIMEOUT_MS and retries it', async () => {
     const send = vi.fn<Send>(hangUntilAborted());
     const queue = new CheckQueue({ send, storage: createMemoryCheckStorage() });

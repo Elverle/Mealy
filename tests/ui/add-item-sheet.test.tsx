@@ -107,6 +107,28 @@ describe("AddShoppingItemSheet adding items", () => {
     expect(onAdd).toHaveBeenLastCalledWith("uova");
   });
 
+  it("keeps what the user typed while saving when the answer arrives", async () => {
+    const user = userEvent.setup();
+    let resolveAdd: (label: string) => void = () => {};
+    const onAdd = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+    renderSheet({ onAdd });
+
+    await user.type(field(), "latte{enter}");
+    await user.type(field(), "pane");
+    expect(field()).toHaveValue("lattepane");
+
+    resolveAdd("Latte");
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Aggiunto: Latte");
+    });
+    expect(field()).toHaveValue("lattepane");
+  });
+
   it("shows the API message and keeps the typed text when adding fails", async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn(() =>
