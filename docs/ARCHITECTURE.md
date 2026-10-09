@@ -236,7 +236,7 @@ I parametri (10/28 giorni, `recencyFloor`, boost, soglia, lotti) sono costanti i
 
 ### 5.3 Swap di uno slot
 
-Stesso algoritmo di 5.2 applicato al singolo slot, con exclude-list = ricetta attuale + tutte le altre del piano + le ricette già scartate nella stessa sequenza di *Cambia* (inviate dal client in `exclude_recipe_ids`, al più `SWAP_EXCLUDE_MAX`). I pasti dei giorni già passati non si cambiano (`409 slot_past`). Lo swap invalida la lista della spesa se già generata (flag "lista da rigenerare" sulla UI, rigenerazione esplicita che preserva le spunte per `canonical_name` dove possibile).
+Stesso algoritmo di 5.2 applicato al singolo slot, con exclude-list = ricetta attuale + tutte le altre del piano + le ricette già scartate nella stessa sequenza di *Cambia* (inviate dal client in `exclude_recipe_ids`, al più `SWAP_EXCLUDE_MAX`). I pasti dei giorni già passati non si cambiano (`409 slot_past`). Lo swap invalida la lista della spesa se già generata (flag "lista da rigenerare" sulla UI, rigenerazione esplicita che preserva le spunte dove possibile, con la chiave e le regole di §5.5).
 
 ### 5.4 Preferenze
 
@@ -254,7 +254,7 @@ Funzione pura `buildShoppingList(slots, aliases) → items` (`lib/domain/shoppin
 
 **Creazione e aggiornamento.** Solo per piani confermati e non chiusi, in una transazione sotto il lock del piano. L'aggiornamento riconcilia per `(canonical_name, unit)`: le righe che restano tengono il loro id; la spunta resta se la quantità non aumenta (per `qb` resta sempre); gli articoli aggiunti a mano non si toccano; `needs_regeneration` torna `false`. Il confronto è tra la quantità di prima e quella dei soli pasti che restano: dopo un cambio a metà settimana può restare spuntato un articolo di cui serve ancora una parte.
 
-**Articoli a mano.** Solo il nome (normalizzato, senza risolvere l'alias); il reparto si deduce dalla libreria (stesso nome, alias risolti), altrimenti `altro`; `unit` e `qty` restano `null`.
+**Articoli a mano.** Solo il nome (normalizzato, senza risolvere l'alias); il reparto si deduce dalla libreria (stesso nome, alias risolti), altrimenti `altro`; `unit` e `qty` restano `null`. L'aggiunta prende il lock dei piani dell'household (lo stesso della creazione della lista), così che due aggiunte sovrapposte dello stesso nome diano un solo articolo: la seconda trova quello della prima e risponde `created: false`.
 
 **Spunte senza rete.** La spunta è un valore assoluto (`PATCH { checked }`): il client la applica subito, la tiene in una coda salvata in `localStorage` e la ritenta finché il server risponde.
 

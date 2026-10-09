@@ -1,12 +1,13 @@
 // @vitest-environment node
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { isDbAvailable, assertDbMigrated } from '@/tests/helpers/db';
 import { seedDatabase, seedIngredientAliases } from '@/lib/db/seed-core';
+import * as recipeRepo from '@/lib/db/repositories/recipe-repo';
 import { getRecipeById } from '@/lib/db/repositories/recipe-repo';
 import { FIXTURE_RECIPES, FIXTURE_INGREDIENT_ALIASES } from '@/fixtures';
 import { client, db, ingredient_aliases, recipes } from '@/lib/db';
-import { count, eq } from 'drizzle-orm';
+import { count, eq, inArray } from 'drizzle-orm';
 
 const dbUp = await isDbAvailable();
 
@@ -63,20 +64,32 @@ describe.skipIf(!dbUp)('Database Seeding', () => {
   });
 
   it('seedIngredientAliases is idempotent and inserts no recipes', async () => {
-    // Repeatable read: the snapshot ignores recipes written concurrently by other
-    // test files, while writes made inside this transaction remain visible to it.
-    await db.transaction(
-      async (tx) => {
-        const [{ value: recipesBefore }] = await tx.select({ value: count() }).from(recipes);
+    // Writes made outside the transaction (e.g. a regression that calls seedDatabase(), which
+    // writes on the global db) are invisible to a repeatable-read snapshot, so the check is
+    // twofold: the fixture recipes (fixed ids, untouched by other test files) are counted on
+    // the global db before and after, and the recipe repository must not be reached at all.
+    const countFixtureRecipes = async (): Promise<number> => {
+      const [{ value }] = await db
+        .select({ value: count() })
+        .from(recipes)
+        .where(inArray(recipes.id, FIXTURE_RECIPES.map((r) => r.id)));
+      return value;
+    };
+    const getRecipeSpy = vi.spyOn(recipeRepo, 'getRecipeById');
+    const insertRecipeSpy = vi.spyOn(recipeRepo, 'insertRecipe');
+    try {
+      const fixturesBefore = await countFixtureRecipes();
 
-        await seedIngredientAliases(tx);
-        const second = await seedIngredientAliases(tx);
+      await seedIngredientAliases();
+      const second = await seedIngredientAliases();
 
-        const [{ value: recipesAfter }] = await tx.select({ value: count() }).from(recipes);
-        expect(second).toBe(0);
-        expect(recipesAfter).toBe(recipesBefore);
-      },
-      { isolationLevel: 'repeatable read' },
-    );
+      expect(second).toBe(0);
+      expect(await countFixtureRecipes()).toBe(fixturesBefore);
+      expect(getRecipeSpy).not.toHaveBeenCalled();
+      expect(insertRecipeSpy).not.toHaveBeenCalled();
+    } finally {
+      getRecipeSpy.mockRestore();
+      insertRecipeSpy.mockRestore();
+    }
   });
 });

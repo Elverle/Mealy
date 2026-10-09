@@ -1,4 +1,5 @@
-// Errori di dominio della lista della spesa. Nessun import dal DB: usabile anche dal client.
+// Errori di dominio della lista della spesa. Nessun import dal DB.
+// I componenti client importano da `lib/shopping/` solo `client.ts` e `check-queue.ts`.
 
 export const SHOPPING_ERROR_CODES = [
   'plan_not_found',

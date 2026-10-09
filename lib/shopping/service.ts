@@ -11,7 +11,7 @@ import {
   getPlanById,
   type PlanWithSlots,
 } from '@/lib/db/repositories/plan-repo';
-import { listRecipes } from '@/lib/db/repositories/recipe-repo';
+import { listRecipesWith } from '@/lib/db/repositories/recipe-repo';
 import {
   deleteShoppingItems,
   findManualShoppingItem,
@@ -231,7 +231,11 @@ export async function checkShoppingItem(
   return toItemView(updated);
 }
 
-/** Aggiunge un articolo a mano; se ne esiste già uno con lo stesso nome lo restituisce (created false). */
+/**
+ * Aggiunge un articolo a mano; se ne esiste già uno con lo stesso nome lo restituisce (created false).
+ * Find e insert stanno sotto il lock dei piani dell'household: due aggiunte sovrapposte dello stesso
+ * nome danno un solo articolo.
+ */
 export async function addManualShoppingItem(
   planId: string,
   name: string,
@@ -240,37 +244,39 @@ export async function addManualShoppingItem(
   const household = await loadHousehold(options.householdId);
   const { currentWeekStart } = resolveClock(options);
 
-  const plan = await loadOwnedPlan(db, planId, household.id);
-  if (isPlanClosed(plan, currentWeekStart)) throw new ShoppingError('plan_archived');
-  const list = await findShoppingListByPlan(db, plan.id);
-  if (list === null) throw new ShoppingError('list_not_found');
-
   const canonical = normalizeCanonicalName(name);
-  if (canonical === '' || canonical.length > SHOPPING_ITEM_NAME_MAX) {
-    throw new RangeError('nome articolo non valido');
-  }
+  const nameIsValid = canonical !== '' && canonical.length <= SHOPPING_ITEM_NAME_MAX;
 
-  const existing = await findManualShoppingItem(db, list.id, canonical);
-  if (existing !== null) return { item: toItemView(existing), created: false };
+  return db.transaction(async (tx) => {
+    await acquirePlanLock(tx, household.id);
+    const plan = await loadOwnedPlan(tx, planId, household.id);
+    if (isPlanClosed(plan, currentWeekStart)) throw new ShoppingError('plan_archived');
+    const list = await findShoppingListByPlan(tx, plan.id);
+    if (list === null) throw new ShoppingError('list_not_found');
+    if (!nameIsValid) throw new RangeError('nome articolo non valido');
 
-  const aliases = toAliasMap(await listIngredientAliases(db));
-  const category = inferShoppingCategory(
-    canonical,
-    await listRecipes({ household_id: household.id }),
-    aliases
-  );
-  const [inserted] = await insertShoppingItems(db, list.id, [
-    {
-      canonical_name: canonical,
-      qty: null,
-      unit: null,
-      category,
-      checked: false,
-      manual: true,
-      recipe_ids: [],
-    },
-  ]);
-  return { item: toItemView(inserted), created: true };
+    const existing = await findManualShoppingItem(tx, list.id, canonical);
+    if (existing !== null) return { item: toItemView(existing), created: false };
+
+    const aliases = toAliasMap(await listIngredientAliases(tx));
+    const category = inferShoppingCategory(
+      canonical,
+      await listRecipesWith(tx, { household_id: household.id }),
+      aliases
+    );
+    const [inserted] = await insertShoppingItems(tx, list.id, [
+      {
+        canonical_name: canonical,
+        qty: null,
+        unit: null,
+        category,
+        checked: false,
+        manual: true,
+        recipe_ids: [],
+      },
+    ]);
+    return { item: toItemView(inserted), created: true };
+  });
 }
 
 /** Rimuove un articolo aggiunto a mano; restituisce il suo id. */

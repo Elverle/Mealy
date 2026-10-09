@@ -628,7 +628,7 @@ export const SHOPPING_ITEM_NAME_MAX = 80;
 // `qty` è null per 'qb' e per gli articoli a mano.
 export const ShoppingItemViewSchema = z.object({
   id: z.string().uuid(),
-  canonical_name: z.string().min(1), // normalizzato, alias già risolti
+  canonical_name: z.string().min(1), // normalizzato; alias risolti negli articoli generati, non in quelli a mano
   qty: z.number().positive().nullable(),
   unit: UnitSchema.nullable(),
   category: CategorySchema,

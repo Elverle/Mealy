@@ -3,12 +3,12 @@
 // Preambolo: i nomi d'ingrediente di questi test non devono essere alias del seed.
 // `ingredient_aliases` è una tabella globale che `tests/db/seed.test.ts` riempie nella stessa
 // esecuzione: un alias del seed cambierebbe il nome canonico atteso. I nomi usati
-// (`petto di pollo`, `sale`, `cipolla`, `zucca`, `latte`, `latte intero`) non lo sono.
+// (`petto di pollo`, `sale`, `cipolla`, `zucca`, `latte`, `latte intero`, `carta forno`) non lo sono.
 
 import { readFileSync } from 'node:fs';
 import { posix } from 'node:path';
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db, ingredient_aliases } from '@/lib/db';
 import {
   activateDraftPlan,
@@ -456,14 +456,14 @@ describe.skipIf(!dbUp)('lista della spesa: servizio', () => {
       { day: DAY_WED, recipeId: recipe.id, servings: 2 },
     ]);
 
-    await expectShoppingError(addManualShoppingItem(planId, 'uova', at(householdId, WED)), 'list_not_found');
+    await expectShoppingError(addManualShoppingItem(planId, 'carta forno', at(householdId, WED)), 'list_not_found');
 
     await buildPlanShoppingList(planId, at(householdId, WED));
-    await expectShoppingError(addManualShoppingItem(planId, 'uova', at(householdId, MON2)), 'plan_archived');
+    await expectShoppingError(addManualShoppingItem(planId, 'carta forno', at(householdId, MON2)), 'plan_archived');
 
     const stranger = await newHousehold();
     await expectShoppingError(
-      addManualShoppingItem(planId, 'uova', at(stranger, WED)),
+      addManualShoppingItem(planId, 'carta forno', at(stranger, WED)),
       'plan_not_found'
     );
   });
@@ -472,7 +472,7 @@ describe.skipIf(!dbUp)('lista della spesa: servizio', () => {
     const householdId = await newHousehold();
     const { planId } = await scenarioOne(householdId);
     const list = requireList(await buildPlanShoppingList(planId, at(householdId, WED)));
-    const { item: added } = await addManualShoppingItem(planId, 'uova', at(householdId, WED));
+    const { item: added } = await addManualShoppingItem(planId, 'carta forno', at(householdId, WED));
 
     const removedId = await removeManualShoppingItem(added.id, at(householdId, WED));
     expect(removedId).toBe(added.id);
@@ -596,5 +596,27 @@ describe.skipIf(!dbUp)('lista della spesa: servizio', () => {
     expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
     expect(requireList(first).items).toHaveLength(items.length);
     expect(await findShoppingListByPlan(db, planId)).not.toBeNull();
+  });
+
+  it('non crea doppioni con due aggiunte a mano sovrapposte dello stesso nome', async () => {
+    const householdId = await newHousehold();
+    const { planId } = await scenarioOne(householdId);
+    await buildPlanShoppingList(planId, at(householdId, WED));
+    // Pool caldo: a connessioni fredde la sovrapposizione può non riprodursi.
+    await db.execute(sql`select 1`);
+
+    for (const name of ['carta forno', 'spago da cucina', 'ghiaccio secco']) {
+      const [first, second] = await Promise.all([
+        addManualShoppingItem(planId, name, at(householdId, WED)),
+        addManualShoppingItem(planId, name, at(householdId, WED)),
+      ]);
+
+      expect(second.item.id).toBe(first.item.id);
+      expect([first.created, second.created].filter(Boolean)).toHaveLength(1);
+      const rows = requireList(await getPlanShoppingList(planId, at(householdId, WED))).items.filter(
+        (item) => item.manual && item.canonical_name === name
+      );
+      expect(rows).toHaveLength(1);
+    }
   });
 });
