@@ -2,7 +2,7 @@
 title: E2 Libreria e Preferenze — Libreria Reale, Giudizi su Ricette e Ingredienti
 type: topic
 created: 2026-10-05
-updated: 2026-10-05
+updated: 2026-10-09
 tags: [library, preferences, recipe-prefs, ingredient-prefs, filters, search, api, ui, e2, feature-5]
 ---
 
@@ -127,6 +127,7 @@ Le preferenze di una ricetta si possono cambiare da due punti contemporaneamente
 ## Contratti Consegnati alle Feature Successive
 
 - **Feature 6 (lista della spesa)**: i giudizi non impostano `shopping_lists.needs_regeneration`, perché non modificano i piani. Se la Feature 6 introduce una canonicalizzazione dei nomi (alias risolti in scrittura, o vocabolario della libreria nel prompt), il backfill deve riscrivere insieme `recipe_ingredients.canonical_name` e `ingredient_prefs.canonical_name`; se due righe collidono sulla chiave `(household_id, canonical_name)`, vince `dislike` (sezione "Contratti consegnati" del piano, D1-c).
+  - **Esito nella Feature 6** ([[e4-lista-spesa]]): la Feature 6 **non** ha introdotto una canonicalizzazione in scrittura, quindi nessun backfill (decisione U1 dei suoi requirements). Gli alias si risolvono solo quando si costruisce la lista della spesa ([[shopping-list]]); ricette, preferenze e planner confrontano ancora il nome canonico esatto, e la regola D1 di questa feature resta com'è. Il contratto di backfill resta valido per una feature futura. I giudizi continuano a non impostare `needs_regeneration`.
 - **Feature 7 (deploy)**: una migrazione in più (`0004`), applicata dallo stesso `pnpm db:migrate`.
 - **v2 (uso condiviso)**: `ingredient_prefs` è già partizionata per household.
 - **Documenti di progetto allineati dalla feature**: `ARCHITECTURE §4.2` (chiave `(household_id, canonical_name)`) e `§5.4` (bloccare toglie dalle preferite, il giudizio vale dalla selezione successiva, impatto sulle ricette non bloccate, nome canonico esatto), `BACKLOG` S2.3 (chiave della tabella), `DESIGN §4.4` (ricerca per titolo o ingrediente, riga rapida e pannello *Filtri*, ordine delle card, bloccate solo con il filtro dedicato).
@@ -134,7 +135,7 @@ Le preferenze di una ricetta si possono cambiare da due punti contemporaneamente
 
 ## Punti Aperti e Limiti Noti
 
-- **Nome esatto (D1)**: scartare `cipolla` non esclude le ricette con `cipolla rossa`, e il conteggio d'impatto conta per lo stesso nome esatto. Nelle risposte LLM registrate (`tests/fixtures/llm/recorded/`) e nelle fixture lo stesso ingrediente compare sotto nomi diversi (`ceci` / `ceci cotti` / `ceci lessati`, `pepe` / `pepe nero`, `olio di oliva` / `olio extravergine d'oliva` / `olio extravergine di oliva`), e `ingredient_aliases` non è letta da nessun codice applicativo (solo dal seed). La frammentazione dei nomi è rinviata alla Feature 6, con il contratto di backfill scritto sopra.
+- **Nome esatto (D1)**: scartare `cipolla` non esclude le ricette con `cipolla rossa`, e il conteggio d'impatto conta per lo stesso nome esatto. Nelle risposte LLM registrate (`tests/fixtures/llm/recorded/`) e nelle fixture lo stesso ingrediente compare sotto nomi diversi (`ceci` / `ceci cotti` / `ceci lessati`, `pepe` / `pepe nero`, `olio di oliva` / `olio extravergine d'oliva` / `olio extravergine di oliva`), e `ingredient_aliases` non è letta da nessun codice applicativo (solo dal seed). La frammentazione dei nomi è rinviata alla Feature 6, con il contratto di backfill scritto sopra. **Esito**: la Feature 6 l'ha affrontata solo per la lista della spesa, dove gli alias (35 voci, comprese le varianti di olio e ceci citate qui) fondono i nomi; per i giudizi e per il planner il limite resta, e `ingredient_aliases` è ora letta dal servizio della lista ([[shopping-service]]).
 - **Lettura completa della libreria (R3)**: `getRecipeDetail` (ogni apertura del dettaglio, anche dal Piano), `setIngredientPref` (ogni 👍/👎), `listIngredientPrefs` (ogni visita delle Impostazioni) e `listLibraryCards` (ogni visita della Libreria) chiamano `listRecipes` sull'intera libreria. Misure della review su desktop con 10 ingredienti per ricetta: 31 ms a 100 ricette, 57 ms a 300, 158 ms a 1000; sul Raspberry non misurato. Nessuna azione ora; il rimedio è annotato in testa a `lib/library/service.ts` e `lib/prefs/service.ts`: conteggio in SQL per il solo ingrediente richiesto, sull'indice `recipe_ingredients_canonical_name_idx`.
 - **Nomi che non compaiono in nessuna ricetta**: `PUT /api/ingredient-prefs/:canonicalName` accetta qualsiasi nome valido, anche se nessuna ricetta lo contiene (`recipes_count: 0`). Lasciato così per la v1; da rivedere per l'uso condiviso della v2.
 - **Rimozione senza annulla**: in *I miei ingredienti* la rimozione è a un tap, senza conferma né annulla, per decisione di planning (requirements P15); da rivalutare nel test da telefono di fine v1.
@@ -169,3 +170,4 @@ Adeguati: `tests/db/schema.test.ts` (10 tabelle, colonne di `ingredient_prefs`, 
 - [[e3-pianificatore]] — Feature 4: planner e pagina Piano su cui si innestano le preferenze
 - [[e5-impostazioni]] — Feature 3: pagina Impostazioni e punto aperto R1
 - [[e1-motore-ricette]] — Feature 2: generazione delle ricette, ora con gli scarti nei vincoli
+- [[e4-lista-spesa]] — Feature 6: alias risolti solo nella lista della spesa

@@ -2,7 +2,7 @@
 title: Pattern di Shell e Navigazione Mobile-First
 type: concept
 created: 2026-09-15
-updated: 2026-10-05
+updated: 2026-10-09
 tags: [ui, navigation, shell, mobile-first, layout, app-router, route-group]
 ---
 
@@ -36,10 +36,11 @@ La barra di navigazione inferiore indirizza l'utente verso le quattro sezioni fo
 1. **Piano (`/`)**:
    - Visualizzazione temporale del piano settimanale (dal lunedì alla domenica, per pranzo e cena).
    - Card pasto interattive con indicazione dello stato di blocco, preferenza e azione rapida di sostituzione ricetta ("Cambia").
-   - Dalla Feature 4 è la pagina reale ([[plan-screen]]): genera/rigenera, swap, blocco con long-press, conferma e un navigatore `‹ settimana ›` che resta **dentro** la tab (URL `/?settimana=YYYY-MM-DD`, nessuna rotta o tab nuova; la barra resta a 4 voci). Il footer sticky *Conferma piano* / *Crea lista della spesa* si appoggia sopra la tab bar (`bottom-[calc(4rem+env(safe-area-inset-bottom))]`).
+   - Dalla Feature 4 è la pagina reale ([[plan-screen]]): genera/rigenera, swap, blocco con long-press, conferma e un navigatore `‹ settimana ›` che resta **dentro** la tab (URL `/?settimana=YYYY-MM-DD`, nessuna rotta o tab nuova; la barra resta a 4 voci). Il footer sticky *Conferma piano* / *Crea lista della spesa* si appoggia sopra la tab bar (`bottom-[calc(4rem+env(safe-area-inset-bottom))]`). Dalla Feature 6 l'azione sulla lista nel footer è *Crea lista della spesa*, *Vai alla lista della spesa* oppure *Lista della spesa da aggiornare*, secondo lo stato della lista.
 2. **Lista (`/lista`)**:
    - Elenco della spesa derivato dalla pianificazione della settimana attiva.
    - Prodotti raggruppati per corsia/reparto del supermercato, spuntabili al tocco con barra di avanzamento visuale.
+   - Dalla Feature 6 è la pagina reale ([[shopping-screen]]): la lista è legata a **un piano confermato** e la tab, senza parametri, apre l'ultima lista dei piani aperti. Con due piani aperti (weekend) un selettore in alto passa da una settimana all'altra restando **dentro** la tab (URL `/lista?piano=<id>`, nessuna rotta o tab nuova). Il pulsante flottante *Aggiungi* sta sopra la tab bar (`bottom-[calc(5.5rem+env(safe-area-inset-bottom))]`, `z-40`) e la pagina aggiunge `pb-24` al proprio `<main>` quando il pulsante è visibile; il pannello di aggiunta si apre in una sheet.
 3. **Libreria (`/libreria`)**:
    - Archivio persistente di tutte le ricette memorizzate nel database.
    - Ricerca rapida con matching trigram e filtri per tag, tempo ed esigenze alimentari (descrizione di progetto della Feature 1, quando la pagina aveva dati finti).
@@ -77,6 +78,7 @@ Un problema frequente nelle layout web mobili con barre fisse è il mascherament
 - [[meal-card]] — Componente visualizzato nella schermata Piano
 - [[plan-screen]] — Pagina Piano reale con navigatore di settimane (Feature 4)
 - [[library-screen]] — Pagina Libreria reale con ricerca e filtri (Feature 5)
+- [[shopping-screen]] — Pagina Lista reale con selettore di settimana (Feature 6)
 - [[shopping-item-row]] — Componente della schermata Lista
 - [[design-system-and-tokens]] — Standard di accessibilità e touch target
 - [[e0-fondamenta]] — Panoramica della Feature 1

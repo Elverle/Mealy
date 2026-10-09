@@ -2,8 +2,8 @@
 title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-10-05
-tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences]
+updated: 2026-10-09
+tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list]
 ---
 
 ## File e Responsabilità
@@ -13,6 +13,7 @@ tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, r
   - `lib/domain/recipe-text.ts`: funzioni pure per la normalizzazione di titoli, slug, nomi canonici, diete transitive e sanitizzazione delle ricette generate.
   - Dalla Feature 4 `lib/domain/` contiene anche il planner puro (`planner.ts`, `planner-config.ts`, `rng.ts`, `week.ts`), documentato in [[planner]].
   - Dalla Feature 5 contiene anche le regole pure della Libreria (`library.ts`, documentato in [[library-service]]) e delle preferenze (`prefs.ts`, documentato in [[prefs-service]]).
+  - Dalla Feature 6 contiene anche le regole pure della lista della spesa (`shopping-list.ts`) e la regola "piano chiuso" (`plan-status.ts`), documentate in [[shopping-list]].
 - **Scopo**: Costituire la **single source of truth** del modello dati dell'intera applicazione (`CLAUDE.md § Regole di architettura`). Nessun tipo di dominio viene ridefinito localmente nei moduli applicativi.
 
 ## Costanti Enum Chiuse
@@ -108,6 +109,7 @@ Configurazione del nucleo domestico.
 ### 6. ShoppingList (`ShoppingListSchema`) & ShoppingItem (`ShoppingItemSchema`)
 - **ShoppingList**: lista della spesa collegata 1:1 a un piano (`id`, `plan_id`, `generated_at`).
 - **ShoppingItem**: articolo spesa consolidato (`id`, `list_id`, `canonical_name`, `qty`, `unit`, `category`, `checked`, `manual`, `recipe_ids: uuid[]`).
+- **Nota (Feature 6)**: questi due schemi sono quelli della Feature 1 e la Feature 6 **non li ha modificati né li usa**. `ShoppingListSchema` non ha `needs_regeneration` e `ShoppingItemSchema` ha `unit` come stringa libera (non `UnitSchema`): non descrivono più il DB. Nessun modulo di `lib/`, `app/` o `components/` li usa; la review architetturale della Feature 6 (P4) indica come unico uso `tests/db/schema.test.ts`. La lista reale usa i contratti `Shopping List (Feature 6)` più sotto e i tipi riga di [[shopping-repo]]. La loro rimozione (proposta P4, facoltativa) non è stata applicata.
 
 ### 7. IngredientAlias (`IngredientAliasSchema`)
 Dizionario per il mapping sinonimi (`alias` -> `canonical_name`).
@@ -184,7 +186,7 @@ Sezione `// Meal Plans (Feature 4)` in coda a `types.ts`, usata da [[plan-servic
 | `IsoDateSchema` | stringa `YYYY-MM-DD` (solo formato) | Date di settimane e slot |
 | `PlanWeekSchema` / `PlanWeek` | `{ week_start, first_day, last_day }` | Settimana obiettivo (`first_day` = primo giorno pianificabile) o settimana mostrata (`first_day = week_start`) |
 | `PlanSlotViewSchema` / `PlanSlotView` | `{ id, day, meal, servings (≥ 1), locked, recipe: Recipe \| null }` | Slot con la ricetta **completa** (ingredienti + prefs); `null` se la ricetta è stata eliminata |
-| `PlanShoppingListStateSchema` | `{ exists, needs_regeneration }` | Stato della lista della spesa del piano (Feature 6) |
+| `PlanShoppingListStateSchema` | `{ exists, needs_regeneration }` | Stato della lista della spesa del piano; dalla Feature 6 decide l'etichetta del footer del Piano ([[plan-screen]]) |
 | `PlanViewSchema` / `PlanView` | `{ id, week_start, status, created_at, generated_at, superseded, slots, shopping_list }` | Piano per le API; `superseded` = `households.updated_at > generated_at`; slot ordinati per giorno, poi pranzo → cena |
 | `PLAN_ACTION_VALUES` / `PlanActionSchema` / `PlanAction` | `'generate' \| 'regenerate' \| 'none'` | Azione disponibile sulla settimana mostrata |
 | `PlanWeekViewSchema` / `PlanWeekView` | `{ week, plan, action, editable, can_repeat }` | Settimana mostrata dal navigatore: solo la settimana obiettivo può avere un'azione; `editable` = piano presente e non chiuso; `can_repeat` = piano con ricette, settimana diversa dall'obiettivo, obiettivo non confermato |
@@ -197,7 +199,7 @@ Sezione `// Meal Plans (Feature 4)` in coda a `types.ts`, usata da [[plan-servic
 | `PlanMutationResultSchema` / `PlanMutationResult` | `{ plan, generation }` | Risposta dello swap |
 | `UpdateSlotRequestSchema` / `UpdateSlotRequest` | `{ locked: boolean }` strict | Body di `PATCH /api/plans/:id/slots/:slotId` |
 
-L'Addendum D2 della review architetturale ha sostituito il `PlanScreenView` del piano originale (`{ today, plan, target, action }`) con la struttura a navigatore; `target_plan_status` e `current_plan_id` sono stati aggiunti per il pulsante *Ripeti questa settimana* e per la Feature 6. Le interfacce di funzione del planner (`PlannerInput`, `MealTypeShortage`, …) e i tipi riga del repository non stanno qui ma nei rispettivi moduli ([[planner]], [[plan-repo]]), costruiti a partire da questi tipi.
+L'Addendum D2 della review architetturale ha sostituito il `PlanScreenView` del piano originale (`{ today, plan, target, action }`) con la struttura a navigatore; `target_plan_status` e `current_plan_id` sono stati aggiunti per il pulsante *Ripeti questa settimana* e per la Feature 6 (che poi non li ha usati: il piano di default della Lista si sceglie con `ShoppingScreenView.plans` e `pickDefaultShoppingPlan`, v. [[shopping-service]]). Le interfacce di funzione del planner (`PlannerInput`, `MealTypeShortage`, …) e i tipi riga del repository non stanno qui ma nei rispettivi moduli ([[planner]], [[plan-repo]]), costruiti a partire da questi tipi.
 
 ## Contratti di Libreria e Preferenze (Feature 5)
 
@@ -222,6 +224,26 @@ Sezione `// Library & Preferences (Feature 5)` in coda a `types.ts`, usata da [[
 | `SetIngredientPrefResultSchema` / `SetIngredientPrefResult` | `{ canonical_name (1–80), pref: IngredientPref \| null, recipes_count ≥ 0 }` | Risposta della stessa rotta, con il nome normalizzato e il conteggio aggiornato |
 
 Come per i piani, le interfacce di funzione (`RecipePrefFields`, `LibraryQueryResult`) e i tipi riga dei repository (`IngredientPrefRow`, `RecipePrefValues`) vivono nei rispettivi moduli. Il tipo `RecipePrefChanges` del dettaglio è definito nel componente ([[recipe-detail-sheet]]) a partire da `RecipePref`.
+
+## Contratti della Lista della Spesa (Feature 6)
+
+Sezione `// Shopping List (Feature 6)` in coda a `types.ts`, usata da [[shopping-service]] (servizio, rotte e client), [[shopping-screen]] e [[plan-screen]]. Nessuno schema preesistente è stato modificato.
+
+| Schema / Tipo | Forma | Uso |
+|---|---|---|
+| `SHOPPING_ITEM_NAME_MAX = 80` | — | Lunghezza massima del nome di un articolo aggiunto a mano |
+| `ShoppingItemViewSchema` / `ShoppingItemView` | `{ id, canonical_name (min 1), qty: numero positivo \| null, unit: Unit \| null, category: Category, checked, manual, recipe_ids: uuid[] }` | Un articolo della lista. `unit` è `null` solo per gli articoli a mano; `qty` è `null` per `qb` e per gli articoli a mano; `recipe_ids` è vuoto per gli articoli a mano. `canonical_name` è normalizzato, con gli alias risolti negli articoli generati e non in quelli a mano |
+| `ShoppingRecipeRefSchema` / `ShoppingRecipeRef` | `{ id, title }` | Una ricetta citata in `recipe_ids` |
+| `ShoppingListViewSchema` / `ShoppingListView` | `{ id, generated_at (ISO datetime), needs_regeneration, items, recipes }` | La lista: `items` ordinati per reparto, nome, unità; `recipes` = ricette citate che esistono ancora; `needs_regeneration` = il piano è cambiato dopo l'ultima costruzione |
+| `ShoppingPlanRefSchema` / `ShoppingPlanRef` | `{ id, week_start, last_day, status, has_list }` | Un piano visto dalla Lista: `week_start` lunedì, `last_day` domenica (`week_start + 6`) |
+| `PlanShoppingListViewSchema` / `PlanShoppingListView` | `{ plan: ShoppingPlanRef, editable, can_build, list: ShoppingListView \| null }` | Risposta di `GET` e `POST /api/plans/:id/shopping-list`. `editable` = piano non chiuso (spunte e articoli a mano consentiti); `can_build` = piano confermato e non chiuso; `list: null` = lista non ancora creata |
+| `ShoppingScreenViewSchema` / `ShoppingScreenView` | `{ plans: ShoppingPlanRef[], selected: PlanShoppingListView \| null }` | Dato iniziale della pagina Lista: `plans` = piani confermati e non chiusi per `week_start` crescente; `selected` = piano mostrato |
+| `UpdateShoppingItemRequestSchema` / `UpdateShoppingItemRequest` | `{ checked: boolean }` strict | Body di `PATCH /api/shopping-items/:id` |
+| `AddShoppingItemRequestSchema` / `AddShoppingItemRequest` | `{ name }` strict: stringa rifilata, 1–80 caratteri | Body di `POST /api/plans/:id/shopping-list/items` |
+| `ShoppingItemResultSchema` / `ShoppingItemResult` | `{ item: ShoppingItemView }` | Risposta della `PATCH` e dell'aggiunta a mano |
+| `DeleteShoppingItemResultSchema` / `DeleteShoppingItemResult` | `{ id }` | Risposta di `DELETE /api/shopping-items/:id` |
+
+Le interfacce di funzione del consolidamento (`ShoppingSlotInput`, `BuiltShoppingItem`, `ExistingShoppingItem`, `ShoppingListChanges`, `ShoppingSection`, `AliasMap`) vivono in `lib/domain/shopping-list.ts` ([[shopping-list]]); i tipi riga (`ShoppingListRecord`, `ShoppingItemRecord`, …) in [[shopping-repo]]; il tipo `ShoppingItem` della riga a schermo nel componente ([[shopping-item-row]]). Con gli schemi entità della Feature 1 l'articolo ha quindi quattro definizioni, sullo stesso schema a tre livelli usato per i piani (riga del repository, vista delle API, props del componente), più lo schema entità non più usato.
 
 ## Funzioni Pure di Normalizzazione Testo (`recipe-text.ts`)
 
@@ -300,3 +322,6 @@ Questi valori sono quelli con cui il wizard di primo avvio si presenta precompil
 - [[library-service]] — Funzioni pure della Libreria in `lib/domain/library.ts` e uso dei contratti
 - [[prefs-service]] — Funzioni pure delle preferenze in `lib/domain/prefs.ts` e uso dei contratti
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
+- [[shopping-list]] — Funzioni pure della lista della spesa in `lib/domain/shopping-list.ts` e `plan-status.ts`
+- [[shopping-service]] — Uso dei contratti della lista in servizio, API e client
+- [[e4-lista-spesa]] — Panoramica della Feature 6

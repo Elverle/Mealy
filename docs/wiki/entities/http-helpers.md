@@ -2,7 +2,7 @@
 title: Helper HTTP di Trasporto — Risposte d'Errore e Client JSON (http-helpers)
 type: entity
 created: 2026-09-29
-updated: 2026-10-05
+updated: 2026-10-09
 tags: [http, api-route, errors, client-fetch, transport, zod, feature-4]
 ---
 
@@ -27,6 +27,7 @@ Uso:
 - tutte le rotte `app/api/plans/**`, tramite `handlePlanRouteError` di [[plan-service]];
 - `POST /api/recipes/generate` ([[recipe-generation]]) e `GET/PUT /api/settings` ([[settings-service]]), rifattorizzate senza cambiare comportamento: continuano a leggere il body con `request.json()` e a loggare con i propri tag;
 - dalla Feature 5 le cinque rotte di libreria e preferenze (`GET /api/recipes`, `GET /api/recipes/:id`, `PUT /api/recipes/:id/pref`, `GET /api/ingredient-prefs`, `PUT /api/ingredient-prefs/:canonicalName`, v. [[library-service]] e [[prefs-service]]): `invalidRequestResponse`, `internalErrorResponse`, `readJsonBody(request, { allowEmpty: false })` per le due `PUT`, e `errorResponse(404, 'recipe_not_found', 'Ricetta non trovata.')`. Non hanno una classe d'errore né un gestore comune: il servizio restituisce `null` e la rotta risponde 404.
+- dalla Feature 6 le cinque rotte della lista della spesa (`GET` e `POST /api/plans/:id/shopping-list`, `POST /api/plans/:id/shopping-list/items`, `PATCH` e `DELETE /api/shopping-items/:id`, v. [[shopping-service]]): `readJsonBody(request, { allowEmpty: false })` e `invalidRequestResponse` per i due body, e il gestore comune `handleShoppingRouteError`, che usa `errorResponse` per gli `ShoppingError` e `internalErrorResponse` per il resto. A differenza delle rotte dei piani non passa da `llmErrorResponse`: la lista non chiama mai l'LLM.
 
 ## Client JSON (`client.ts`)
 
@@ -51,8 +52,13 @@ export async function requestJson<T>(url: string, init: RequestInit, schema: z.Z
 
 `lib/plans/client.ts` lo usa e rilancia `PlanRequestError`, sottoclasse con gli stessi campi. `lib/settings/client.ts` (Feature 3) resta con la sua implementazione autonoma, equivalente nella semantica: le feature successive dovrebbero usare `requestJson`. La Feature 5 lo fa: `lib/library/client.ts` e `lib/prefs/client.ts` chiamano `requestJson` e lasciano passare `ApiRequestError` così com'è, senza sottoclassi (requirements P19).
 
+### Uso nella Feature 6: `signal` e classificazione degli errori
+`lib/shopping/client.ts` segue lo stesso modello ([[shopping-service]]). Due aspetti di `requestJson`, invariato, diventano portanti:
+- `init` passa a `fetch` così com'è, quindi un `signal` interrompe la richiesta; l'interruzione fa lanciare `fetch` e ricade nel caso `status 0` / `network_error`. Lo usano solo le chiamate della lista della spesa: `patchShoppingItem` per il limite di tempo di 10 s della coda delle spunte ([[check-queue]]) e le altre quattro per il proprio limite di 10 s (`SHOPPING_REQUEST_TIMEOUT_MS`, [[shopping-service]]). **Gli altri client (piani, libreria, preferenze, impostazioni) non hanno un limite di tempo**: una richiesta senza risposta resta in sospeso finché lo decide il browser (osservazione P2 della review architetturale della Feature 6).
+- la coda classifica gli errori sullo `status` di `ApiRequestError`: `0`, `408`, `429` e `≥ 500` si ritentano; un `invalid_response` (status 2xx) vale come spunta applicata; gli altri sono definitivi.
+
 ### `apiErrorMessage(err)` (Feature 5)
-Restituisce il messaggio mostrabile all'utente: `err.message` se `err` è un `ApiRequestError` (quindi anche un `PlanRequestError`), altrimenti il generico `UNKNOWN_ERROR_MESSAGE`. Sostituisce le copie di `err instanceof … ? err.message : 'Qualcosa è andato storto. Riprova.'` che erano scritte in linea in `plan-screen.tsx` e `plan-slot-card.tsx` e che la Feature 5 avrebbe moltiplicato (proposta P3 della review architetturale). La usano [[plan-screen]], [[library-screen]] e [[recipe-detail-sheet]].
+Restituisce il messaggio mostrabile all'utente: `err.message` se `err` è un `ApiRequestError` (quindi anche un `PlanRequestError`), altrimenti il generico `UNKNOWN_ERROR_MESSAGE`. Sostituisce le copie di `err instanceof … ? err.message : 'Qualcosa è andato storto. Riprova.'` che erano scritte in linea in `plan-screen.tsx` e `plan-slot-card.tsx` e che la Feature 5 avrebbe moltiplicato (proposta P3 della review architetturale). La usano [[plan-screen]], [[library-screen]] e [[recipe-detail-sheet]]; dalla Feature 6 anche [[shopping-screen]] e il suo pannello di aggiunta.
 
 ## Test
 
@@ -68,5 +74,8 @@ Restituisce il messaggio mostrabile all'utente: `err.message` se `err` è un `Ap
 - [[llm-adapter]] — `LlmError` e i suoi codici
 - [[library-service]] — Rotte e client della libreria (Feature 5)
 - [[prefs-service]] — Rotte e client delle preferenze (Feature 5)
+- [[shopping-service]] — Rotte, `handleShoppingRouteError` e client della lista della spesa (Feature 6)
+- [[check-queue]] — Limite di tempo e classificazione degli errori sulle spunte (Feature 6)
 - [[e3-pianificatore]] — Panoramica della Feature 4
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
+- [[e4-lista-spesa]] — Panoramica della Feature 6

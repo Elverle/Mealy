@@ -2,7 +2,7 @@
 title: Repository Ricette (recipe-repo)
 type: entity
 created: 2026-09-15
-updated: 2026-10-05
+updated: 2026-10-09
 tags: [database, repository, recipes, ingredients, preferences, drizzle, transactions, trigram, advisory-lock, executor, row-lock]
 ---
 
@@ -112,6 +112,9 @@ Test: `tests/db/recipe-pref-repo.test.ts` (DB reale): appartenenza all'household
 ### Nota sul costo di `listRecipes` (Feature 5)
 Dalla Feature 5 `listRecipes` è chiamata anche a ogni visita della Libreria, a ogni apertura del dettaglio e a ogni giudizio su un ingrediente ([[library-service]], [[prefs-service]]), non più solo da generazione, *Ripeti* e swap. Restituisce e valida con Zod tutte le ricette dell'household con ingredienti e preferenze: il costo cresce in modo lineare con la libreria (misure e rimedio in [[e2-libreria-preferenze]]). `getRecipeById` non ha `executor` e non controlla l'household; il dettaglio della Libreria non la usa e cerca la ricetta nella libreria dell'household già letta, che gli serve comunque per i conteggi d'impatto.
 
+### Nuovo chiamante di `listRecipesWith` (Feature 6)
+`addManualShoppingItem` ([[shopping-service]]) legge l'intera libreria dell'household con `listRecipesWith(tx, { household_id })`, dentro la transazione che tiene il lock dei piani, per dedurre il reparto di un articolo aggiunto a mano. È un'altra lettura completa, una per articolo aggiunto; il rimedio annotato in testa a `lib/shopping/service.ts` è lo stesso della Feature 5 (conteggio in SQL su `recipe_ingredients_canonical_name_idx`). Il repository non è stato modificato.
+
 ## Esempio d'Uso con Transazione Esterna
 
 ```ts
@@ -165,3 +168,4 @@ await db.transaction(async (tx) => {
 - [[prefs-service]] — `updateRecipePref`, che usa le funzioni di scrittura delle preferenze (Feature 5)
 - [[library-service]] — Lettura della libreria per card e dettaglio (Feature 5)
 - [[ingredient-pref-repo]] — Repository dei giudizi sugli ingredienti (Feature 5)
+- [[shopping-service]] — Lettura della libreria per il reparto degli articoli a mano (Feature 6)

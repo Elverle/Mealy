@@ -7,6 +7,7 @@ import type {
   GeneratePlanResult,
   PlanScreenView,
   PlanMutationResult,
+  PlanShoppingListView,
   PlanStatus,
   PlanView,
   PlanWeekView,
@@ -47,6 +48,11 @@ vi.mock("@/lib/prefs/client", async (importOriginal) => {
   return { ...original, putRecipePref: vi.fn(), putIngredientPref: vi.fn() };
 });
 
+vi.mock("@/lib/shopping/client", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/shopping/client")>();
+  return { ...original, requestBuildShoppingList: vi.fn(), fetchPlanShoppingList: vi.fn() };
+});
+
 import { fetchRecipeDetail } from "@/lib/library/client";
 import { putRecipePref } from "@/lib/prefs/client";
 import {
@@ -58,6 +64,8 @@ import {
   requestSlotLock,
   requestSwapSlot,
 } from "@/lib/plans/client";
+import { fetchPlanShoppingList, requestBuildShoppingList } from "@/lib/shopping/client";
+import { ApiRequestError } from "@/lib/http/client";
 
 const RECIPES = fixtureRecipesAsDomain();
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
@@ -77,6 +85,7 @@ interface PlanOptions {
   weekStart?: string;
   generatedAt?: string;
   recipeOffset?: number;
+  shoppingList?: PlanView["shopping_list"];
 }
 
 function makePlan({
@@ -86,6 +95,7 @@ function makePlan({
   weekStart = TARGET.week_start,
   generatedAt = GENERATED_AT,
   recipeOffset = 0,
+  shoppingList = { exists: false, needs_regeneration: false },
 }: PlanOptions = {}): PlanView {
   return {
     id,
@@ -112,7 +122,7 @@ function makePlan({
         recipe: RECIPES[recipeOffset + 1],
       },
     ],
-    shopping_list: { exists: false, needs_regeneration: false },
+    shopping_list: shoppingList,
   };
 }
 
@@ -161,6 +171,34 @@ function makePastScreen(overrides: ScreenOverrides = {}): PlanScreenView {
   });
 }
 
+/** Risposta della rilettura della lista: `list: null` se non esiste ancora. */
+function makeListView(
+  list: { needsRegeneration: boolean } | null,
+  planId = PLAN_ID
+): PlanShoppingListView {
+  return {
+    plan: {
+      id: planId,
+      week_start: TARGET.week_start,
+      last_day: TARGET.last_day,
+      status: "active",
+      has_list: list !== null,
+    },
+    editable: true,
+    can_build: true,
+    list:
+      list === null
+        ? null
+        : {
+            id: "44444444-4444-4444-8444-444444444444",
+            generated_at: GENERATED_AT,
+            needs_regeneration: list.needsRegeneration,
+            items: [],
+            recipes: [],
+          },
+  };
+}
+
 function makeResult(screenView: PlanScreenView, failed = false): GeneratePlanResult {
   return { screen: screenView, generation: { rounds: 1, created: 3, failed } };
 }
@@ -192,6 +230,10 @@ describe("PlanScreen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     discardPendingPlanToast();
+    // Alla apertura di un piano confermato la schermata rilegge lo stato della lista: di norma senza rete.
+    vi.mocked(fetchPlanShoppingList).mockRejectedValue(
+      new ApiRequestError(0, "network_error", "Connessione non disponibile.")
+    );
     vi.mocked(fetchRecipeDetail).mockImplementation(async (recipeId) => ({
       recipe: RECIPES.find((recipe) => recipe.id === recipeId) ?? RECIPES[0],
       ingredients: [],
@@ -453,22 +495,144 @@ describe("PlanScreen", () => {
       expect(await screen.findByText("Confermato")).toBeInTheDocument();
       expect(requestConfirmPlan).toHaveBeenCalledWith(PLAN_ID);
       expect(screen.getByText("Piano confermato")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Crea lista della spesa" })).toHaveAttribute(
-        "href",
-        `/lista?piano=${PLAN_ID}`
-      );
+      expect(screen.getByRole("button", { name: "Crea lista della spesa" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Conferma piano" })).toBeNull();
       expect(screen.queryByRole("button", { name: "Rigenera" })).toBeNull();
     });
 
-    it("shows the shopping-list link for an already confirmed plan", () => {
+    it("creates the list and opens it", async () => {
+      vi.mocked(requestBuildShoppingList).mockResolvedValueOnce({} as never);
       render(<PlanScreen initialScreen={makeScreen({ plan: { status: "active" } })} />);
 
-      expect(screen.getByRole("link", { name: "Crea lista della spesa" })).toHaveAttribute(
+      fireEvent.click(screen.getByRole("button", { name: "Crea lista della spesa" }));
+
+      await waitFor(() =>
+        expect(router.push).toHaveBeenCalledWith(`/lista?piano=${PLAN_ID}`)
+      );
+      expect(requestBuildShoppingList).toHaveBeenCalledWith(PLAN_ID);
+      expect(screen.getByRole("link", { name: "Vai alla lista della spesa" })).toHaveAttribute(
         "href",
         `/lista?piano=${PLAN_ID}`
       );
+    });
+
+    it("shows a busy label and toasts the error when creating the list fails", async () => {
+      const pending = deferred<PlanShoppingListView>();
+      vi.mocked(requestBuildShoppingList).mockReturnValueOnce(pending.promise);
+      render(<PlanScreen initialScreen={makeScreen({ plan: { status: "active" } })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Crea lista della spesa" }));
+
+      const busy = screen.getByRole("button", { name: "Creo la lista…" });
+      expect(busy).toBeDisabled();
+
+      await act(async () =>
+        pending.reject(new PlanRequestError(409, "plan_archived", "Questa settimana è conclusa."))
+      );
+
+      expect(await screen.findByText("Questa settimana è conclusa.")).toBeInTheDocument();
+      const button = screen.getByRole("button", { name: "Crea lista della spesa" });
+      expect(button).toBeEnabled();
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it("links to an existing list and flags a stale one", () => {
+      const { unmount } = render(
+        <PlanScreen
+          initialScreen={makeScreen({
+            plan: { status: "active", shoppingList: { exists: true, needs_regeneration: false } },
+          })}
+        />
+      );
+
+      expect(screen.getByRole("link", { name: "Vai alla lista della spesa" })).toHaveAttribute(
+        "href",
+        `/lista?piano=${PLAN_ID}`
+      );
+      expect(screen.queryByRole("button", { name: "Crea lista della spesa" })).toBeNull();
       expect(screen.getByText("Confermato")).toBeInTheDocument();
+      unmount();
+
+      render(
+        <PlanScreen
+          initialScreen={makeScreen({
+            plan: { status: "active", shoppingList: { exists: true, needs_regeneration: true } },
+          })}
+        />
+      );
+
+      expect(screen.getByRole("link", { name: "Lista della spesa da aggiornare" })).toHaveAttribute(
+        "href",
+        `/lista?piano=${PLAN_ID}`
+      );
+      expect(screen.queryByRole("link", { name: "Vai alla lista della spesa" })).toBeNull();
+    });
+
+    it("shows the link to the list, not the create button, when the server says the list already exists", async () => {
+      vi.mocked(fetchPlanShoppingList).mockResolvedValueOnce(
+        makeListView({ needsRegeneration: false })
+      );
+      render(<PlanScreen initialScreen={makeScreen({ plan: { status: "active" } })} />);
+
+      expect(await screen.findByRole("link", { name: "Vai alla lista della spesa" })).toHaveAttribute(
+        "href",
+        `/lista?piano=${PLAN_ID}`
+      );
+      expect(fetchPlanShoppingList).toHaveBeenCalledWith(PLAN_ID);
+      expect(screen.queryByRole("button", { name: "Crea lista della spesa" })).toBeNull();
+    });
+
+    it("updates only the list state of the plan: slots stay as they were", async () => {
+      vi.mocked(fetchPlanShoppingList).mockResolvedValueOnce(
+        makeListView({ needsRegeneration: true })
+      );
+      render(<PlanScreen initialScreen={makeScreen({ plan: { status: "active" } })} />);
+
+      expect(
+        await screen.findByRole("link", { name: "Lista della spesa da aggiornare" })
+      ).toBeInTheDocument();
+      expect(screen.getAllByText(RECIPES[0].title).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(RECIPES[1].title).length).toBeGreaterThan(0);
+    });
+
+    it("keeps the create button when the server has no list, and when the reread fails", async () => {
+      vi.mocked(fetchPlanShoppingList).mockResolvedValueOnce(makeListView(null));
+      const { unmount } = render(
+        <PlanScreen initialScreen={makeScreen({ plan: { status: "active" } })} />
+      );
+      await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(1));
+      await act(async () => {});
+      expect(screen.getByRole("button", { name: "Crea lista della spesa" })).toBeEnabled();
+      unmount();
+
+      render(<PlanScreen initialScreen={makeScreen({ plan: { status: "active" } })} />);
+      await waitFor(() => expect(fetchPlanShoppingList).toHaveBeenCalledTimes(2));
+      await act(async () => {});
+      expect(screen.getByRole("button", { name: "Crea lista della spesa" })).toBeEnabled();
+    });
+
+    it("does not rewrite what the user did meanwhile: a late reread does not undo a created list", async () => {
+      const reread = deferred<PlanShoppingListView>();
+      vi.mocked(fetchPlanShoppingList).mockReturnValueOnce(reread.promise);
+      vi.mocked(requestBuildShoppingList).mockResolvedValueOnce({} as never);
+      render(<PlanScreen initialScreen={makeScreen({ plan: { status: "active" } })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Crea lista della spesa" }));
+      await waitFor(() => expect(router.push).toHaveBeenCalledWith(`/lista?piano=${PLAN_ID}`));
+      await act(async () => {
+        reread.resolve(makeListView(null));
+      });
+
+      expect(screen.getByRole("link", { name: "Vai alla lista della spesa" })).toBeInTheDocument();
+    });
+
+    it("does not reread the list for a draft or a read-only plan", async () => {
+      const { unmount } = render(<PlanScreen initialScreen={makeScreen()} />);
+      unmount();
+      render(<PlanScreen initialScreen={makePastScreen()} />);
+      await act(async () => {});
+
+      expect(fetchPlanShoppingList).not.toHaveBeenCalled();
     });
 
     it("toasts the error message when confirming fails", async () => {
@@ -546,7 +710,8 @@ describe("PlanScreen", () => {
       expect(screen.queryByRole("button", { name: /^Cambia/ })).toBeNull();
       expect(screen.queryByRole("button", { name: /Blocca pasto|Sblocca pasto/ })).toBeNull();
       expect(screen.queryByRole("button", { name: "Conferma piano" })).toBeNull();
-      expect(screen.queryByRole("link", { name: "Crea lista della spesa" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Crea lista della spesa" })).toBeNull();
+      expect(screen.queryByRole("link", { name: /lista della spesa/i })).toBeNull();
       expect(screen.queryByRole("button", { name: "Genera piano" })).toBeNull();
 
       fireEvent.click(screen.getByText(RECIPES[0].title));

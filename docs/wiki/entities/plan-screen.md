@@ -2,8 +2,8 @@
 title: Pagina Piano — PlanScreen, PlanSlotCard e Avanzamento (plan-screen)
 type: entity
 created: 2026-09-29
-updated: 2026-10-05
-tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, preferences, accessibility, feature-4]
+updated: 2026-10-09
+tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, preferences, shopping-list, accessibility, feature-4]
 ---
 
 ## File e Responsabilità
@@ -14,7 +14,7 @@ tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, 
   - `components/plan/plan-slot-card.tsx`: componente client `PlanSlotCard`, una `MealCard` con il flusso di swap *Cambia → Tieni / Cambia ancora*.
   - `components/plan/generation-progress.tsx`: `GenerationProgress` (skeleton + microcopy a rotazione) e hook `useRotatingMessage`.
 - **Scopo**: la schermata principale del prodotto: genera o rigenera il piano della settimana da pianificare, lo mostra giorno per giorno, permette di cambiare, bloccare e confermare i pasti, di ripetere un piano e di consultare le settimane passate.
-- I componenti importano dal dominio dei piani solo `lib/plans/client.ts`, `lib/plans/format.ts` ed `errors` tramite il client ([[plan-service]]); i chip delle card arrivano da `recipeChips` in `components/sheets/recipe-detail.ts` ([[recipe-sheet]]). Dalla Feature 5 il dettaglio della ricetta è [[recipe-detail-sheet]] (che fa da sé la conversione ricetta → sheet), le preferenze si salvano con `putRecipePref` di `lib/prefs/client.ts` ([[prefs-service]]) e i messaggi d'errore passano da `apiErrorMessage` ([[http-helpers]]).
+- I componenti importano dal dominio dei piani solo `lib/plans/client.ts`, `lib/plans/format.ts` ed `errors` tramite il client ([[plan-service]]); i chip delle card arrivano da `recipeChips` in `components/sheets/recipe-detail.ts` ([[recipe-sheet]]). Dalla Feature 5 il dettaglio della ricetta è [[recipe-detail-sheet]] (che fa da sé la conversione ricetta → sheet), le preferenze si salvano con `putRecipePref` di `lib/prefs/client.ts` ([[prefs-service]]) e i messaggi d'errore passano da `apiErrorMessage` ([[http-helpers]]). Dalla Feature 6 il footer usa `fetchPlanShoppingList` e `requestBuildShoppingList` di `lib/shopping/client.ts` ([[shopping-service]]).
 
 ## Pagina Server (`app/(app)/page.tsx`)
 
@@ -32,7 +32,7 @@ Stesso schema di `/impostazioni` (requirements P16): nessun flash di caricamento
 
 ## `PlanScreen`
 
-Stato: `screen` (`PlanScreenView`), `isGenerating`, `isRecovering`, `generateError`, `isConfirming`, `toast`, `sheetSlotId`, più la transizione di navigazione (`useTransition`) e, dalla Feature 5, un `Set` in un ref con le ricette la cui ★ è in salvataggio. Se arriva un nuovo `initialScreen` con la stessa `key` (es. dopo `router.refresh()`), lo stato si riallinea (fix M2 della code review).
+Stato: `screen` (`PlanScreenView`), `isGenerating`, `isRecovering`, `generateError`, `isConfirming`, `isCreatingList` (Feature 6), `toast`, `sheetSlotId`, più la transizione di navigazione (`useTransition`) e, dalla Feature 5, un `Set` in un ref con le ricette la cui ★ è in salvataggio. Se arriva un nuovo `initialScreen` con la stessa `key` (es. dopo `router.refresh()`), lo stato si riallinea (fix M2 della code review).
 
 ### Struttura (dall'alto)
 1. Intestazione `Mealy` / `Cosa mangio oggi?`, titolo `Piano Settimanale` e pulsante d'azione: `Genera piano` (`Sparkles`) se `view.action === 'generate'`, `Rigenera` (`RefreshCw`) se `'regenerate'`, nessuno se `'none'`.
@@ -46,7 +46,7 @@ Stato: `screen` (`PlanScreenView`), `isGenerating`, `isRecovering`, `generateErr
    - settimana obiettivo senza piano: `EmptyState` `Nessun piano in programma` con azione `Genera piano`; se la settimana corrente ha un piano (`current_plan_id`), sotto il componente un pulsante `Ripeti questa settimana`;
    - settimana corrente senza piano nel weekend: `EmptyState` `Nessun piano per questa settimana` / `Nel weekend si pianifica la settimana che arriva.` con azione `Pianifica la prossima settimana` (solo JS: `EmptyState` non accetta un `href`);
    - settimana passata senza piano: `EmptyState` senza azioni (`Per questa settimana non c'è nessun pasto da mostrare.`).
-7. Footer sticky sopra la tab bar (solo con un piano modificabile e fuori dalla generazione): `Conferma piano` in bozza; `Crea lista della spesa` (`ShoppingBag`) come `Link` a `/lista?piano={plan.id}` su un piano confermato.
+7. Footer sticky sopra la tab bar (solo con un piano modificabile e fuori dalla generazione): `Conferma piano` in bozza; su un piano confermato l'azione della lista della spesa (`ShoppingBag`), che dalla Feature 6 dipende dallo stato della lista (v. "Lista della spesa dal footer"). Fino alla Feature 5 era sempre un `Link` `Crea lista della spesa` verso `/lista?piano={plan.id}`, che non creava nulla.
 8. [[recipe-detail-sheet]] dello slot selezionato (`recipeId` e `initialRecipe` dalla ricetta dello slot, `servings` dalle porzioni dello slot): la ricetta si vede subito, con voto, *Preferita* e *Non proporre più*; i 👍/👎 sugli ingredienti compaiono quando arriva il dettaglio dal server. Fino alla Feature 4 qui c'era una `RecipeSheet` **senza** handler di preferenze (requirements U4 della Feature 4, chiuso dalla decisione U1 della Feature 5).
 9. [[toast]], alzato sopra il footer quando il footer è visibile.
 
@@ -62,6 +62,21 @@ Stato: `screen` (`PlanScreenView`), `isGenerating`, `isRecovering`, `generateErr
 - **★ sulla card** (`handleToggleFavorite(recipeId)`): un secondo tocco mentre il salvataggio di quella ricetta è in corso viene ignorato. Aggiornamento ottimistico di `favorite`, poi `putRecipePref(recipeId, { favorite })`; al successo si applica **solo** `favorite` dalla risposta, così un voto dato nel frattempo dal dettaglio non viene sovrascritto; in caso d'errore si ripristina il valore precedente e il messaggio va nel toast.
 - **Blocco dal dettaglio**: il toast è `Non la proporrò più. In questo piano resta: usa Cambia per sostituirla.` (`blockedMessage`). La card resta nel piano, senza più la ★, e **non** parte nessuna richiesta a `/api/plans/**`: un giudizio non modifica il piano in corso e vale dalla prossima generazione, rigenerazione, *Ripeti* o *Cambia* (requirements U2 della Feature 5).
 - Gli errori di generazione, conferma, blocco e swap usano ora `apiErrorMessage(err)` al posto della funzione locale `errorMessage` (`PlanRequestError` estende `ApiRequestError`, quindi il comportamento è lo stesso).
+
+### Lista della spesa dal footer (Feature 6)
+
+Su un piano confermato e modificabile il footer mostra, secondo `plan.shopping_list` (requirements P15):
+
+| Stato della lista | Elemento | Etichetta |
+|---|---|---|
+| non esiste (`exists: false`) | **pulsante** | `Crea lista della spesa`; durante la richiesta è disabilitato e mostra `Creo la lista…` |
+| esiste ed è allineata | `Link` a `/lista?piano={plan.id}` | `Vai alla lista della spesa` |
+| esiste ma il piano è cambiato (`needs_regeneration`) | `Link` a `/lista?piano={plan.id}` | `Lista della spesa da aggiornare` |
+
+- **Creazione** (`handleCreateList`): `requestBuildShoppingList(plan.id)`; al successo lo stato locale passa a `{ exists: true, needs_regeneration: false }` e si naviga a `/lista?piano={plan.id}`. Un errore va nel toast e il pulsante torna attivo. La creazione è una `POST`, quindi non può avvenire al caricamento di una pagina: per questo è un pulsante e non un link. Il link `Lista della spesa da aggiornare` porta soltanto alla Lista: l'aggiornamento si fa lì, con *Aggiorna lista* ([[shopping-screen]]).
+- **Rilettura dello stato della lista al montaggio** (fix della code review, commit `a5316c7`): tornando indietro il router può riproporre un piano dalla sua cache, con lo stato della lista di prima (per esempio il pulsante `Crea lista della spesa` per una lista appena creata). Un effetto che gira una volta al montaggio, solo se il piano mostrato è confermato e modificabile, chiama `fetchPlanShoppingList(plan.id)` e aggiorna **soltanto** `shopping_list` (`exists`, `needs_regeneration`): slot, ricette e preferenze non si toccano. Non fa nulla per una bozza o per un piano in sola lettura; senza rete resta lo stato già a schermo.
+- **La rilettura non sovrascrive un'azione dell'utente**: un ref (`shoppingListTouchedRef`) si accende quando la lista viene creata dal footer o quando uno swap riporta dal server un nuovo stato della lista; una rilettura partita prima e arrivata dopo viene scartata.
+- La variante del difetto "tasto Indietro" sul footer è coperta dai test ma non è stata riprodotta in un browser, a differenza di quella sulla Lista ([[e4-lista-spesa]]).
 
 ## `PlanSlotCard`
 
@@ -96,7 +111,7 @@ Classe `animate-meal-flip`: flip `rotateY` da 80° a 0° in 320 ms; con `prefers
 ## Test
 
 - `tests/home.test.tsx` (node, `next/server` e servizio mockati): `connection()`, `getPlanScreen({ week })` con il parametro `settimana` (primo valore se ripetuto), `PlanScreen` con la `key` della settimana.
-- `tests/ui/plan-screen.test.tsx` (client mockato): generazione con progress e toast, errori, recupero con backoff e *Smetti di aspettare*, conferma, navigatore e frecce disabilitate, sola lettura delle settimane passate, stati vuoti, *Ripeti*, avviso superato, riallineamento dello stato, esiti dopo lo smontaggio, blocco ottimistico, unione per slot; dalla Feature 5 (con `@/lib/library/client` e `@/lib/prefs/client` mockati) dettaglio aperto subito con le azioni di preferenza, ★ ottimistica su ogni card con ripristino e toast in caso d'errore, secondo tocco ignorato, blocco dal dettaglio senza richieste al piano, voto dal dettaglio, risposta tardiva della ★ che non sovrascrive un voto né rimette preferita una ricetta bloccata, ★ anche su una settimana passata.
+- `tests/ui/plan-screen.test.tsx` (client mockato): generazione con progress e toast, errori, recupero con backoff e *Smetti di aspettare*, conferma, navigatore e frecce disabilitate, sola lettura delle settimane passate, stati vuoti, *Ripeti*, avviso superato, riallineamento dello stato, esiti dopo lo smontaggio, blocco ottimistico, unione per slot; dalla Feature 5 (con `@/lib/library/client` e `@/lib/prefs/client` mockati) dettaglio aperto subito con le azioni di preferenza, ★ ottimistica su ogni card con ripristino e toast in caso d'errore, secondo tocco ignorato, blocco dal dettaglio senza richieste al piano, voto dal dettaglio, risposta tardiva della ★ che non sovrascrive un voto né rimette preferita una ricetta bloccata, ★ anche su una settimana passata; dalla Feature 6 (con `@/lib/shopping/client` mockato) creazione della lista con navigazione alla Lista, etichetta di attesa ed errore nel toast, link a una lista esistente e a una da aggiornare, rilettura al montaggio che mostra il link quando il server ha già la lista e che cambia solo lo stato della lista lasciando gli slot com'erano, pulsante conservato se il server non ha la lista o se la rilettura fallisce, rilettura tardiva che non annulla una lista appena creata, nessuna rilettura per una bozza o un piano in sola lettura.
 - `tests/ui/plan-slot-card.test.tsx`: swap, *Cambia ancora*, *Tieni*, errori, limite delle esclusioni, card di sola lettura, giorni passati, focus; dalla Feature 5 la ★ (assente senza handler, con ricetta bloccata o senza ricetta; id della ricetta passato all'handler; `aria-pressed`; presente sulle card di sola lettura).
 - `tests/ui/generation-progress.test.tsx`; `tests/ui/shell.test.tsx` rende ora `PlanScreen` con un fixture al posto della vecchia home.
 
@@ -110,5 +125,8 @@ Classe `animate-meal-flip`: flip `rotateY` da 80° a 0° in 320 ms; con `prefers
 - [[toast]] — Notifiche della pagina
 - [[empty-state]] — Stati vuoti del piano
 - [[onboarding-guard]] — Layout del gruppo `(app)` che protegge la pagina
+- [[shopping-screen]] — Schermata Lista aperta dal footer (Feature 6)
+- [[shopping-service]] — `requestBuildShoppingList` e `fetchPlanShoppingList` (Feature 6)
 - [[e3-pianificatore]] — Panoramica della Feature 4
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
+- [[e4-lista-spesa]] — Panoramica della Feature 6

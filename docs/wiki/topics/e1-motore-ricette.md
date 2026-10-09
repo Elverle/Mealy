@@ -2,7 +2,7 @@
 title: E1 Motore Ricette — Generazione, Adapter LLM e Libreria Persistente
 type: topic
 created: 2026-09-17
-updated: 2026-10-05
+updated: 2026-10-09
 tags: [recipes, llm, generation, fixtures, seed, architecture, e1, feature-2]
 ---
 
@@ -98,6 +98,7 @@ Dalla Feature 5 ([[e2-libreria-preferenze]]) due passi di questa pipeline usano 
 - [[fixtures-and-seed]]: 18 ricette casalinghe complete e 24 alias di ingredienti conformi a tutti gli standard di normalizzazione.
 - Fornisce il loader `fixtureRecipesAsDomain` per testare planner e lista spesa in memoria senza DB né LLM.
 - Fornisce il comando `pnpm db:seed` per popolare il database PostgreSQL locale in modo completamente idempotente (skip ricette esistenti per id/slug, `ON CONFLICT DO NOTHING` per alias).
+- **Dalla Feature 6** ([[e4-lista-spesa]]) gli alias sono 35 e vengono letti dal consolidamento della lista della spesa; l'inserimento degli alias è anche un comando a sé, `pnpm db:seed:aliases`, l'unico da usare in produzione (`pnpm db:seed` inserirebbe anche le ricette di esempio).
 
 ### 5. Dominio Tipato e Normalizzazione Pura (`lib/domain/`)
 - [[domain-types]]: esteso con i contratti Zod per la generazione (`GeneratedRecipeSchema`, `RecipeConstraintsSchema`, `ConstraintOverridesSchema`, `GenerateRecipesRequestSchema`, `GenerationSkipSchema`, `FixtureRecipeSchema`).

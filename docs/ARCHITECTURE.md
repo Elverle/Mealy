@@ -147,7 +147,7 @@ shopping_lists             -- 1:1 con meal_plans
 
 shopping_items
   id, list_id FK,
-  canonical_name text, qty numeric null, unit text, category text,
+  canonical_name text, qty numeric null, unit text null, category text,   -- unit null = articolo aggiunto a mano
   checked bool default false, manual bool default false,  -- item aggiunti a mano
   recipe_ids uuid[]          -- tracciabilità: da quali ricette proviene
 
@@ -236,7 +236,7 @@ I parametri (10/28 giorni, `recencyFloor`, boost, soglia, lotti) sono costanti i
 
 ### 5.3 Swap di uno slot
 
-Stesso algoritmo di 5.2 applicato al singolo slot, con exclude-list = ricetta attuale + tutte le altre del piano + le ricette già scartate nella stessa sequenza di *Cambia* (inviate dal client in `exclude_recipe_ids`, al più `SWAP_EXCLUDE_MAX`). I pasti dei giorni già passati non si cambiano (`409 slot_past`). Lo swap invalida la lista della spesa se già generata (flag "lista da rigenerare" sulla UI, rigenerazione esplicita che preserva le spunte per `canonical_name` dove possibile).
+Stesso algoritmo di 5.2 applicato al singolo slot, con exclude-list = ricetta attuale + tutte le altre del piano + le ricette già scartate nella stessa sequenza di *Cambia* (inviate dal client in `exclude_recipe_ids`, al più `SWAP_EXCLUDE_MAX`). I pasti dei giorni già passati non si cambiano (`409 slot_past`). Lo swap invalida la lista della spesa se già generata (flag "lista da rigenerare" sulla UI, rigenerazione esplicita che preserva le spunte dove possibile, con la chiave e le regole di §5.5).
 
 ### 5.4 Preferenze
 
@@ -244,13 +244,21 @@ Solo segnali espliciti in v1, su **due livelli**: la **ricetta** (rating 1–5, 
 
 ### 5.5 Consolidamento lista della spesa
 
-Funzione pura `buildShoppingList(slots, recipes) → items`:
+Funzione pura `buildShoppingList(slots, aliases) → items` (`lib/domain/shopping-list.ts`). La lista copre i pasti **da oggi in poi** del piano confermato:
 
 1. **Scala** le quantità di ogni ricetta: `qty × servings_slot / servings_base`
-2. **Aggrega** per chiave `(canonical_name, unit)` sommando le quantità; gli item `qb` si uniscono senza quantità; risolve gli alias via `ingredient_aliases`
-3. **Arrotonda** a quantità sensate (g → multipli di 10; pz → intero superiore)
-4. **Raggruppa** per `category` nell'ordine tipico del giro al supermercato: ortofrutta → pane → macelleria → pescheria → banco-frigo → dispensa → surgelati → bevande → altro
-5. Mantiene `recipe_ids` per item (tap sull'item → "serve per: X, Y")
+2. **Risolve gli alias** via `ingredient_aliases` (un solo passo) e **aggrega** per chiave `(canonical_name, unit)` sommando le quantità; gli item senza quantità (`qb`) si uniscono in una riga sola, che sparisce se lo stesso nome ha anche una riga con quantità
+3. **Arrotonda** per eccesso: `pz` → intero; `g` e `ml` → multipli di 10 (fino a 10 → intero)
+4. **Raggruppa** per `category` (decisa per nome, a maggioranza tra le ricette che lo usano) nell'ordine tipico del giro al supermercato: ortofrutta → pane → macelleria → pescheria → banco-frigo → dispensa → surgelati → bevande → altro
+5. Mantiene `recipe_ids` per item (sotto il nome: "Per: X, Y")
+
+**Creazione e aggiornamento.** Solo per piani confermati e non chiusi, in una transazione sotto il lock del piano. L'aggiornamento riconcilia per `(canonical_name, unit)`: le righe che restano tengono il loro id; la spunta resta se la quantità non aumenta (per `qb` resta sempre); gli articoli aggiunti a mano non si toccano; `needs_regeneration` torna `false`. Il confronto è tra la quantità di prima e quella dei soli pasti che restano: dopo un cambio a metà settimana può restare spuntato un articolo di cui serve ancora una parte.
+
+**Articoli a mano.** Solo il nome (normalizzato, senza risolvere l'alias); il reparto si deduce dalla libreria (stesso nome, alias risolti), altrimenti `altro`; `unit` e `qty` restano `null`. L'aggiunta prende il lock dei piani dell'household (lo stesso della creazione della lista), così che due aggiunte sovrapposte dello stesso nome diano un solo articolo: la seconda trova quello della prima e risponde `created: false`.
+
+**Spunte senza rete.** La spunta è un valore assoluto (`PATCH { checked }`): il client la applica subito, la tiene in una coda salvata in `localStorage` e la ritenta finché il server risponde.
+
+**Alias.** Si risolvono solo qui: ricette, preferenze ingrediente e planner continuano a confrontare il nome canonico esatto (§5.4).
 
 Casi limite accettati in v1: unità eterogenee per lo stesso ingrediente (es. "pz" e "g" di limone) restano su due righe; la tabella alias riduce il fenomeno nel tempo.
 
@@ -276,11 +284,13 @@ Route Handlers sotto `/api` (o Server Actions equivalenti — scelta implementat
 | PATCH | `/api/plans/:id/slots/:slotId` | Blocca/sblocca lo slot (`{ locked }`) |
 | POST | `/api/plans/:id/repeat` | Ripete un piano (anche passato) sulla settimana da pianificare, come bozza |
 | POST | `/api/plans/:id/confirm` | Conferma piano (aggiorna prefs usage) |
-| POST | `/api/plans/:id/shopping-list` | (Ri)genera lista |
-| GET | `/api/plans/:id/shopping-list` | Lista raggruppata |
-| PATCH | `/api/shopping-items/:id` | Spunta / modifica / aggiunta manuale |
+| POST | `/api/plans/:id/shopping-list` | Crea o aggiorna la lista dal piano (solo piani confermati e non chiusi); preserva spunte e articoli a mano |
+| GET | `/api/plans/:id/shopping-list` | Lista del piano (`list: null` se non è stata creata) |
+| POST | `/api/plans/:id/shopping-list/items` | Aggiunge un articolo a mano (`{ name }`); idempotente sul nome |
+| PATCH | `/api/shopping-items/:id` | Spunta o toglie la spunta (`{ checked }`) |
+| DELETE | `/api/shopping-items/:id` | Rimuove un articolo aggiunto a mano |
 
-Tutte le request/response validate con gli stessi schemi Zod del dominio. Gli errori hanno sempre la forma `{ error: { code, message, details? } }`. I piani **chiusi** (archiviati o di una settimana conclusa) si possono solo consultare: blocco, conferma e swap rispondono `409 plan_archived`. Nei piani aperti i pasti dei giorni già passati non si cambiano (`409 slot_past`), come nella rigenerazione; il blocco resta consentito.
+Tutte le request/response validate con gli stessi schemi Zod del dominio. Gli errori hanno sempre la forma `{ error: { code, message, details? } }`. I piani **chiusi** (archiviati o di una settimana conclusa) si possono solo consultare: blocco, conferma e swap rispondono `409 plan_archived`. Nei piani aperti i pasti dei giorni già passati non si cambiano (`409 slot_past`), come nella rigenerazione; il blocco resta consentito. Le liste dei piani chiusi sono in sola lettura (`409 plan_archived` su spunta, aggiunta, rimozione e aggiornamento); la lista di una bozza non si può creare (`409 plan_not_confirmed`).
 
 **Durata di `POST /api/plans`.** La generazione avviene a lotti da 3 ricette, in parallelo (un solo `Promise.allSettled` per giro), con `maxDuration = 500`. Il caso peggiore è `maxGenerationRoundsPlan × 2 × LLM_TIMEOUT_MS` (ogni lotto può includere la chiamata di riparazione): 6 minuti con i default (2 × 2 × 90 s), 8 con il massimo ammesso di `LLM_TIMEOUT_MS` (120 s); `maxDuration` copre quest'ultimo con un margine per le scritture. Swap e *Ripeti* fanno al più un giro (2 × `LLM_TIMEOUT_MS`) e hanno `maxDuration = 250`. Sul Raspberry (Next standalone) `maxDuration` non è applicato: conta solo per l'opzione Vercel. Il caso peggiore è tollerabile perché, se la connessione cade (`network_error`), la UI rilegge la schermata e adotta il piano che il server ha comunque salvato.
 

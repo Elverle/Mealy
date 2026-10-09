@@ -1,4 +1,4 @@
-import { db, ingredient_aliases } from '@/lib/db';
+import { db, type DbExecutor, ingredient_aliases } from '@/lib/db';
 import { getHouseholdById, ensureDefaultHousehold } from '@/lib/db/repositories/household-repo';
 import { insertRecipe, getRecipeById, getRecipeBySlug } from '@/lib/db/repositories/recipe-repo';
 import { DEFAULT_HOUSEHOLD_ID } from '@/lib/domain/types';
@@ -9,6 +9,16 @@ export interface SeedReport {
   recipesInserted: number;
   recipesSkipped: number;
   aliasesInserted: number;
+}
+
+/** Inserisce gli alias delle fixture che mancano (idempotente); restituisce quanti ne ha inseriti. */
+export async function seedIngredientAliases(executor: DbExecutor = db): Promise<number> {
+  const insertedAliases = await executor
+    .insert(ingredient_aliases)
+    .values(FIXTURE_INGREDIENT_ALIASES)
+    .onConflictDoNothing()
+    .returning({ alias: ingredient_aliases.alias });
+  return insertedAliases.length;
 }
 
 export async function seedDatabase(): Promise<SeedReport> {
@@ -58,16 +68,12 @@ export async function seedDatabase(): Promise<SeedReport> {
     recipesInserted++;
   }
 
-  const insertedAliases = await db
-    .insert(ingredient_aliases)
-    .values(FIXTURE_INGREDIENT_ALIASES)
-    .onConflictDoNothing()
-    .returning({ alias: ingredient_aliases.alias });
+  const aliasesInserted = await seedIngredientAliases(db);
 
   return {
     household: householdStatus,
     recipesInserted,
     recipesSkipped,
-    aliasesInserted: insertedAliases.length,
+    aliasesInserted,
   };
 }

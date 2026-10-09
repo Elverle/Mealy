@@ -40,6 +40,7 @@ import {
   requestSlotLock,
 } from "@/lib/plans/client";
 import { formatDayLabel, formatWeekRange } from "@/lib/plans/format";
+import { fetchPlanShoppingList, requestBuildShoppingList } from "@/lib/shopping/client";
 
 export interface PlanScreenProps {
   initialScreen: PlanScreenView;
@@ -58,6 +59,10 @@ const TOAST_REPEATED = "Piano ripetuto";
 const TOAST_CONFIRMED = "Piano confermato";
 const TOAST_BLOCKED_IN_PLAN =
   "Non la proporrò più. In questo piano resta: usa Cambia per sostituirla.";
+const LIST_CREATE_LABEL = "Crea lista della spesa";
+const LIST_CREATING_LABEL = "Creo la lista…";
+const LIST_OPEN_LABEL = "Vai alla lista della spesa";
+const LIST_STALE_LABEL = "Lista della spesa da aggiornare";
 
 const RECOVERY_WAIT_MESSAGE = "La connessione si è interrotta: controllo se il piano è pronto…";
 // Dopo un `network_error` il server di solito sta ancora generando: si ricontrolla con
@@ -199,6 +204,7 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
   const [isRecovering, setIsRecovering] = React.useState(false);
   const [generateError, setGenerateError] = React.useState<string | null>(null);
   const [isConfirming, setIsConfirming] = React.useState(false);
+  const [isCreatingList, setIsCreatingList] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
   const [sheetSlotId, setSheetSlotId] = React.useState<string | null>(null);
 
@@ -220,6 +226,49 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     const pending = pendingToast;
     pendingToast = null;
     if (pending && pending.weekStart === mountedWeekStart.current) setToast(pending.message);
+  }, []);
+
+  // Stato della lista già deciso da un'azione dell'utente: la rilettura di apertura, più vecchia, non lo sovrascrive.
+  const shoppingListTouchedRef = React.useRef(false);
+  const mountedScreenRef = React.useRef(initialScreen);
+
+  // Tornando indietro il router può riproporre un piano in cache: lo stato della lista (solo quello) si rilegge.
+  React.useEffect(() => {
+    const mountedPlan = mountedScreenRef.current.view.plan;
+    if (!mountedPlan || mountedPlan.status !== "active" || !mountedScreenRef.current.view.editable) {
+      return;
+    }
+    const planId = mountedPlan.id;
+    let cancelled = false;
+    void (async () => {
+      let fresh: Awaited<ReturnType<typeof fetchPlanShoppingList>>;
+      try {
+        fresh = await fetchPlanShoppingList(planId);
+      } catch {
+        // Senza rete resta lo stato già a schermo.
+        return;
+      }
+      if (cancelled || shoppingListTouchedRef.current || fresh.plan.id !== planId) return;
+      const next = {
+        exists: fresh.list !== null,
+        needs_regeneration: fresh.list?.needs_regeneration ?? false,
+      };
+      setScreen((prev) => {
+        const current = prev.view.plan;
+        if (!current || current.id !== planId) return prev;
+        const same =
+          current.shopping_list.exists === next.exists &&
+          current.shopping_list.needs_regeneration === next.needs_regeneration;
+        if (same) return prev;
+        return {
+          ...prev,
+          view: { ...prev.view, plan: { ...current, shopping_list: next } },
+        };
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const { view, target } = screen;
@@ -425,6 +474,30 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     }
   };
 
+  const handleCreateList = async (): Promise<void> => {
+    if (!plan || isCreatingList) return;
+    const planId = plan.id;
+    setIsCreatingList(true);
+    try {
+      await requestBuildShoppingList(planId);
+      shoppingListTouchedRef.current = true;
+      if (!mountedRef.current) return;
+      setScreen((prev) =>
+        prev.view.plan && prev.view.plan.id === planId
+          ? withPlan(prev, {
+              ...prev.view.plan,
+              shopping_list: { exists: true, needs_regeneration: false },
+            })
+          : prev
+      );
+      navigate(`/lista?piano=${planId}`);
+    } catch (err) {
+      if (mountedRef.current) setToast(apiErrorMessage(err));
+    } finally {
+      if (mountedRef.current) setIsCreatingList(false);
+    }
+  };
+
   const setSlotLocked = (slotId: string, locked: boolean): void => {
     setScreen((prev) => {
       if (!prev.view.plan) return prev;
@@ -486,7 +559,8 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
                 slot={slot}
                 editable={view.editable}
                 swappable={slot.day >= screen.today}
-                onPlanChange={(next) =>
+                onPlanChange={(next) => {
+                  shoppingListTouchedRef.current = true;
                   setScreen((prev) =>
                     withSlotFrom(
                       prev,
@@ -495,8 +569,8 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
                       (serverSlot) => ({ recipe: serverSlot.recipe, servings: serverSlot.servings }),
                       { shopping_list: next.shopping_list }
                     )
-                  )
-                }
+                  );
+                }}
                 onToggleLock={(slotId) => void handleToggleLock(slotId)}
                 onSelectRecipe={(selected) => setSheetSlotId(selected.id)}
                 onToggleFavorite={(recipeId) => void handleToggleFavorite(recipeId)}
@@ -645,16 +719,29 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
                 Conferma piano
               </Button>
             ) : (
-              <Link
-                href={`/lista?piano=${plan.id}`}
-                className={cn(
-                  buttonVariants({ size: "lg" }),
-                  "h-12 w-full gap-2 text-base font-semibold shadow-md"
-                )}
-              >
-                <ShoppingBag className="h-5 w-5" aria-hidden="true" />
-                <span>Crea lista della spesa</span>
-              </Link>
+              plan.shopping_list.exists ? (
+                <Link
+                  href={`/lista?piano=${plan.id}`}
+                  className={cn(
+                    buttonVariants({ size: "lg" }),
+                    "h-12 w-full gap-2 text-base font-semibold shadow-md"
+                  )}
+                >
+                  <ShoppingBag className="h-5 w-5" aria-hidden="true" />
+                  <span>
+                    {plan.shopping_list.needs_regeneration ? LIST_STALE_LABEL : LIST_OPEN_LABEL}
+                  </span>
+                </Link>
+              ) : (
+                <Button
+                  className="h-12 w-full gap-2 text-base font-semibold shadow-md"
+                  onClick={() => void handleCreateList()}
+                  disabled={isCreatingList}
+                >
+                  <ShoppingBag className="h-5 w-5" aria-hidden="true" />
+                  <span>{isCreatingList ? LIST_CREATING_LABEL : LIST_CREATE_LABEL}</span>
+                </Button>
+              )
             )}
           </div>
         )}

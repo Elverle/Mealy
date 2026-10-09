@@ -23,6 +23,17 @@
     { "alias": "ceci in scatola", "canonical_name": "ceci lessati" },
     { "alias": "ceci precotti", "canonical_name": "ceci lessati" },
     { "alias": "tonno sott'olio", "canonical_name": "tonno in scatola" },
-    { "alias": "fettine di pollo", "canonical_name": "petto di pollo" }
+    { "alias": "fettine di pollo", "canonical_name": "petto di pollo" },
+    { "alias": "olio di oliva", "canonical_name": "olio extravergine di oliva" },
+    { "alias": "olio extravergine d'oliva", "canonical_name": "olio extravergine di oliva" },
+    { "alias": "olio extra vergine di oliva", "canonical_name": "olio extravergine di oliva" },
+    { "alias": "ceci", "canonical_name": "ceci lessati" },
+    { "alias": "ceci cotti", "canonical_name": "ceci lessati" },
+    { "alias": "couscous", "canonical_name": "couscous di grano" },
+    { "alias": "cous cous", "canonical_name": "couscous di grano" },
+    { "alias": "paprika", "canonical_name": "paprika dolce" },
+    { "alias": "pasta", "canonical_name": "pasta di semola" },
+    { "alias": "lenticchie", "canonical_name": "lenticchia" },
+    { "alias": "pomodorini", "canonical_name": "pomodorino" }
   ]
 }

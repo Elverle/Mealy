@@ -1,6 +1,6 @@
 {
   "name": "mealy",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -15,6 +15,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx lib/db/seed.ts",
+    "db:seed:aliases": "tsx lib/db/seed-aliases.ts",
     "llm:record": "tsx scripts/llm-record.ts"
   },
   "dependencies": {

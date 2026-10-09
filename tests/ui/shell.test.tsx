@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 
 // Pages
 import { PlanScreen } from "@/components/plan/plan-screen";
-import ShoppingListPage from "@/app/(app)/lista/page";
+import { ShoppingScreen } from "@/components/shopping/shopping-screen";
 import { LibraryScreen } from "@/components/library/library-screen";
 import { toLibraryCard } from "@/lib/domain/library";
 import { SettingsEditor } from "@/components/settings/settings-editor";
@@ -428,7 +428,50 @@ describe("Pages Integration", () => {
   });
 
   it("renders Shopping list page with sections and progress", () => {
-    render(<ShoppingListPage />);
+    render(
+      <ShoppingScreen
+        initialScreen={{
+          plans: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              week_start: "2026-09-28",
+              last_day: "2026-10-04",
+              status: "active",
+              has_list: true,
+            },
+          ],
+          selected: {
+            plan: {
+              id: "11111111-1111-4111-8111-111111111111",
+              week_start: "2026-09-28",
+              last_day: "2026-10-04",
+              status: "active",
+              has_list: true,
+            },
+            editable: true,
+            can_build: true,
+            list: {
+              id: "22222222-2222-4222-8222-222222222222",
+              generated_at: "2026-09-28T08:00:00.000Z",
+              needs_regeneration: false,
+              items: [
+                {
+                  id: "cccccccc-0000-4000-8000-000000000001",
+                  canonical_name: "zucchina",
+                  qty: 2,
+                  unit: "pz",
+                  category: "ortofrutta",
+                  checked: false,
+                  manual: false,
+                  recipe_ids: [],
+                },
+              ],
+              recipes: [],
+            },
+          },
+        }}
+      />
+    );
     expect(
       screen.getByRole("heading", { level: 1, name: "Lista della Spesa" })
     ).toBeInTheDocument();

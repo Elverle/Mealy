@@ -22,6 +22,7 @@ import {
   type PlanWithSlots,
 } from '@/lib/db/repositories/plan-repo';
 import { listRecipesWith, type RecipeWithDetails } from '@/lib/db/repositories/recipe-repo';
+import { isPlanClosed } from '@/lib/domain/plan-status';
 import { APP_TIME_ZONE, PLANNER_CONFIG, type PlannerConfig } from '@/lib/domain/planner-config';
 import {
   computeGenerationCount,
@@ -83,17 +84,7 @@ export interface PlanServiceOptions {
 
 const slotKey = (day: string, meal: MealType): string => `${day}|${meal}`;
 
-/**
- * Un piano è "chiuso" (solo consultazione) se archiviato o se la sua settimana è
- * già conclusa. Calcolato, non letto dallo stato: `archivePlansBefore` scatta solo
- * alla creazione di un piano nuovo.
- */
-export function isPlanClosed(
-  plan: { status: PlanStatus; week_start: string },
-  currentWeekStart: string
-): boolean {
-  return plan.status === 'archived' || plan.week_start < currentWeekStart;
-}
+export { isPlanClosed };
 
 /** Vista del piano per le API (date in ISO, `superseded` rispetto alle impostazioni). */
 export function toPlanView(plan: PlanWithSlots, household: Household): PlanView {

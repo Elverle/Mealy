@@ -4,13 +4,14 @@ App web personale di meal planning: genera il piano settimanale con una selezion
 
 ## Stato
 
-Versione **0.4.0**. Feature completate:
+Versione **0.5.0**. Feature completate:
 
 - **E0 Fondamenta** — scaffold Next.js, schema DB, shell UI a 4 tab
 - **E1 Motore ricette** — adapter LLM multi-provider, generazione e persistenza delle ricette, fixtures e seed
 - **E5 Impostazioni** — wizard di primo avvio e vincoli del nucleo (`/impostazioni`, `GET/PUT /api/settings`)
 - **E3 Pianificatore** — piano settimanale dalla libreria con selezione pesata, swap, blocco, conferma, *Ripeti* e navigatore di settimane (`/`, `/api/plans`)
 - **E2 Libreria e preferenze** — libreria con ricerca e filtri, voto, ★ e *Non proporre più* sulle ricette, 👍/👎 sugli ingredienti e sezione *I miei ingredienti* (`/libreria`, `/api/recipes`, `/api/ingredient-prefs`)
+- **E4 Lista della spesa** — lista consolidata dal piano confermato e ordinata per reparto, spunte che reggono la rete assente, articoli aggiunti a mano e *Aggiorna lista* quando il piano cambia (`/lista`, `/api/plans/:id/shopping-list`, `/api/shopping-items`)
 
 Avanzamento completo in [`docs/planning/feature-index.md`](docs/planning/feature-index.md).
 
@@ -72,7 +73,8 @@ Note:
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm build` | Build di produzione |
 | `pnpm db:migrate` | Applica le migrazioni drizzle-kit |
-| `pnpm db:seed` | Seed idempotente (household di default, ricette fixture, alias ingredienti) |
+| `pnpm db:seed` | Seed idempotente (household di default, ricette fixture, alias ingredienti); solo per lo sviluppo |
+| `pnpm db:seed:aliases` | Inserisce solo gli alias degli ingredienti usati dalla lista della spesa (idempotente); è il comando per la produzione |
 | `pnpm db:generate` | Genera una nuova migrazione dallo schema (`lib/db/schema.ts`) |
 | `pnpm llm:record` | Registra una risposta LLM reale in `tests/fixtures/llm/recorded/` (richiede una chiave API) |
 
@@ -80,7 +82,7 @@ Gate di verifica: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`, t
 
 ## Deploy
 
-La v1 gira su Raspberry Pi con Docker Compose, raggiungibile solo via LAN/Tailscale e senza autenticazione (`docs/ARCHITECTURE.md §8`); i dettagli sono nella Feature 7 ([`docs/planning/feature/feature-7/spec.md`](docs/planning/feature/feature-7/spec.md)).
+La v1 gira su Raspberry Pi con Docker Compose, raggiungibile solo via LAN/Tailscale e senza autenticazione (`docs/ARCHITECTURE.md §8`); i dettagli sono nella Feature 7 ([`docs/planning/feature/feature-7/spec.md`](docs/planning/feature/feature-7/spec.md)). In produzione, dopo `pnpm db:migrate`, gli alias degli ingredienti si caricano con `pnpm db:seed:aliases`; mai con `pnpm db:seed`, che inserisce anche le ricette di esempio.
 
 ## Documentazione
 

@@ -2,7 +2,7 @@
 title: Stato Vuoto (empty-state)
 type: entity
 created: 2026-09-15
-updated: 2026-10-05
+updated: 2026-10-09
 tags: [ui, components, feedback, empty-state, placeholders]
 ---
 
@@ -61,11 +61,22 @@ import { CalendarPlus } from 'lucide-react';
 - nessun risultato con il filtro *Bloccate*: `Nessuna ricetta bloccata` / `Le ricette che segni con «Non proporre più» le ritrovi qui.`, azione `Azzera filtri`;
 - nessun risultato negli altri casi: `Nessuna ricetta trovata` / `Prova a cambiare i filtri o il testo cercato.`, azione `Azzera filtri`.
 
+## Uso nella Lista della Spesa (Feature 6)
+
+[[shopping-screen]] usa quattro stati vuoti, tutti con l'icona di default:
+- nessun piano da mostrare: `Nessuna lista della spesa` / `Conferma il piano della settimana: da lì crei la lista con un tocco.`, azione `Vai al piano` (`router.push('/')`);
+- piano confermato senza lista: `Lista da creare` / `Raccolgo gli ingredienti del piano {intervallo} e li ordino per reparto.`, **senza** azione nel componente. Il pulsante `Crea lista della spesa` è reso sotto, fuori da `EmptyState`, perché durante la creazione deve essere disabilitato e mostrare `Creo la lista…`, e il componente non prevede un'azione disabilitata; il componente riceve `className="pb-0"` per avvicinare il pulsante;
+- bozza aperta con `?piano=`: `Piano non ancora confermato` / `Conferma il piano per creare la lista della spesa.`, azione `Vai al piano` (`router.push('/?settimana={week_start}')`);
+- settimana conclusa senza lista: `Nessuna lista per questa settimana` / `Questa settimana è conclusa e non aveva una lista.`, senza azioni.
+
+Il componente non è stato modificato dalla feature.
+
 ## Vedi anche
 
 - [[design-system-and-tokens]] — Specifiche tipografiche di `Fraunces` e colori
 - [[meal-card]] — Componente visualizzato dopo la popolazione del piano
 - [[plan-screen]] — Stati vuoti della pagina Piano
 - [[library-screen]] — Stati vuoti della Libreria (Feature 5)
+- [[shopping-screen]] — Stati vuoti della Lista (Feature 6)
 - [[toast]] — Altro componente di feedback in `components/feedback/`
 - [[e0-fondamenta]] — Panoramica della Feature 1
