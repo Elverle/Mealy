@@ -2,7 +2,7 @@
 title: Servizio Piani, API e Client (plan-service)
 type: entity
 created: 2026-09-29
-updated: 2026-10-05
+updated: 2026-10-09
 tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat, week-navigator, feature-4]
 ---
 
@@ -29,7 +29,7 @@ export interface PlanServiceOptions {
   config?: PlannerConfig;        // default: PLANNER_CONFIG
 }
 
-export function isPlanClosed(plan: { status; week_start }, currentWeekStart: string): boolean;
+export function isPlanClosed(plan: { status; week_start }, currentWeekStart: string): boolean; // dalla Feature 6 riesportata da lib/domain/plan-status.ts
 export function toPlanView(plan: PlanWithSlots, household: Household): PlanView;
 export async function getPlanScreen(options?: PlanServiceOptions & { week?: string }): Promise<PlanScreenView>;
 export async function generatePlan(options?: PlanServiceOptions): Promise<GeneratePlanResult>;
@@ -44,6 +44,7 @@ Le opzioni esistono per i test DB (household dedicati, orologio fisso, RNG seeda
 ### Concetti comuni
 - **Orologio**: `today = todayInTimeZone(now(), APP_TIME_ZONE)`, `currentWeekStart = mondayOf(today)`, `target = resolveTargetWeek(today)` ([[planner]]).
 - **Piano chiuso**: `isPlanClosed` = `status === 'archived'` **oppure** `week_start < currentWeekStart`. La chiusura si calcola, non si legge dallo stato, perché `archivePlansBefore` scatta solo quando si crea un piano nuovo e un piano vecchio può restare `active` a settimana finita (Addendum D2). Blocco, conferma e swap sui piani chiusi → `plan_archived`.
+  - **Dalla Feature 6** la funzione è definita in `lib/domain/plan-status.ts` (file puro, [[shopping-list]]); `lib/plans/service.ts` la importa da lì e la **riesporta soltanto** (`export { isPlanClosed }`), quindi chi la importava dal servizio continua a funzionare. Lo spostamento (innesto R1 della review architetturale della Feature 6) permette al servizio della lista di usare la regola senza importare questo modulo, che porta con sé `lib/recipes` e `lib/llm`. È l'unica modifica della Feature 6 a `lib/plans/`.
 - **`toPlanView`**: date in ISO; `superseded = household.updated_at > plan.generated_at` (contratto U1 della Feature 3 riferito a `generated_at`, requirements P8); slot con la ricetta completa; stato della lista.
 
 ### `getPlanScreen` — navigatore di settimane
@@ -51,7 +52,7 @@ Le opzioni esistono per i test DB (household dedicati, orologio fisso, RNG seeda
 2. Settimana mostrata: quella richiesta; in assenza, la corrente se ha un piano, altrimenti quella obiettivo (nei feriali coincidono).
 3. `view: PlanWeekView` con `plan`, `action` (`generate` / `regenerate` / `none`, ma solo la settimana obiettivo può avere un'azione), `editable` (piano presente e non chiuso), `can_repeat` (piano con almeno una ricetta, settimana diversa dall'obiettivo, obiettivo né confermato né chiuso).
 4. `prev_week_start` / `next_week_start` tra le settimane **raggiungibili** = settimane con un piano ∪ corrente ∪ obiettivo, mai oltre l'obiettivo; le settimane passate senza piano si saltano.
-5. `target_plan_status` (stato del piano obiettivo o `null`) e `current_plan_id` (nel weekend, il piano della settimana corrente ripetibile sull'obiettivo): servono al pulsante *Ripeti questa settimana* e, in prospettiva, alla Feature 6.
+5. `target_plan_status` (stato del piano obiettivo o `null`) e `current_plan_id` (nel weekend, il piano della settimana corrente ripetibile sull'obiettivo): servono al pulsante *Ripeti questa settimana* e, in prospettiva, alla Feature 6. La Feature 6 non li ha poi usati: la tab *Lista* sceglie il piano con `getShoppingScreen` e `pickDefaultShoppingPlan` ([[shopping-service]]).
 
 ### `generatePlan` e `repeatPlan` — costruzione del piano obiettivo
 Entrambe usano la funzione interna `buildTargetPlan(ctx, { preassigned?, generation, maxRounds })`:
@@ -146,4 +147,6 @@ Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte
 - [[recipe-generation]] — `generateAndStoreRecipes`, chiamata a lotti
 - [[household-repo]] — `loadHousehold` e rilettura con `executor`
 - [[prefs-service]] — `loadIngredientPreferences` e origine di scarti, gradimenti e blocchi (Feature 5)
+- [[shopping-list]] — `isPlanClosed` in `lib/domain/plan-status.ts` (Feature 6)
+- [[shopping-service]] — Servizio della lista della spesa, che consuma `needs_regeneration` e usa lo stesso lock dei piani (Feature 6)
 - [[e3-pianificatore]] — Panoramica della Feature 4

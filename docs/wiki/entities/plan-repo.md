@@ -2,7 +2,7 @@
 title: Repository dei Piani Settimanali (plan-repo)
 type: entity
 created: 2026-09-29
-updated: 2026-09-29
+updated: 2026-10-09
 tags: [database, repository, meal-plans, plan-slots, drizzle, advisory-lock, recipe-usage, feature-4]
 ---
 
@@ -11,6 +11,7 @@ tags: [database, repository, meal-plans, plan-slots, drizzle, advisory-lock, rec
 - **Percorso file**: `lib/db/repositories/plan-repo.ts`
 - **Scopo**: leggere e scrivere piani (`meal_plans`), slot (`plan_slots`), uso delle ricette (`recipe_prefs.times_used` / `last_used_at`) e il flag "lista da rigenerare" (`shopping_lists.needs_regeneration`). Ogni funzione riceve un `executor: DbExecutor` come **primo argomento** (il `db` globale o una transazione), sul modello di `listRecipeTitles` e `acquireRecipeGenerationLock` di [[recipe-repo]]. `DbExecutor` è importato da `lib/db/index.ts`.
 - Nessuna regola di dominio: le decisioni (cosa mantenere, quando archiviare, chi può scrivere) stanno in [[plan-service]].
+- Dalla Feature 6 il repository ha un secondo chiamante: `lib/shopping/service.ts` ([[shopping-service]]) usa `getPlanById` e `acquirePlanLock`, senza modifiche a questo file. Le letture e le scritture di liste e articoli sono in [[shopping-repo]]; qui resta solo `markShoppingListStale`.
 
 ## Tipi
 
@@ -36,7 +37,7 @@ tags: [database, repository, meal-plans, plan-slots, drizzle, advisory-lock, rec
 ### Lock e ciclo di vita del piano
 | Funzione | Comportamento |
 |---|---|
-| `acquirePlanLock(executor, householdId)` | `pg_advisory_xact_lock(hashtext('mealy:plans:' + householdId))`. **Solo dentro una transazione**: si rilascia a commit/rollback. Serializza generazione, *Ripeti*, swap, blocco e conferma dello stesso household. |
+| `acquirePlanLock(executor, householdId)` | `pg_advisory_xact_lock(hashtext('mealy:plans:' + householdId))`. **Solo dentro una transazione**: si rilascia a commit/rollback. Serializza generazione, *Ripeti*, swap, blocco e conferma dello stesso household e, dalla Feature 6, la creazione o l'aggiornamento della lista della spesa e l'aggiunta di un articolo a mano ([[shopping-service]]). |
 | `insertPlan(executor, householdId, weekStart)` | Nuovo piano `draft`; `created_at` e `generated_at` dai default del DB |
 | `touchPlanGeneratedAt(executor, planId)` | `generated_at = now()` del DB (piano rigenerato) |
 | `activateDraftPlan(executor, planId)` | Transizione **condizionata** `update … set status='active' where id=$1 and status='draft' returning id`; `true` solo se questa chiamata ha attivato il piano. Sostituisce il `setPlanStatus` previsto dal piano (proposta R2): con due conferme sovrapposte l'uso si conta una volta sola. |
@@ -53,7 +54,7 @@ tags: [database, repository, meal-plans, plan-slots, drizzle, advisory-lock, rec
 
 ### Uso delle ricette e lista della spesa
 - **`incrementRecipeUsage(executor, usages: RecipeUsageInput[])`** (Addendum D3): raggruppa per ricetta tenendo il giorno **più recente**; un'unica `insert … on conflict (recipe_id) do update` su `recipe_prefs` con `times_used + 1` (una volta per ricetta e per chiamata, anche se la ricetta è in più slot) e `last_used_at = greatest(coalesce(recipe_prefs.last_used_at, x), x)` dove `x = '<day>T12:00:00Z'::timestamptz`. Il mezzogiorno UTC basta a contare i giorni senza aritmetica di fuso nel DB; `last_used_at` **non torna mai indietro**. Un giorno non `YYYY-MM-DD` lancia un errore; array vuoto → nessuna query.
-- **`markShoppingListStale(executor, planId)`**: `needs_regeneration = true` sulla lista del piano; `true` se la lista esisteva. Non crea liste.
+- **`markShoppingListStale(executor, planId)`**: `needs_regeneration = true` sulla lista del piano; `true` se la lista esisteva. Non crea liste. Il flag viene rimesso a `false` da `markShoppingListGenerated` di [[shopping-repo]], a ogni creazione o aggiornamento della lista (Feature 6). Poiché le liste nascono solo su piani confermati, e la rigenerazione di un piano confermato è rifiutata, in pratica una lista diventa "da aggiornare" per uno swap; la chiamata nella rigenerazione di una bozza resta innocua.
 
 ## Esempio d'Uso
 
@@ -81,6 +82,8 @@ await db.transaction(async (tx) => {
 
 - [[database-schema]] — Tabelle `meal_plans`, `plan_slots`, `shopping_lists` e migrazione `0003`
 - [[recipe-repo]] — `DbExecutor`, `toRecipeWithDetails`, `listRecipesWith`
-- [[plan-service]] — Unico chiamante applicativo del repository
+- [[plan-service]] — Chiamante principale del repository (l'unico fino alla Feature 5)
+- [[shopping-service]] — Secondo chiamante dalla Feature 6: `getPlanById` e `acquirePlanLock`
+- [[shopping-repo]] — Repository di liste e articoli, con `markShoppingListGenerated`
 - [[plan-concurrency-pattern]] — Uso del lock e delle transizioni condizionate
 - [[e3-pianificatore]] — Panoramica della Feature 4

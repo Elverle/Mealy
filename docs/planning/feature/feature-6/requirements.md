@@ -1,0 +1,56 @@
+# Feature 6 — E4 Lista della spesa: Requisiti e Decisioni
+
+Memoria del "perché" dietro `plan.md`. Story: `docs/BACKLOG.md` S4.1–S4.2. Riferimenti: `docs/ARCHITECTURE.md §4.1, §4.2, §5.3, §5.5, §6`, `docs/DESIGN.md §1, §4.1, §4.3, §6`, `docs/planning/execution-strategy.md §3 Feature 6 e §4`, requirements di F4 (P8, P13) e di F5 (P3), review architetturale di F4 (Addendum D2, "Contratto per F6"), code review di F4 (m2), review architetturale di F5 (P1, R1, Addendum D1 e riga c).
+
+## 1. Layout e identità
+- **Layout**: `docs/planning/` (da `.claude/agentic-feature-factory.local.md`), cartella `docs/planning/feature/feature-6/`.
+- **Titolo**: Feature 6 — E4 Lista della spesa (consolidamento, UI).
+- **Prerequisiti**: Feature 1–5 implementate e in `main` (v0.4.0, commit `4bd46fa`). Vale "il codice reale vince".
+
+## 2. Decisioni prese con l'utente (2026-10-08)
+| # | Decisione | Motivo |
+|---|---|---|
+| U1 | **Gli alias si risolvono solo nella lista**, quando la si costruisce (funzione pura), e il seed di `ingredient_aliases` si amplia con le varianti viste nelle risposte reali dei modelli. Ricette, preferenze e planner non cambiano: resta la regola F5 del nome canonico esatto | È quanto prevede ARCHITECTURE §5.5; risolvere in scrittura con backfill (riga c della review di F5) toccherebbe il modulo `recipes` e i dati esistenti senza essere richiesto da S4.1–S4.2. Chiude il rinvio "P1 → F6" della review di F5 con la scelta più stretta |
+| U2 | **Spunte con coda e ritentativi**: la spunta resta a schermo e non torna mai indietro; finisce in una coda che ritenta da sola (a intervalli, al ritorno della rete, al ritorno in primo piano) ed è salvata nel browser, così sopravvive a un ricaricamento. Avviso "N spunte in attesa di rete" | DESIGN §1 e §6: al supermercato la rete è pessima. L'ottimistica semplice farebbe "rimbalzare" le spunte; la PWA offline completa è una feature a parte |
+| U3 | **La lista si rigenera solo con un pulsante** (*Aggiorna lista*), con conferma se ci sono spunte. Nessun pull-to-refresh personalizzato; DESIGN §4.3 si aggiorna | Nel browser del telefono il gesto è già del browser e ricarica la pagina; un gesto nostro andrebbe in conflitto e non è verificabile in jsdom |
+| U4 | **La tab *Lista* apre l'ultima lista**: il piano aperto più avanti nel tempo che ha già una lista; se nessuno ce l'ha, il piano confermato più avanti (con l'invito a crearla). Con due piani aperti (weekend) un selettore in alto passa dall'uno all'altro | La barra in basso porta a `/lista` senza `?piano=`: serve una regola. Il contratto di F4 ("mai un piano attivo dedotto") resta rispettato perché ogni lettura e scrittura usa comunque un `plan_id` esplicito |
+
+## 3. Decisioni prese in planning (motivate)
+| # | Decisione | Motivo |
+|---|---|---|
+| P1 | Moduli: `lib/domain/shopping-list.ts` (puro), `lib/db/repositories/shopping-repo.ts`, `lib/shopping/{errors,http,service}.ts` (server), `lib/shopping/{client,check-queue}.ts` (sicuri per il client). **Nessun barrel** | Stesso schema di `lib/plans/` e `lib/prefs/`: i componenti client non importano mai il DB |
+| P2 | **Nessuna migrazione**: `shopping_lists` (con `needs_regeneration`) e `shopping_items` esistono da F1/F4 e bastano | Nessun dato nuovo da salvare: l'ordine è calcolato, il nome mostrato è il nome canonico |
+| P3 | La lista si **crea e si aggiorna solo per piani confermati (`active`) e non chiusi**. Una bozza risponde `409 plan_not_confirmed`; un piano chiuso `409 plan_archived` e la sua lista resta in sola lettura | DESIGN §4.1 ("*Crea lista della spesa* quando il piano è confermato"); ARCHITECTURE §6 ("i piani chiusi si possono solo consultare"). Chiude l'alternativa lasciata aperta dalla code review di F4 (m2) |
+| P4 | La lista copre **i pasti da oggi in poi** (`slot.day >= oggi`, fuso `Europe/Rome`) con una ricetta assegnata | A metà settimana non si compra per i pasti già fatti; nel weekend, per la settimana dopo, sono tutti i pasti |
+| P5 | **Arrotondamento per eccesso**: `pz` → intero superiore; `g` e `ml` → multiplo di 10 superiore, ma fino a 10 si arrotonda all'intero superiore (5 g restano 5 g) | ARCHITECTURE §5.5 ("g → multipli di 10; pz → intero superiore"); per eccesso perché si compra, non si dosa. La regola sotto i 10 evita "2 g di zafferano → 10 g" |
+| P6 | Un ingrediente senza quantità (`qb`, oppure `qty` assente o ≤ 0) vale `qb`. Se lo stesso nome ha anche una riga con quantità, **la riga `qb` sparisce** e le sue ricette passano alla riga con quantità | "Sale q.b." accanto a "Sale 10 g" sarebbero due righe per lo stesso acquisto |
+| P7 | Il **reparto si decide per nome**, a maggioranza tra le ricette che lo usano (a parità vince il primo nell'ordine del giro) | I modelli non assegnano sempre lo stesso reparto allo stesso ingrediente; due righe dello stesso nome (pz e g) devono stare nella stessa sezione |
+| P8 | La rigenerazione **riconcilia sul posto** per chiave `(canonical_name, unit)`: le righe che restano tengono il loro `id`. La spunta resta se la quantità **non aumenta** (per `qb` resta sempre); se aumenta, la riga torna da spuntare | "Preserva le spunte per `canonical_name` dove possibile" (ARCHITECTURE §5.3). Con l'`id` stabile le spunte in coda (U2) restano valide; una quantità cresciuta va ricomprata, mostrarla spuntata farebbe dimenticare l'acquisto |
+| P9 | Creazione e rigenerazione girano in **una transazione sotto `acquirePlanLock`** (lo stesso lock di swap e rigenerazione del piano). Spunta, aggiunta e rimozione sono singole scritture senza lock | La lista si costruisce su un piano coerente e l'azzeramento di `needs_regeneration` non può incrociare uno swap (wiki `plan-concurrency-pattern`) |
+| P10 | "Serve per: X, Y" è **una seconda riga sotto il nome** (`Per: …`), non un tap | ARCHITECTURE §5.5 dice "tap sull'item → serve per", DESIGN §4.3 dice "tap sulla riga = spunta": vince la spunta, la tracciabilità resta visibile senza gesti |
+| P11 | **Articolo a mano = solo il nome** (max 80 caratteri, normalizzato). Il reparto si deduce dalla libreria (stesso nome, alias risolti), altrimenti *Altro*. Aggiungere due volte lo stesso nome restituisce l'articolo esistente | Come nel mock di F1, una mano sola; "latte" finisce tra i freschi senza un campo in più. L'idempotenza rende sicuro ritentare dopo un errore di rete |
+| P12 | Gli articoli a mano si **rimuovono con ✕** a un tap (solo loro: `409 item_not_manual` per gli altri); nessuna modifica del nome (si rimuove e si riaggiunge). L'aggiunta e la rimozione **non** passano dalla coda offline | Servono a correggere un errore di battitura; la coda di U2 riguarda le spunte, l'unico gesto fatto tra gli scaffali |
+| P13 | La coda delle spunte è una classe senza React (`CheckQueue`): tiene **solo l'ultimo stato voluto per articolo**, manda una richiesta alla volta per articolo, ritenta con attesa crescente (2 s → 30 s), scarta gli errori definitivi (404, 409). Chiave di `localStorage`: `mealy:shopping:pending:<planId>` | Due tocchi rapidi non possono arrivare al server fuori ordine; testabile con timer finti. `PATCH { checked }` è un valore assoluto, quindi ritentare è sicuro |
+| P14 | Al ritorno in primo piano (`visibilitychange`) e al ritorno della rete (`online`) si svuota la coda e si rilegge la lista dal server | Accettazione di S4.2: "stato preservato al ritorno dall'app in background" |
+| P15 | Nel Piano il footer diventa: **pulsante** *Crea lista della spesa* (crea e apre la lista) se la lista non esiste; **link** *Vai alla lista della spesa* se esiste, *Lista della spesa da aggiornare* se il piano è cambiato | Un tap solo per creare; il nome dell'azione non mente quando la lista c'è già. La creazione è una `POST`: non può avvenire al caricamento di una pagina |
+| P16 | Errori: classe `ShoppingError` con sei codici e relativa mappa HTTP, come `PlanError` | Sei codici di dominio (contro l'unico di F5) giustificano la classe; stessa forma `{ error: { code, message } }` |
+| P17 | API: le tre rotte di ARCHITECTURE §6 più `POST /api/plans/:id/shopping-list/items` (aggiunta a mano) e `DELETE /api/shopping-items/:id`. `PATCH /api/shopping-items/:id` accetta solo `{ checked }` | "Spunta / modifica / aggiunta manuale" su una sola `PATCH` non è REST né validabile con uno schema; WP3 aggiorna ARCHITECTURE §6 |
+| P18 | Quantità mostrate: `300 g`, `1,25 kg` (da 1000 g), `1,5 l` (da 1000 ml), `2 pz`, `q.b.`; nome con l'iniziale maiuscola | Leggibilità tra gli scaffali; nessun dato in più sul DB |
+| P19 | Ordine: reparti nell'ordine di `CATEGORY_VALUES` (già quello del giro); dentro il reparto prima i non spuntati, poi gli spuntati, ciascun gruppo in ordine alfabetico | DESIGN §4.3; un ordine stabile evita che le righe saltino a ogni rilettura |
+| P20 | La Lista è una **pagina server** (`await connection()` + servizio) che passa i dati a un componente client; `GET /api/plans/:id/shopping-list` restituisce la stessa vista | Stesso schema di Piano, Libreria e Impostazioni (F4 P16) |
+| P21 | `ShoppingItemRow` resta presentazionale e si estende **solo con aggiunte compatibili**; la schermata traduce il dominio nel suo formato (come `toRecipeDetail` per `RecipeSheet`) | La pagina finta di F1 e `tests/ui/shell.test.tsx` devono compilare fino alla wave 3 |
+| P22 | *Azzera spunte* del mock di F1 **non** entra | Non è in DESIGN §4.3 né nel backlog |
+| P23 | Wave 1 con **due** WP paralleli (funzioni pure ∥ repository) invece della wave solitaria di `execution-strategy.md` | Il repository usa solo tipi già esistenti: i due WP sono su file disgiunti e senza dipendenze reciproche |
+| P24 | I test DB di alias usano **alias inseriti dal test con nomi unici**, mai quelli del seed | `ingredient_aliases` è globale e in CI il seed può non essere stato eseguito |
+
+## 4. Punti aperti dalle feature precedenti, chiusi qui
+| Da | Decisione |
+|---|---|
+| F4 P8 / P13 (`needs_regeneration` "consumato e azzerato da F6") | Azzerato da `markShoppingListGenerated` a ogni creazione o aggiornamento della lista (P9); mostrato come avviso nella Lista e nel footer del Piano (P15) |
+| Review F4, Addendum D2 ("la lista si lega sempre a un `plan_id` esplicito") | Rispettato: tutte le rotte hanno il piano o l'articolo nell'URL; la regola di U4 sceglie solo quale piano mostrare aprendo la tab |
+| Code review F4 m2 (lista su una bozza) | Le liste nascono solo su piani confermati (P3); `markShoppingListStale` nella rigenerazione resta innocuo |
+| Review F5 P1 e riga c (frammentazione dei nomi, backfill) | U1: nessuna canonicalizzazione in scrittura, nessun backfill. La riga c resta valida per una feature futura |
+| F5 P3 ("gli alias servono al consolidamento della spesa") | Confermato: `ingredient_aliases` è letta solo da `lib/shopping/service.ts` |
+
+## 5. Da verificare a mano dal telefono (rinviato a fine v1, come per F4 e F5)
+Non verificabili in jsdom: spunte in modalità aereo e loro invio al ritorno della rete; stato al ritorno dal background; pulsante *Aggiungi* raggiungibile col pollice e non coperto dal toast; tastiera che non copre il campo del pannello di aggiunta; rimozione a un tap degli articoli a mano (stessa cautela annotata per *I miei ingredienti* di F5).

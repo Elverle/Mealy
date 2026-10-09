@@ -2,8 +2,8 @@
 title: Schema del Database Relazionale Drizzle (db/schema)
 type: entity
 created: 2026-09-15
-updated: 2026-10-05
-tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans, ingredient-prefs]
+updated: 2026-10-09
+tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans, ingredient-prefs, shopping-list]
 ---
 
 ## File e Responsabilità
@@ -142,6 +142,7 @@ Contenitore della lista della spesa generata da un piano.
   - `plan_id`: `uuid` unique references `meal_plans.id` (`ON DELETE CASCADE`)
   - `generated_at`: `timestamp with time zone` default now
   - `needs_regeneration`: `boolean` not null default `false` (Feature 4, migrazione `0003`) — flag "lista da rigenerare": messo a `true` da swap, rigenerazione e *Ripeti* su un piano che ha già una lista ([[plan-repo]] `markShoppingListStale`); va rimesso a `false` dalla rigenerazione della lista (Feature 6)
+- **Uso dalla Feature 6**: la lista nasce solo per un piano confermato e non chiuso, creata da `buildPlanShoppingList` ([[shopping-service]]). A ogni creazione o aggiornamento `markShoppingListGenerated` ([[shopping-repo]]) scrive `generated_at = now()` del DB e rimette `needs_regeneration` a `false`. Nessuna colonna nuova.
 
 ### 8. `shopping_items`
 Voci consolidate della spesa raggruppate per corsia.
@@ -157,6 +158,12 @@ Voci consolidate della spesa raggruppate per corsia.
   - `recipe_ids`: `uuid[]` array not null (tracciabilità ricette d'origine)
 - **Indici**:
   - `shopping_items_list_category_idx` su `(list_id, category)` per raggruppamento rapido
+- **Significato delle colonne dalla Feature 6** (schema invariato, v. [[shopping-list]] e [[shopping-service]]):
+  - articolo **generato** dal piano (`manual = false`): `unit` è una delle quattro unità (`g`, `ml`, `pz`, `qb`), `qty` è `null` solo per `qb`, `recipe_ids` elenca le ricette per cui serve. La coppia `(canonical_name, unit)` è la chiave con cui un aggiornamento della lista ritrova la riga e ne conserva l'`id`;
+  - articolo **aggiunto a mano** (`manual = true`): `unit` e `qty` sono `null` e `recipe_ids` è vuoto;
+  - `canonical_name` è normalizzato; negli articoli generati gli alias sono già risolti;
+  - `qty` è `numeric`: il driver la restituisce come stringa e [[shopping-repo]] la converte in numero;
+  - non c'è un vincolo di unicità su `(list_id, canonical_name, unit)`: l'unicità dei generati è garantita dalla costruzione sotto il lock dei piani, quella degli articoli a mano dalla ricerca e dall'inserimento sotto lo stesso lock.
 
 ### 9. `ingredient_aliases`
 Tabella di mappatura sinonimi ("pelati" -> "pomodori pelati").
@@ -164,6 +171,7 @@ Tabella di mappatura sinonimi ("pelati" -> "pomodori pelati").
   - `alias`: `text` PK
   - `canonical_name`: `text` not null
 - Alla Feature 5 la tabella è popolata dal seed ma **non è letta da nessun codice applicativo**: né le preferenze ingrediente né il planner risolvono gli alias. Il suo uso è rinviato al consolidamento della lista della spesa (Feature 6).
+- **Dalla Feature 6** la tabella è letta da `listIngredientAliases` ([[shopping-repo]]), chiamata dal servizio della lista della spesa: gli alias si risolvono nella costruzione della lista e nella deduzione del reparto di un articolo a mano, e solo lì. La tabella è **globale** (non per household) e si popola con `pnpm db:seed` in sviluppo e con `pnpm db:seed:aliases` in produzione ([[fixtures-and-seed]]).
 
 ### 10. `ingredient_prefs` (Feature 5)
 Giudizi dell'household sui singoli ingredienti. Popolata in modo *lazy*: una riga esiste solo per gli ingredienti su cui è stato espresso un giudizio.
@@ -191,6 +199,8 @@ File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e 
 | `0003` | `0003_add_plan_generation_tracking` | Due `ALTER TABLE … ADD COLUMN` (Feature 4): `meal_plans.generated_at timestamp with time zone DEFAULT now() NOT NULL` e `shopping_lists.needs_regeneration boolean DEFAULT false NOT NULL`. Additiva: i piani esistenti ricevono `generated_at` = istante della migrazione. |
 | `0004` | `0004_add_ingredient_prefs` | `CREATE TABLE "ingredient_prefs"` con le 4 colonne e la chiave primaria `("household_id","canonical_name")`, più la chiave esterna verso `households` con `ON DELETE cascade` (Feature 5). Additiva: nessuna modifica alle altre tabelle. |
 
+La Feature 6 (lista della spesa) **non aggiunge migrazioni**: usa `shopping_lists` e `shopping_items` così come sono dalla migrazione `0000`, con la colonna `needs_regeneration` della `0003` (requirements P2 della Feature 6).
+
 ## Vedi anche
 
 - [[database-architecture]] — Architettura del database relazionale, pg_trgm e migrazioni
@@ -203,3 +213,5 @@ File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e 
 - [[e3-pianificatore]] — Panoramica della Feature 4
 - [[ingredient-pref-repo]] — Operazioni su `ingredient_prefs`
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
+- [[shopping-repo]] — Operazioni su `shopping_lists`, `shopping_items` e lettura di `ingredient_aliases`
+- [[e4-lista-spesa]] — Panoramica della Feature 6
