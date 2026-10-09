@@ -12,7 +12,7 @@ L'iniziativa **E4 Lista della spesa** (Feature 6, story `S4.1`–`S4.2` del back
 
 1. **Consolidamento puro**: una funzione senza DB né rete che dagli slot del piano produce gli articoli da comprare, con quantità scalate, alias risolti, somme per nome e unità, arrotondamento e reparto ([[shopping-list]]).
 2. **Lista persistente legata al piano**: creazione, aggiornamento che conserva spunte e articoli a mano, spunta, aggiunta e rimozione di articoli a mano, su cinque rotte API ([[shopping-service]], [[shopping-repo]]).
-3. **Schermata Lista reale** al posto della pagina con dati finti della Feature 1: sezioni per reparto, riga intera come bersaglio, spuntati in fondo, avanzamento, pulsante *Aggiungi*, *Aggiorna lista* ([[shopping-screen]], [[shopping-item-row]]).
+3. **Schermata Lista reale** al posto della pagina con dati finti della Feature 1: sezioni per reparto, riga intera come bersaglio, spuntati barrati al loro posto, avanzamento, pulsante *Aggiungi*, *Aggiorna lista* ([[shopping-screen]], [[shopping-item-row]]).
 4. **Spunte che reggono la rete assente**: applicate subito, tenute in una coda salvata nel browser e ritentate da sole ([[check-queue]]).
 
 La feature **non aggiunge migrazioni**: `shopping_lists` e `shopping_items` esistono dalla Feature 1 e la colonna `needs_regeneration` dalla Feature 4 ([[database-schema]]). `lib/llm/`, `lib/recipes/`, `lib/prefs/` e `lib/domain/planner.ts` non sono stati modificati; in `lib/plans/` cambia solo la sede di `isPlanClosed` ([[plan-service]]).
@@ -94,7 +94,7 @@ La feature **non aggiunge migrazioni**: `shopping_lists` e `shopping_items` esis
 - **Aggiornamento**: riconciliazione sul posto per chiave. Le righe che restano tengono il loro `id`; la spunta resta se la quantità **non aumenta** (per `qb` resta sempre); gli articoli a mano non si toccano; `needs_regeneration` torna `false` (requirements P8).
 - **Articolo a mano**: solo il nome (max 80 caratteri, normalizzato). Reparto dedotto dalla libreria, altrimenti `altro`; `unit` e `qty` `null`, `recipe_ids` vuoto. Aggiungere due volte lo stesso nome restituisce l'articolo esistente. Si rimuovono solo gli articoli a mano (`409 item_not_manual` per gli altri).
 - **Spunta**: `PATCH { checked }` è un valore assoluto, quindi ritentare è sicuro.
-- **Ordine a schermo**: reparti nell'ordine del giro; dentro il reparto prima i non spuntati, poi gli spuntati, ciascun gruppo in ordine alfabetico italiano (requirements P19).
+- **Ordine a schermo**: reparti nell'ordine del giro; dentro il reparto in ordine alfabetico italiano, senza spostare le righe spuntate (requirements P19, cambiato il 2026-10-09 dopo la prova da telefono: prima gli spuntati andavano in fondo).
 - **Quantità mostrate**: `300 g`, `1,25 kg` (da 1000 g), `1,5 l` (da 1000 ml), `2 pz`, `q.b.`; nome con l'iniziale maiuscola (requirements P18).
 
 Il testo di riferimento di queste regole è `ARCHITECTURE §5.5`, aggiornato dalla feature.

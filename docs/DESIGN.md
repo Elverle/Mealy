@@ -62,7 +62,7 @@ Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Im
 - Legata a un piano confermato: si crea dal footer del Piano oppure, finché non esiste, dallo stato vuoto della tab *Lista* (*Crea lista della spesa* in entrambi i casi). La tab *Lista* apre l'ultima lista dei piani aperti; quando i piani aperti sono due (weekend) un selettore in alto passa da una settimana all'altra
 - Sezioni per reparto nell'ordine del giro al supermercato (vedi ARCHITECTURE §5.5)
 - Riga item: checkbox 44×44 px a sinistra, nome + quantità e, sotto il nome, le ricette per cui serve ("Per: …"); tap sulla riga = spunta (tutta la riga è target)
-- Item spuntati: barrati e ammassati in fondo alla sezione; progress "12/23" nel riquadro *Progresso spesa* in cima alla lista (con barra) e per sezione
+- Item spuntati: barrati, restano al loro posto nella sezione (l'ordine è per nome e non cambia con le spunte, così una riga si ritrova dov'era); progress "12/23" nel riquadro *Progresso spesa* in cima alla lista (con barra) e per sezione
 - Pulsante flottante *Aggiungi* per gli articoli a mano: solo il nome (il reparto si deduce dalla libreria, altrimenti *Altro*); si rimuovono con ✕
 - *Aggiorna lista* rigenera dalla versione corrente del piano, con conferma se ci sono spunte: sta nell'avviso "Il piano è cambiato" quando serve, altrimenti nell'header. Nessun gesto personalizzato: il pull-to-refresh resta quello del browser
 - Senza rete, a pagina già aperta, le spunte restano a schermo e partono da sole quando la connessione torna ("N spunte in attesa di rete")

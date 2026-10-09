@@ -8,7 +8,6 @@ import { normalizeCanonicalName } from '@/lib/domain/recipe-text';
 import {
   buildShoppingList,
   compareShoppingItemsByAisle,
-  compareShoppingItemsForDisplay,
   formatShoppingQuantity,
   groupShoppingItems,
   inferShoppingCategory,
@@ -519,14 +518,6 @@ describe('compareShoppingItemsByAisle', () => {
   });
 });
 
-describe('compareShoppingItemsForDisplay', () => {
-  it('puts unchecked items before checked ones', () => {
-    const checked = view('1', 'aceto', { checked: true });
-    const unchecked = view('2', 'zucchero');
-    expect(compareShoppingItemsForDisplay(unchecked, checked)).toBeLessThan(0);
-  });
-});
-
 describe('groupShoppingItems', () => {
   it('returns only non-empty sections, in aisle order', () => {
     const groups = groupShoppingItems([
@@ -537,12 +528,32 @@ describe('groupShoppingItems', () => {
     expect(groups[0]?.label).toBe('Ortofrutta');
   });
 
-  it('puts unchecked items first inside a section', () => {
+  it('orders a section by name and leaves a checked item in its place', () => {
     const [section] = groupShoppingItems([
-      view('1', 'aceto', { category: 'dispensa', checked: true }),
       view('2', 'zucchero', { category: 'dispensa' }),
+      view('1', 'aceto', { category: 'dispensa', checked: true }),
+      view('3', 'farina', { category: 'dispensa' }),
     ]);
-    expect(section?.items.map((item) => item.canonical_name)).toEqual(['zucchero', 'aceto']);
+    expect(section?.items.map((item) => item.canonical_name)).toEqual([
+      'aceto',
+      'farina',
+      'zucchero',
+    ]);
+  });
+
+  it('gives the same order whatever is checked', () => {
+    const names = (checkedId: string | null): string[] =>
+      groupShoppingItems(
+        ['aceto', 'farina', 'zucchero'].map((name, index) =>
+          view(String(index + 1), name, {
+            category: 'dispensa',
+            checked: String(index + 1) === checkedId,
+          })
+        )
+      ).flatMap((section) => section.items.map((item) => item.canonical_name));
+
+    expect(names('1')).toEqual(names(null));
+    expect(names('2')).toEqual(names(null));
   });
 
   it('reports checked and total counts per section', () => {

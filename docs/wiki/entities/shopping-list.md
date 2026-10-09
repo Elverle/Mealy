@@ -103,14 +103,12 @@ Risolve il nome con gli alias e conta il reparto degli ingredienti della libreri
 
 ```ts
 export function compareShoppingItemsByAisle(a: ShoppingItemView, b: ShoppingItemView): number;
-export function compareShoppingItemsForDisplay(a: ShoppingItemView, b: ShoppingItemView): number;
 export function groupShoppingItems(items: readonly ShoppingItemView[]): ShoppingSection[];
 export function shoppingProgress(items: readonly Pick<ShoppingItemView, 'checked'>[]): { checked: number; total: number };
 ```
 
-- **`compareShoppingItemsByAisle`**: reparto, nome, unità (`null`, cioè un articolo a mano, dopo tutte le altre), id. È l'ordine della risposta delle API.
-- **`compareShoppingItemsForDisplay`**: non spuntati prima, poi nome, unità, id. È l'ordine dentro un reparto a schermo.
-- **`groupShoppingItems`**: una sezione per reparto **non vuoto**, nell'ordine di `CATEGORY_VALUES`, con l'etichetta di `CATEGORY_LABELS` e i conteggi della sezione. Non muta l'input. Un articolo a mano con lo stesso nome di uno generato compare subito dopo di lui.
+- **`compareShoppingItemsByAisle`**: reparto, nome, unità (`null`, cioè un articolo a mano, dopo tutte le altre), id. È l'ordine della risposta delle API e, dentro un reparto, quello a schermo.
+- **`groupShoppingItems`**: una sezione per reparto **non vuoto**, nell'ordine di `CATEGORY_VALUES`, con l'etichetta di `CATEGORY_LABELS` e i conteggi della sezione. Non muta l'input. Dentro la sezione l'ordine non dipende dalle spunte: una riga spuntata resta dov'è (fino alla prova da telefono del 2026-10-09 gli spuntati andavano in fondo, con un confronto dedicato poi rimosso). Un articolo a mano con lo stesso nome di uno generato compare subito dopo di lui.
 - **`shoppingProgress`**: articoli spuntati sul totale.
 
 Il server ordina per reparto e il client riordina in `groupShoppingItems`: il doppione è voluto, dà una risposta API stabile (osservazione della review architetturale).
