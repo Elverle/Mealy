@@ -9,6 +9,7 @@ App web personale di meal planning: piano settimanale generato da una libreria d
 3. `docs/BACKLOG.md` — epic → story → task con criteri di accettazione e grafo dipendenze
 4. `docs/planning/execution-strategy.md` — mappatura backlog → feature della pipeline, ordine di esecuzione, contratti trasversali
 5. `docs/planning/feature-index.md` — stato di avanzamento delle feature
+6. `docs/DEPLOY.md` — guida operativa del deploy sul Raspberry Pi
 
 Il principio guida del prodotto: **le ricette generate non sono usa-e-getta, sono la libreria** (`ARCHITECTURE §1.3`). Il piano è selezione pesata dalla libreria; l'LLM interviene solo quando il pool è insufficiente.
 
@@ -16,7 +17,7 @@ Il principio guida del prodotto: **le ricette generate non sono usa-e-getta, son
 
 Next.js (App Router, TypeScript) · Tailwind CSS + shadcn/ui · PostgreSQL 16 (Docker in dev e in prod) · Drizzle ORM + drizzle-kit · Zod · Vercel AI SDK (provider via env `LLM_PROVIDER` + `LLM_MODEL`) · Vitest · pnpm
 
-Deploy v1: Raspberry Pi con Docker Compose (Next.js standalone + PostgreSQL 16) raggiungibile solo via LAN/Tailscale, **senza autenticazione** (`ARCHITECTURE §8`, Opzione C). Login e auth sono rinviati a una v2 (Opzione A Vercel + Neon resta l'alternativa cloud futura).
+Deploy v1: Raspberry Pi con Docker Compose (Next.js standalone + PostgreSQL 16) raggiungibile solo via LAN/Tailscale, **senza autenticazione** (`ARCHITECTURE §8`, Opzione C). Login e auth sono rinviati a una v2 (Opzione A Vercel + Neon resta l'alternativa cloud futura). Guida operativa: `docs/DEPLOY.md`. L'immagine arm64 la costruisce il workflow `Image` (GHCR); all'avvio in produzione l'app applica migrazioni e alias (`instrumentation.ts` → `lib/db/bootstrap.ts`).
 
 ## Comandi
 
@@ -29,11 +30,13 @@ pnpm typecheck      # tsc --noEmit
 pnpm build          # build di produzione
 pnpm db:migrate     # migrazioni drizzle-kit
 pnpm db:seed        # seed idempotente (fixtures + household default + alias)
-pnpm db:seed:aliases # solo gli alias degli ingredienti (idempotente); è il comando per la produzione: mai db:seed, che inserisce anche le ricette di esempio
+pnpm db:seed:aliases # solo gli alias degli ingredienti: inserisce e corregge (idempotente). In produzione li carica l'app all'avvio; mai db:seed, che inserisce anche le ricette di esempio
 pnpm llm:record     # registra una risposta LLM reale in tests/fixtures/llm/recorded/ (richiede chiave API)
+docker build -t mealy-app:smoke . && bash scripts/smoke-prod.sh mealy-app:smoke   # prova lo stack di produzione in locale (porta 3100)
+bash scripts/deploy.sh   # solo sul Raspberry: codice, immagine, backup, riavvio, verifica (docs/DEPLOY.md)
 ```
 
-Gate di verifica completo: `lint + typecheck + test + build` — tutti verdi. Lo stesso gate gira in CI su ogni pull request (`.github/workflows/gate.yml`).
+Gate di verifica completo: `lint + typecheck + test + build` — tutti verdi. Lo stesso gate gira in CI su ogni pull request (`.github/workflows/gate.yml`), insieme al job `image` che costruisce l'immagine Docker e prova lo stack di produzione.
 
 ## Regole di architettura (vincolanti)
 

@@ -321,7 +321,7 @@ Tutte le request/response validate con gli stessi schemi Zod del dominio. Gli er
 | Autenticazione | **Nessuna necessaria in v1** (YAGNI): perimetro di sicurezza gestito via rete (LAN + Tailscale) |
 | Accesso da remoto | **Tailscale** sul Pi e sullo smartphone: accesso sicuro e crittografato ovunque (es. al supermercato) |
 | Architettura | Docker Compose: Next.js (`output: 'standalone'`) + PostgreSQL 16 + volume dati + `cron` backup (`pg_dump`) |
-| Rischi/Ops | Manutenzione container su Raspberry, aggiornamenti via script/git pull, storage locale affidabile |
+| Rischi/Ops | Manutenzione container su Raspberry; immagine arm64 costruita da GitHub Actions e pubblicata su GHCR, aggiornamenti con `scripts/deploy.sh` (git pull + pull dell'immagine); migrazioni applicate all'avvio dell'app; storage locale affidabile. Guida operativa: `DEPLOY.md` |
 
 ### Opzione A — Vercel + Neon Postgres (alternativa cloud futura)
 

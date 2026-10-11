@@ -74,7 +74,7 @@ Note:
 | `pnpm build` | Build di produzione |
 | `pnpm db:migrate` | Applica le migrazioni drizzle-kit |
 | `pnpm db:seed` | Seed idempotente (household di default, ricette fixture, alias ingredienti); solo per lo sviluppo |
-| `pnpm db:seed:aliases` | Inserisce solo gli alias degli ingredienti usati dalla lista della spesa (idempotente); è il comando per la produzione |
+| `pnpm db:seed:aliases` | Inserisce o corregge gli alias degli ingredienti usati dalla lista della spesa (idempotente). In produzione lo stesso caricamento avviene da solo all'avvio dell'app |
 | `pnpm db:generate` | Genera una nuova migrazione dallo schema (`lib/db/schema.ts`) |
 | `pnpm llm:record` | Registra una risposta LLM reale in `tests/fixtures/llm/recorded/` (richiede una chiave API) |
 
@@ -82,7 +82,11 @@ Gate di verifica: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`, t
 
 ## Deploy
 
-La v1 gira su Raspberry Pi con Docker Compose, raggiungibile solo via LAN/Tailscale e senza autenticazione (`docs/ARCHITECTURE.md §8`); i dettagli sono nella Feature 7 ([`docs/planning/feature/feature-7/spec.md`](docs/planning/feature/feature-7/spec.md)). In produzione, dopo `pnpm db:migrate`, gli alias degli ingredienti si caricano con `pnpm db:seed:aliases`; mai con `pnpm db:seed`, che inserisce anche le ricette di esempio.
+La v1 gira su Raspberry Pi con Docker Compose (app Next.js standalone, PostgreSQL 16, backup notturno), raggiungibile solo via LAN/Tailscale e senza autenticazione (`docs/ARCHITECTURE.md §8`). La guida operativa è [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+- L'immagine dell'app la costruisce GitHub Actions a ogni push su `main` (workflow `Image`, `ghcr.io/elverle/mealy:sha-<commit>`); il Raspberry la scarica con `bash scripts/deploy.sh`.
+- All'avvio in produzione l'app applica le migrazioni e carica gli alias degli ingredienti (`DB_BOOTSTRAP_ON_START=true`, `lib/db/bootstrap.ts`): sul Raspberry non si lancia nessun comando `pnpm`. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione.
+- Prova locale dello stack di produzione: `docker build -t mealy-app:smoke . && bash scripts/smoke-prod.sh mealy-app:smoke`.
 
 ## Documentazione
 
