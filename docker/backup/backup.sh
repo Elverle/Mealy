@@ -16,8 +16,8 @@ case "$LABEL" in
     ;;
 esac
 case "$KEEP" in
-  *[!0-9]* | "" | 0)
-    echo "[backup] BACKUP_KEEP non valido: '$KEEP' (serve un intero maggiore di 0)" >&2
+  *[!0-9]* | "" | 0*)
+    echo "[backup] BACKUP_KEEP non valido: '$KEEP' (serve un intero maggiore di 0, senza zeri iniziali)" >&2
     exit 2
     ;;
 esac

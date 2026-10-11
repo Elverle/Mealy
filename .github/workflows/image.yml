@@ -3,7 +3,8 @@ name: Image
 on:
   push:
     # 'feature/7-*' è provvisorio: fa girare il workflow sul branch della Feature 7 prima del merge.
-    # Va tolto nel commit di chiusura della feature (v. plan.md, "Mappa delle dipendenze").
+    # Va tolto nel commit di chiusura della feature
+    # (v. docs/planning/feature/feature-7/plan.md, "Mappa delle dipendenze").
     branches: [main, 'feature/7-*']
   workflow_dispatch:
 
@@ -35,6 +36,10 @@ jobs:
       - run: bash scripts/smoke-prod.sh "$IMAGE"
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        # Token e utente passano dall'ambiente, non dal testo del comando.
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
       - run: docker push "$IMAGE"

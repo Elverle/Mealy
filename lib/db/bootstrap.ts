@@ -46,6 +46,9 @@ export async function runDbBootstrap(options: DbBootstrapOptions = {}): Promise<
   const sql = postgres(connectionString, {
     max: 1,
     connect_timeout: CONNECT_TIMEOUT_SECONDS,
+    // Dopo ogni connessione fallita postgres-js allunga da solo l'attesa prima della successiva,
+    // fino a 20 secondi: qui il ritmo dei tentativi lo decide soltanto `delayMs`.
+    backoff: () => 0,
     onnotice: () => {},
   });
 

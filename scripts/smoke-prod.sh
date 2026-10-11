@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prova lo stack di produzione con un'immagine già costruita: avvio, migrazioni, alias,
-# pagina iniziale, backup e riavvio. Usa un progetto compose a parte (mealy-smoke) e lo
-# smonta alla fine, volumi compresi. Non tocca lo stack mealy-prod.
+# pagina iniziale, backup con rotazione e riavvio. Usa un progetto compose a parte
+# (mealy-smoke) e lo smonta alla fine, volumi compresi. Non tocca lo stack mealy-prod.
 # Uso: docker build -t mealy-app:smoke . && bash scripts/smoke-prod.sh mealy-app:smoke
 #   SMOKE_PORT  porta host dell'app durante la prova (default: 3100)
 set -euo pipefail
@@ -74,11 +74,22 @@ echo "[smoke] backup"
 compose exec -T backup sh /opt/backup/backup.sh daily || fail "backup.sh è uscito con errore"
 set -- .smoke/backups/mealy-daily-*.sql.gz
 { [ "$#" -eq 1 ] && [ -s "$1" ] && gzip -t "$1"; } || fail "dump mancante o non valido in .smoke/backups"
+first_dump="$1"
+
+echo "[smoke] rotazione dei backup"
+sleep 1 # il nome del dump ha la precisione del secondo
+compose exec -T -e BACKUP_KEEP=1 backup sh /opt/backup/backup.sh daily \
+  || fail "il secondo backup è uscito con errore"
+set -- .smoke/backups/mealy-daily-*.sql.gz
+{ [ "$#" -eq 1 ] && [ "$1" != "$first_dump" ] && gzip -t "$1"; } \
+  || fail "la rotazione doveva lasciare solo il dump più recente"
 
 echo "[smoke] riavvio: il bootstrap deve essere idempotente"
 compose restart app > /dev/null
 compose up -d --wait --wait-timeout 180 || fail "l'app non è tornata sana dopo il riavvio"
-compose logs --no-log-prefix app | grep -q "alias inseriti o aggiornati: 0" \
+# Senza `grep -q`: uscirebbe alla prima riga trovata e, con pipefail, `compose logs` che scrive
+# su una pipe già chiusa farebbe fallire il controllo.
+compose logs --no-log-prefix app | grep "alias inseriti o aggiornati: 0" > /dev/null \
   || fail "al secondo avvio il bootstrap ha riscritto degli alias"
 
 echo "SMOKE OK"

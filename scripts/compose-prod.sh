@@ -14,7 +14,11 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 if [ -z "${MEALY_IMAGE:-}" ]; then
-  MEALY_IMAGE="ghcr.io/elverle/mealy:sha-$(git rev-parse HEAD)"
+  if ! sha="$(git rev-parse HEAD)"; then
+    echo "Non riesco a leggere il commit con git: lancia lo script dalla copia clonata del repository, senza sudo, oppure imposta MEALY_IMAGE." >&2
+    exit 1
+  fi
+  MEALY_IMAGE="ghcr.io/elverle/mealy:sha-${sha}"
 fi
 export MEALY_IMAGE
 # Git Bash su Windows: non convertire i percorsi del container (/opt/backup/...) in percorsi Windows.

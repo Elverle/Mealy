@@ -36,11 +36,31 @@ main() {
     fi
   fi
 
-  if [ -n "$(compose ps -q --status running backup)" ]; then
-    echo "[deploy] backup prima dell'aggiornamento"
-    compose exec -T backup sh /opt/backup/backup.sh predeploy
+  # Il dump va fatto prima che parta l'immagine nuova, che applica le migrazioni. Si salta solo
+  # se l'app sta già girando con la stessa immagine: in quel caso lo schema non può cambiare.
+  local running target running_id="" target_id=""
+  running="$(compose ps -q --status running app)"
+  if [ -n "$running" ]; then
+    # Lo stesso nome che scripts/compose-prod.sh passa a docker compose.
+    target="${MEALY_IMAGE:-ghcr.io/elverle/mealy:sha-$(git rev-parse HEAD)}"
+    running_id="$(docker inspect --format '{{.Image}}' "$running")"
+    target_id="$(docker image inspect --format '{{.Id}}' "$target" 2> /dev/null || true)"
+  fi
+
+  if [ -n "$running_id" ] && [ "$running_id" = "$target_id" ]; then
+    echo "[deploy] l'app usa già questa immagine: nessun backup da fare"
   else
-    echo "[deploy] primo avvio: nessun backup da fare"
+    echo "[deploy] backup prima dell'aggiornamento"
+    # Bastano `db` e `backup`: se erano fermi (primo avvio, oppure dopo un `down`) partono qui.
+    if ! compose up -d --wait --wait-timeout 120 db backup; then
+      echo "[deploy] FALLITO: il database o il servizio di backup non partono. L'app non è stata aggiornata." >&2
+      compose logs --no-log-prefix --tail 20 db backup >&2 || true
+      exit 1
+    fi
+    if ! compose exec -T backup sh /opt/backup/backup.sh predeploy; then
+      echo "[deploy] FALLITO: backup non riuscito. L'app non è stata aggiornata: controlla la cartella dei backup (BACKUP_DIR)." >&2
+      exit 1
+    fi
   fi
 
   echo "[deploy] avvio i container (le migrazioni girano all'avvio dell'app)"
@@ -59,12 +79,14 @@ main() {
   fi
 
   # Libera spazio: resta solo l'immagine in uso, nessuna versione precedente dell'app.
+  # A questo punto il deploy è riuscito: se la pulizia fallisce basta un avviso.
   local current repo
   current="$(docker inspect --format '{{.Config.Image}}' "$(compose ps -q app)")"
   repo="${current%:*}"
   docker image ls --format '{{.Repository}}:{{.Tag}}' "$repo" \
-    | { grep -v -F -x "$current" || true; } \
-    | xargs -r docker image rm > /dev/null
+    | { grep -v -F -x -e "$current" -e "${repo}:<none>" || true; } \
+    | xargs -r docker image rm > /dev/null \
+    || echo "[deploy] avviso: non sono riuscito a rimuovere le immagini vecchie (il deploy è riuscito)." >&2
 
   echo "[deploy] fatto: Mealy risponde sulla porta ${port}"
 }
