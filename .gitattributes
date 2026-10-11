@@ -1,0 +1,2 @@
+# Gli script di shell girano in container Linux e sul Raspberry: sempre LF, anche su Windows.
+*.sh text eol=lf
