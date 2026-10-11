@@ -92,4 +92,32 @@ describe.skipIf(!dbUp)('Database Seeding', () => {
       insertRecipeSpy.mockRestore();
     }
   });
+
+  it('seedIngredientAliases corrects an alias whose canonical name changed', async () => {
+    // In una transazione annullata alla fine: la riga sbagliata non è mai visibile agli altri test.
+    const target = FIXTURE_INGREDIENT_ALIASES[0];
+    class Rollback extends Error {}
+    let written: number | undefined;
+    let canonicalAfter: string | undefined;
+
+    await expect(
+      db.transaction(async (tx) => {
+        await seedIngredientAliases(tx);
+        await tx
+          .update(ingredient_aliases)
+          .set({ canonical_name: 'nome canonico sbagliato di prova' })
+          .where(eq(ingredient_aliases.alias, target.alias));
+
+        written = await seedIngredientAliases(tx);
+        const row = await tx.query.ingredient_aliases.findFirst({
+          where: eq(ingredient_aliases.alias, target.alias),
+        });
+        canonicalAfter = row?.canonical_name;
+        throw new Rollback();
+      })
+    ).rejects.toBeInstanceOf(Rollback);
+
+    expect(written).toBe(1);
+    expect(canonicalAfter).toBe(target.canonical_name);
+  });
 });

@@ -14,7 +14,7 @@ async function main(): Promise<void> {
     const { seedDatabase } = await import('./seed-core');
     const report = await seedDatabase();
     console.log(
-      `Seed completato — household: ${report.household}, ricette inserite: ${report.recipesInserted}, già presenti: ${report.recipesSkipped}, alias inseriti: ${report.aliasesInserted}`
+      `Seed completato — household: ${report.household}, ricette inserite: ${report.recipesInserted}, già presenti: ${report.recipesSkipped}, alias inseriti o aggiornati: ${report.aliasesInserted}`
     );
   } catch (err) {
     console.error('Seed fallito:', err);

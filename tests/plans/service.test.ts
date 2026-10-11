@@ -34,6 +34,10 @@ import {
 } from '@/tests/helpers/db';
 import { insertTestRecipes } from '@/tests/helpers/plans';
 
+// Questo file fa più generazioni di piano per test sul database: nella suite completa, con i
+// file in parallelo, i 5 s di default di Vitest non bastano sempre.
+vi.setConfig({ testTimeout: 15_000 });
+
 const WED = () => new Date('2026-09-30T10:00:00Z'); // settimana 28/09, dal 30/09: 5 giorni
 const SAT = () => new Date('2026-10-03T09:00:00Z'); // obiettivo: settimana 05/10, completa
 const MON = () => new Date('2026-09-28T08:00:00Z');
