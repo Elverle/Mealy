@@ -2,10 +2,7 @@ name: Image
 
 on:
   push:
-    # 'feature/7-*' è provvisorio: fa girare il workflow sul branch della Feature 7 prima del merge.
-    # Va tolto nel commit di chiusura della feature
-    # (v. docs/planning/feature/feature-7/plan.md, "Mappa delle dipendenze").
-    branches: [main, 'feature/7-*']
+    branches: [main]
   workflow_dispatch:
 
 concurrency:

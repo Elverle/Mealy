@@ -2,7 +2,7 @@
 title: Schema del Database Relazionale Drizzle (db/schema)
 type: entity
 created: 2026-09-15
-updated: 2026-10-09
+updated: 2026-10-11
 tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans, ingredient-prefs, shopping-list]
 ---
 
@@ -172,6 +172,7 @@ Tabella di mappatura sinonimi ("pelati" -> "pomodori pelati").
   - `canonical_name`: `text` not null
 - Alla Feature 5 la tabella è popolata dal seed ma **non è letta da nessun codice applicativo**: né le preferenze ingrediente né il planner risolvono gli alias. Il suo uso è rinviato al consolidamento della lista della spesa (Feature 6).
 - **Dalla Feature 6** la tabella è letta da `listIngredientAliases` ([[shopping-repo]]), chiamata dal servizio della lista della spesa: gli alias si risolvono nella costruzione della lista e nella deduzione del reparto di un articolo a mano, e solo lì. La tabella è **globale** (non per household) e si popola con `pnpm db:seed` in sviluppo e con `pnpm db:seed:aliases` in produzione ([[fixtures-and-seed]]).
+- **Dalla Feature 7** la frase sulla produzione qui sopra è superata: sul Raspberry non gira nessun comando `pnpm` e la tabella la popola l'app all'avvio, dopo le migrazioni ([[db-bootstrap]]). Il caricamento è un upsert sulla chiave `alias`: inserisce le voci nuove di `fixtures/ingredient-aliases.json`, corregge il `canonical_name` di quelle cambiate e non cancella quelle tolte dal file ([[fixtures-and-seed]]). `pnpm db:seed:aliases` fa la stessa cosa in sviluppo.
 
 ### 10. `ingredient_prefs` (Feature 5)
 Giudizi dell'household sui singoli ingredienti. Popolata in modo *lazy*: una riga esiste solo per gli ingredienti su cui è stato espresso un giudizio.
@@ -201,6 +202,13 @@ File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e 
 
 La Feature 6 (lista della spesa) **non aggiunge migrazioni**: usa `shopping_lists` e `shopping_items` così come sono dalla migrazione `0000`, con la colonna `needs_regeneration` della `0003` (requirements P2 della Feature 6).
 
+La Feature 7 (deploy) **non aggiunge migrazioni** e non tocca `lib/db/schema.ts`. Cambia chi le applica in produzione: non `pnpm db:migrate`, ma l'app all'avvio con il migratore di `drizzle-orm`, sulla stessa tabella `drizzle.__drizzle_migrations` ([[db-bootstrap]]). Tre conseguenze per chi aggiunge una migrazione:
+- la cartella `lib/db/migrations/` viene copiata nell'immagine di produzione ([[production-stack]]) e la migrazione nuova si applica da sola al deploy successivo;
+- **una migrazione già arrivata su `main` non si modifica**: il migratore applica solo le voci del journal con un orario (`when`) successivo all'ultima applicata, e non si accorge di un file cambiato. `tests/db/bootstrap.test.ts` controlla che le voci del journal siano in ordine strettamente crescente e corrispondano una a una ai file `.sql`;
+- una migrazione non torna indietro: prima di avviare un'immagine diversa `scripts/deploy.sh` scrive un dump `predeploy` ([[deploy-scripts]]).
+
+Nel journal il `when` della migrazione `0000` è `1700000000000`, un valore scritto a mano (osservazione della review architetturale della Feature 7): l'ordine attuale è comunque crescente e il test lo conferma.
+
 ## Vedi anche
 
 - [[database-architecture]] — Architettura del database relazionale, pg_trgm e migrazioni
@@ -215,3 +223,5 @@ La Feature 6 (lista della spesa) **non aggiunge migrazioni**: usa `shopping_list
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
 - [[shopping-repo]] — Operazioni su `shopping_lists`, `shopping_items` e lettura di `ingredient_aliases`
 - [[e4-lista-spesa]] — Panoramica della Feature 6
+- [[db-bootstrap]] — Migrazioni e alias applicati all'avvio in produzione (Feature 7)
+- [[e6-deploy]] — Panoramica della Feature 7

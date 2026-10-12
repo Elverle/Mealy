@@ -2,7 +2,7 @@
 title: E4 Lista della Spesa — Consolidamento dal Piano, Lista Persistente e Spunte Senza Rete
 type: topic
 created: 2026-10-09
-updated: 2026-10-09
+updated: 2026-10-11
 tags: [shopping-list, consolidation, aliases, check-queue, offline, api, ui, concurrency, e4, feature-6]
 ---
 
@@ -142,6 +142,7 @@ Non applicati perché facoltativi: **R3-b** (la ricostruzione che toglie soltant
 ## Contratti Consegnati alle Feature Successive
 
 - **Feature 7 (deploy)**: nessuna migrazione nuova. Il deploy esegue `pnpm db:migrate` e poi `pnpm db:seed:aliases` (idempotente); **mai** `pnpm db:seed`, che inserisce anche le 18 ricette di esempio. La coda delle spunte usa `localStorage` del browser: nessuna configurazione lato server.
+  - **Esito nella Feature 7** ([[e6-deploy]]): l'ordine (migrazioni, poi alias) e il divieto di `pnpm db:seed` sono rispettati, ma sul Raspberry non gira nessun comando `pnpm`. I due passi li esegue l'app all'avvio ([[db-bootstrap]]); la prova dello stack di produzione fallisce se nel database ci sono ricette ([[deploy-scripts]]).
 - **Canonicalizzazione dei nomi (futura)**: resta valido il contratto di backfill scritto in [[e2-libreria-preferenze]]. Se un giorno gli alias si risolvono in scrittura, `buildShoppingList` continua a funzionare senza modifiche: la risoluzione diventa un'operazione senza effetto.
 - **v2 (uso condiviso)**: la lista è per piano, quindi già per household; `ingredient_aliases` resta globale.
 - **Documenti di progetto allineati dalla feature**: `ARCHITECTURE §4.2` (`shopping_items.unit` nullable), `§5.3` (rimando alla chiave di §5.5), `§5.5` (consolidamento, creazione e aggiornamento, articoli a mano, spunte senza rete, alias) e `§6` (cinque rotte e codici `409`); `DESIGN §4.3` (lista legata al piano, selettore, `Per: …`, *Aggiorna lista* al posto del pull-to-refresh, spunte senza rete); `CLAUDE.md` (comando `db:seed:aliases`).
@@ -158,6 +159,7 @@ Non applicati perché facoltativi: **R3-b** (la ricostruzione che toglie soltant
 - **Solo le spunte vengono ritentate da sole.** Aggiunta, rimozione, ricostruzione e rilettura hanno lo stesso limite di 10 s (`SHOPPING_REQUEST_TIMEOUT_MS`) e allo scadere danno l'errore di rete; se la risposta si interrompe quando il server ha già eseguito la scrittura, la schermata lo vede alla rilettura successiva. Il tempo della ricostruzione sul Raspberry non è stato misurato.
 - **La coda protegge una pagina già aperta**. Senza service worker la Lista non si carica senza rete, e se il browser scarta la scheda in background il ritorno richiede la connessione (osservazione della review architetturale; la PWA è fuori ambito per U2).
 - **`pnpm db:seed:aliases` inserisce soltanto** (`onConflictDoNothing`): una voce corretta o tolta in `fixtures/ingredient-aliases.json` non raggiunge un database già popolato. Da decidere prima della Feature 7.
+  - **Chiuso dalla Feature 7** per le voci corrette: il caricamento è diventato un upsert (`onConflictDoUpdate`), usato sia da `pnpm db:seed:aliases` sia dall'avvio dell'app in produzione. Resta aperto solo il caso di una voce **tolta** dal file, che non viene cancellata dal database ([[fixtures-and-seed]]).
 - **La ricostruzione fa un `UPDATE` per articolo** anche quando nulla è cambiato: `reconcileShoppingItems` mette in `toUpdate` ogni chiave che resta.
 - **Finestra residua lato server** (R3, parte server, cosmetica per la review): la ricostruzione legge gli articoli e poi riscrive `checked` per ognuno; una spunta salvata tra i due passi viene sovrascritta. R3-b, che la chiudeva, non è stato applicato.
 - **Letture complete** (R6): ogni articolo a mano legge l'intera libreria per dedurre il reparto, e ogni lettura della lista carica il piano con le ricette complete. Il rimedio è annotato in testa a `lib/shopping/service.ts`; sul Raspberry non è stato misurato.
@@ -193,3 +195,4 @@ Le accettazioni del backlog sono coperte così: `buildShoppingList` pura e verde
 - [[fixtures-and-seed]] — Alias e comando `pnpm db:seed:aliases`
 - [[e3-pianificatore]] — Feature 4: piano, conferma e flag `needs_regeneration`
 - [[e2-libreria-preferenze]] — Feature 5: nome canonico esatto e contratto di backfill
+- [[e6-deploy]] — Feature 7: alias caricati all'avvio in produzione, limite dell'inserimento chiuso

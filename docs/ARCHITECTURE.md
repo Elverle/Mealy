@@ -289,6 +289,7 @@ Route Handlers sotto `/api` (o Server Actions equivalenti — scelta implementat
 | POST | `/api/plans/:id/shopping-list/items` | Aggiunge un articolo a mano (`{ name }`); idempotente sul nome |
 | PATCH | `/api/shopping-items/:id` | Spunta o toglie la spunta (`{ checked }`) |
 | DELETE | `/api/shopping-items/:id` | Rimuove un articolo aggiunto a mano |
+| GET | `/api/health` | Stato dell'app: 200 `{"status":"ok"}` se il database risponde entro 2 s, altrimenti 503 `db_unavailable`. La usano l'healthcheck del container, `scripts/deploy.sh` e lo smoke |
 
 Tutte le request/response validate con gli stessi schemi Zod del dominio. Gli errori hanno sempre la forma `{ error: { code, message, details? } }`. I piani **chiusi** (archiviati o di una settimana conclusa) si possono solo consultare: blocco, conferma e swap rispondono `409 plan_archived`. Nei piani aperti i pasti dei giorni già passati non si cambiano (`409 slot_past`), come nella rigenerazione; il blocco resta consentito. Le liste dei piani chiusi sono in sola lettura (`409 plan_archived` su spunta, aggiunta, rimozione e aggiornamento); la lista di una bozza non si può creare (`409 plan_not_confirmed`).
 
