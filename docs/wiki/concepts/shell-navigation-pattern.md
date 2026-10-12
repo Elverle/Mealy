@@ -70,6 +70,7 @@ Un problema frequente nelle layout web mobili con barre fisse è il mascherament
 1. Nel layout del gruppo (`app/(app)/layout.tsx`; fino alla Feature 2 era il root layout `app/layout.tsx`), il contenitore `<div className="flex-1 pb-24">` che avvolge le pagine applica `pb-24` (circa 96px), distanziando abbondantemente l'ultimo elemento della lista dalla barra inferiore.
 2. In `components/navigation/bottom-nav.tsx`, la barra ha un'altezza base di 64px (`h-16`) combinata con `pb-[env(safe-area-inset-bottom)]` per rispettare la barra di navigazione gestuale degli smartphone moderni.
 3. Lo sfondo della barra sfrutta `bg-paper/95 backdrop-blur-md`, lasciando intravedere con eleganza il passaggio del contenuto retrostante senza compromettere la leggibilità delle icone.
+4. I `<main>` delle pagine del gruppo non impostano un'altezza minima: il `body` riempie già lo schermo (`min-h-dvh`), e un'altezza minima sul `<main>` sommata al `pb-24` renderebbe ogni pagina scorrevole anche con poco contenuto. Fa eccezione il wizard di `/benvenuto`, fuori dal gruppo, che usa `min-h-dvh` per ancorare la barra delle azioni in fondo allo schermo visibile (mai `min-h-screen`: su telefono 100vh comprende l'area sotto la barra del browser).
 
 ## Vedi anche
 

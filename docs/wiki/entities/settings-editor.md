@@ -44,7 +44,7 @@ export function SettingsEditor({ initialSettings, initialIngredientPrefs }: Sett
 
 ## Render
 
-- `<main className="min-h-dvh px-4 py-6 max-w-xl mx-auto space-y-6">`.
+- `<main className="px-4 py-6 max-w-xl mx-auto space-y-6">`.
 - Header: h1 "Impostazioni" + sottotitolo "Vincoli del tuo nucleo per piano e ricette"; a destra `Button size="sm"` con icona `Save` e testo "Salva" / "Salvataggio…".
 - Banner (se visibile): icona `Info` basil, testo "Il prossimo piano userà i nuovi vincoli.", pulsante `ghost`/`icon` con `aria-label="Chiudi avviso"`.
 - Le 5 card `SettingsField` nell'ordine di `SETTINGS_FIELD_ORDER` ([[settings-fields]]).
