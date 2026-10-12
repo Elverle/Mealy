@@ -82,7 +82,7 @@ export function SettingsEditor({
   };
 
   return (
-    <main className="min-h-screen px-4 py-6 max-w-xl mx-auto space-y-6">
+    <main className="min-h-dvh px-4 py-6 max-w-xl mx-auto space-y-6">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Impostazioni</h1>

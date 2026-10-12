@@ -104,7 +104,7 @@ export function LibraryScreen({ initialRecipes, persons }: LibraryScreenProps): 
   const emptyAction = { actionLabel: "Azzera filtri", onAction: resetFilters };
 
   return (
-    <main className="min-h-screen px-4 py-6 max-w-xl mx-auto">
+    <main className="min-h-dvh px-4 py-6 max-w-xl mx-auto">
       <header className="mb-5">
         <h1 className="font-display text-2xl font-bold text-ink">Libreria Ricette</h1>
         <p className="text-stone text-xs mt-0.5">Tutte le tue ricette, da ritrovare e giudicare</p>

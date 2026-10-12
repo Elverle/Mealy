@@ -526,7 +526,7 @@ export function ShoppingScreen({ initialScreen }: ShoppingScreenProps): React.JS
   const subtitle = weekRange ? `Settimana ${weekRange}` : "Consolidata dal piano settimanale";
 
   return (
-    <main className={cn("mx-auto min-h-screen max-w-xl px-4 py-6", showFab && "pb-24")}>
+    <main className={cn("mx-auto min-h-dvh max-w-xl px-4 py-6", showFab && "pb-24")}>
       <header className="mb-5 flex items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Lista della Spesa</h1>

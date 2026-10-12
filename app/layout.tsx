@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="it">
       <body
-        className={`${figtree.variable} ${fraunces.variable} min-h-screen bg-paper text-ink antialiased flex flex-col`}
+        className={`${figtree.variable} ${fraunces.variable} min-h-dvh bg-paper text-ink antialiased flex flex-col`}
       >
         {children}
       </body>

@@ -625,7 +625,7 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
   const showFooter = plan !== null && !isGenerating && view.editable;
 
   return (
-    <main className="mx-auto min-h-screen max-w-xl px-4 py-6">
+    <main className="mx-auto min-h-dvh max-w-xl px-4 py-6">
       <header className="mb-6">
         <h1 className="font-display text-3xl font-bold text-ink">Mealy</h1>
         <p className="text-sm text-stone">Cosa mangio oggi?</p>

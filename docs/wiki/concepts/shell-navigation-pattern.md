@@ -51,7 +51,7 @@ La barra di navigazione inferiore indirizza l'utente verso le quattro sezioni fo
 ## Dove Vive la Shell: il Route Group `(app)` (Feature 3)
 
 Dalla Feature 3 la shell non è più montata dal root layout:
-- **`app/layout.tsx`** (root) contiene solo font, metadata e `<body className="… min-h-screen … flex flex-col">{children}</body>`: nessuna `BottomNav`, nessun wrapper.
+- **`app/layout.tsx`** (root) contiene solo font, metadata e `<body className="… min-h-dvh … flex flex-col">{children}</body>`: nessuna `BottomNav`, nessun wrapper.
 - **`app/(app)/layout.tsx`** (layout del route group) rende `<div className="flex-1 pb-24">{children}</div>` seguito da `<BottomNav />`, **dopo** la guardia di onboarding che reindirizza a `/benvenuto` gli household non ancora onboardati ([[onboarding-guard]]).
 - Le 4 pagine sono state spostate in `app/(app)/page.tsx`, `app/(app)/lista/page.tsx`, `app/(app)/libreria/page.tsx`, `app/(app)/impostazioni/page.tsx`. Gli **URL non cambiano**: il segmento tra parentesi non compare nel percorso.
 - Le pagine fuori dal gruppo (oggi solo `/benvenuto`, il wizard di primo avvio) sono a schermo intero, **senza barra di navigazione**.
