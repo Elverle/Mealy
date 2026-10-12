@@ -351,7 +351,14 @@ export const FixtureFileSchema = z.object({
   recipes: z.array(FixtureRecipeSchema).min(15).max(20),
 });
 export const IngredientAliasesFileSchema = z.object({
-  aliases: z.array(IngredientAliasSchema).min(15),
+  aliases: z
+    .array(IngredientAliasSchema)
+    .min(15)
+    // Il seed carica gli alias con un solo INSERT … ON CONFLICT DO UPDATE: Postgres lo rifiuta
+    // se la stessa chiave compare due volte, e in produzione l'app non partirebbe.
+    .refine((aliases) => new Set(aliases.map((a) => a.alias)).size === aliases.length, {
+      message: 'Lo stesso alias compare più di una volta.',
+    }),
 });
 
 // ============================================================================

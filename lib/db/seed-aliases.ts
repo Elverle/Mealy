@@ -13,7 +13,7 @@ async function main(): Promise<void> {
     clientToEnd = client;
     const { seedIngredientAliases } = await import('./seed-core');
     const inserted = await seedIngredientAliases();
-    console.log(`Alias completati — inseriti: ${inserted}`);
+    console.log(`Alias completati — inseriti o aggiornati: ${inserted}`);
   } catch (err) {
     console.error('Seed degli alias fallito:', err);
     process.exitCode = 1;

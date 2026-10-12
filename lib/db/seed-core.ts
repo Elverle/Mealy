@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { db, type DbExecutor, ingredient_aliases } from '@/lib/db';
 import { getHouseholdById, ensureDefaultHousehold } from '@/lib/db/repositories/household-repo';
 import { insertRecipe, getRecipeById, getRecipeBySlug } from '@/lib/db/repositories/recipe-repo';
@@ -8,17 +9,26 @@ export interface SeedReport {
   household: 'created' | 'existing';
   recipesInserted: number;
   recipesSkipped: number;
+  /** Alias inseriti o corretti (v. `seedIngredientAliases`). */
   aliasesInserted: number;
 }
 
-/** Inserisce gli alias delle fixture che mancano (idempotente); restituisce quanti ne ha inseriti. */
+/**
+ * Allinea `ingredient_aliases` alle fixture: inserisce gli alias che mancano e corregge quelli
+ * il cui nome canonico è cambiato. Non cancella gli alias tolti dal file. Idempotente; restituisce
+ * quante righe ha inserito o corretto (0 se la tabella era già allineata).
+ */
 export async function seedIngredientAliases(executor: DbExecutor = db): Promise<number> {
-  const insertedAliases = await executor
+  const written = await executor
     .insert(ingredient_aliases)
     .values(FIXTURE_INGREDIENT_ALIASES)
-    .onConflictDoNothing()
+    .onConflictDoUpdate({
+      target: ingredient_aliases.alias,
+      set: { canonical_name: sql`excluded.canonical_name` },
+      setWhere: sql`${ingredient_aliases.canonical_name} is distinct from excluded.canonical_name`,
+    })
     .returning({ alias: ingredient_aliases.alias });
-  return insertedAliases.length;
+  return written.length;
 }
 
 export async function seedDatabase(): Promise<SeedReport> {

@@ -4,7 +4,7 @@ App web personale di meal planning: genera il piano settimanale con una selezion
 
 ## Stato
 
-Versione **0.5.1**. Feature completate:
+Versione **0.6.0**. Feature completate:
 
 - **E0 Fondamenta** — scaffold Next.js, schema DB, shell UI a 4 tab
 - **E1 Motore ricette** — adapter LLM multi-provider, generazione e persistenza delle ricette, fixtures e seed
@@ -12,6 +12,7 @@ Versione **0.5.1**. Feature completate:
 - **E3 Pianificatore** — piano settimanale dalla libreria con selezione pesata, swap, blocco, conferma, *Ripeti* e navigatore di settimane (`/`, `/api/plans`)
 - **E2 Libreria e preferenze** — libreria con ricerca e filtri, voto, ★ e *Non proporre più* sulle ricette, 👍/👎 sugli ingredienti e sezione *I miei ingredienti* (`/libreria`, `/api/recipes`, `/api/ingredient-prefs`)
 - **E4 Lista della spesa** — lista consolidata dal piano confermato e ordinata per reparto, spunte che reggono la rete assente, articoli aggiunti a mano e *Aggiorna lista* quando il piano cambia (`/lista`, `/api/plans/:id/shopping-list`, `/api/shopping-items`)
+- **E6 Deploy** — produzione su Raspberry Pi con Docker Compose, raggiungibile via LAN e Tailscale: immagine arm64 costruita da GitHub Actions, migrazioni e alias applicati all'avvio dell'app, backup notturno e aggiornamento con un solo comando (`docs/DEPLOY.md`, `scripts/deploy.sh`, `GET /api/health`)
 
 Avanzamento completo in [`docs/planning/feature-index.md`](docs/planning/feature-index.md).
 
@@ -21,7 +22,7 @@ Next.js (App Router, TypeScript) · Tailwind CSS + shadcn/ui · PostgreSQL 16 ·
 
 ## Requisiti
 
-- Node.js (il progetto non fissa una versione: né `engines` in `package.json` né `.nvmrc`)
+- Node.js 22 o superiore (lo richiede l'AI SDK; il gate e l'immagine di produzione usano la 24). Il progetto non fissa la versione: né `engines` in `package.json` né `.nvmrc`
 - pnpm
 - Docker (con Docker Compose) per il PostgreSQL di sviluppo
 
@@ -74,7 +75,7 @@ Note:
 | `pnpm build` | Build di produzione |
 | `pnpm db:migrate` | Applica le migrazioni drizzle-kit |
 | `pnpm db:seed` | Seed idempotente (household di default, ricette fixture, alias ingredienti); solo per lo sviluppo |
-| `pnpm db:seed:aliases` | Inserisce solo gli alias degli ingredienti usati dalla lista della spesa (idempotente); è il comando per la produzione |
+| `pnpm db:seed:aliases` | Inserisce o corregge gli alias degli ingredienti usati dalla lista della spesa (idempotente). In produzione lo stesso caricamento avviene da solo all'avvio dell'app |
 | `pnpm db:generate` | Genera una nuova migrazione dallo schema (`lib/db/schema.ts`) |
 | `pnpm llm:record` | Registra una risposta LLM reale in `tests/fixtures/llm/recorded/` (richiede una chiave API) |
 
@@ -82,7 +83,11 @@ Gate di verifica: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`, t
 
 ## Deploy
 
-La v1 gira su Raspberry Pi con Docker Compose, raggiungibile solo via LAN/Tailscale e senza autenticazione (`docs/ARCHITECTURE.md §8`); i dettagli sono nella Feature 7 ([`docs/planning/feature/feature-7/spec.md`](docs/planning/feature/feature-7/spec.md)). In produzione, dopo `pnpm db:migrate`, gli alias degli ingredienti si caricano con `pnpm db:seed:aliases`; mai con `pnpm db:seed`, che inserisce anche le ricette di esempio.
+La v1 gira su Raspberry Pi con Docker Compose (app Next.js standalone, PostgreSQL 16, backup notturno), raggiungibile solo via LAN/Tailscale e senza autenticazione (`docs/ARCHITECTURE.md §8`). La guida operativa è [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+- L'immagine dell'app la costruisce GitHub Actions a ogni push su `main` (workflow `Image`, `ghcr.io/elverle/mealy:sha-<commit>`); il Raspberry la scarica con `bash scripts/deploy.sh`.
+- All'avvio in produzione l'app applica le migrazioni e carica gli alias degli ingredienti (`DB_BOOTSTRAP_ON_START=true`, `lib/db/bootstrap.ts`): sul Raspberry non si lancia nessun comando `pnpm`. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione.
+- Prova locale dello stack di produzione: `docker build -t mealy-app:smoke . && bash scripts/smoke-prod.sh mealy-app:smoke`.
 
 ## Documentazione
 

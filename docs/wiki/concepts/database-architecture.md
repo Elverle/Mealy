@@ -2,8 +2,8 @@
 title: Architettura del Database Relazionale e Migrazioni
 type: concept
 created: 2026-09-15
-updated: 2026-10-05
-tags: [database, postgresql, drizzle, migrations, pg_trgm, architecture]
+updated: 2026-10-11
+tags: [database, postgresql, drizzle, migrations, pg_trgm, architecture, production, bootstrap]
 ---
 
 ## Scelte Architetturali
@@ -18,6 +18,19 @@ Il modello di persistenza di Mealy si basa su **PostgreSQL 16** e **Drizzle ORM*
 - **Sviluppo locale**: container Docker basato su immagine `postgres:16-alpine` orchestrato via `docker-compose.dev.yml`. Lo script `docker/init-db.sql` assicura l'abilitazione automatica delle estensioni necessarie.
 - **Produzione**: istanza PostgreSQL serverless (es. Neon) accessibile tramite connection string `DATABASE_URL`.
 - **Driver client**: `postgres.js`, integrato in `lib/db/index.ts` con istanza singleton `db = drizzle(client, { schema })`.
+
+> **Nota (Feature 7)**: la riga "Produzione" qui sopra è la descrizione originale della Feature 1 e diverge da ciò che è stato realizzato. La v1 è in produzione su un **Raspberry Pi con Docker Compose** (`ARCHITECTURE §8`, Opzione C): il database è un container `postgres:16-alpine`, la stessa immagine dello sviluppo, con i dati in un volume Docker e senza porte pubblicate ([[production-stack]]). L'istanza serverless (Neon, Opzione A) resta l'alternativa cloud futura, non lo stato attuale. `DATABASE_URL` in produzione la compone il compose a partire da `POSTGRES_PASSWORD`.
+
+Differenze tra i due ambienti, dalla Feature 7 ([[e6-deploy]]):
+
+| | Sviluppo e test | Produzione (Raspberry) |
+|---|---|---|
+| Avvio di Postgres | `docker-compose.dev.yml`, porta 5432 pubblicata | `docker-compose.prod.yml`, servizio `db`, nessuna porta pubblicata |
+| Estensione `pg_trgm` | `docker/init-db.sql` all'inizializzazione del volume, e comunque la migrazione `0000` | Solo la migrazione `0000` (`CREATE EXTENSION IF NOT EXISTS pg_trgm`) |
+| Migrazioni | `pnpm db:migrate` (drizzle-kit), a mano | All'avvio dell'app, con il migratore di `drizzle-orm` ([[db-bootstrap]]) |
+| Alias degli ingredienti | `pnpm db:seed` oppure `pnpm db:seed:aliases` | All'avvio dell'app, dopo le migrazioni |
+| Ricette di esempio e household | `pnpm db:seed` | Mai: la libreria parte vuota, l'household nasce alla prima lettura |
+| Backup | Nessuno | Dump notturno e prima di ogni cambio di immagine ([[backup-service]]) |
 
 ## Estensioni e Strategie di Indicizzazione
 
@@ -70,9 +83,19 @@ Il ciclo di vita dello schema è governato da `drizzle-kit`:
 3. Il comando `pnpm db:migrate` applica le modifiche sequenziali al database.
 4. Nessun mock di database viene impiegato nei test di integrazione (`tests/db/schema.test.ts`): i test convalidano le migrazioni e le query direttamente sull'istanza PostgreSQL reale.
 
+### Migrazioni in produzione (Feature 7)
+
+I passi sopra valgono per lo sviluppo e per il gate CI. In produzione il passo 3 non esiste come comando: `pnpm db:migrate` non gira mai sul Raspberry, perché l'immagine non contiene `drizzle-kit`. Le migrazioni le applica l'app **all'avvio**, prima di accettare richieste: `instrumentation.ts` chiama `runDbBootstrap`, che usa `migrate` di `drizzle-orm/postgres-js/migrator` sulla cartella `lib/db/migrations` copiata nell'immagine ([[db-bootstrap]]).
+
+- I due strumenti condividono la tabella `drizzle.__drizzle_migrations`: un database migrato con l'uno è riconosciuto dall'altro.
+- Il migratore applica le migrazioni il cui orario nel journal è successivo all'ultima applicata, tutte in una transazione. Non confronta l'elenco: per questo **una migrazione arrivata su `main` non si modifica, se ne aggiunge una nuova**, e un test controlla che il journal resti in ordine (`tests/db/bootstrap.test.ts`).
+- Le migrazioni non tornano indietro. Il punto di ritorno è il dump `predeploy` che `scripts/deploy.sh` scrive prima di avviare un'immagine diversa ([[deploy-scripts]], [[backup-service]]).
+
 ## Vedi anche
 
 - [[database-schema]] — Descrizione dettagliata delle 10 tabelle e relazioni
+- [[db-bootstrap]] — Migrazioni e alias applicati all'avvio in produzione (Feature 7)
+- [[production-stack]] — Servizio `db` del compose di produzione (Feature 7)
 - [[recipe-repo]] — Implementazione dei metodi con transazioni DB
 - [[household-repo]] — Repository singleton del nucleo domestico
 - [[ingredient-pref-repo]] — Repository dei giudizi sugli ingredienti (Feature 5)

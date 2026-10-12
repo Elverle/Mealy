@@ -2,7 +2,7 @@
 title: Helper HTTP di Trasporto — Risposte d'Errore e Client JSON (http-helpers)
 type: entity
 created: 2026-09-29
-updated: 2026-10-09
+updated: 2026-10-11
 tags: [http, api-route, errors, client-fetch, transport, zod, feature-4]
 ---
 
@@ -28,6 +28,7 @@ Uso:
 - `POST /api/recipes/generate` ([[recipe-generation]]) e `GET/PUT /api/settings` ([[settings-service]]), rifattorizzate senza cambiare comportamento: continuano a leggere il body con `request.json()` e a loggare con i propri tag;
 - dalla Feature 5 le cinque rotte di libreria e preferenze (`GET /api/recipes`, `GET /api/recipes/:id`, `PUT /api/recipes/:id/pref`, `GET /api/ingredient-prefs`, `PUT /api/ingredient-prefs/:canonicalName`, v. [[library-service]] e [[prefs-service]]): `invalidRequestResponse`, `internalErrorResponse`, `readJsonBody(request, { allowEmpty: false })` per le due `PUT`, e `errorResponse(404, 'recipe_not_found', 'Ricetta non trovata.')`. Non hanno una classe d'errore né un gestore comune: il servizio restituisce `null` e la rotta risponde 404.
 - dalla Feature 6 le cinque rotte della lista della spesa (`GET` e `POST /api/plans/:id/shopping-list`, `POST /api/plans/:id/shopping-list/items`, `PATCH` e `DELETE /api/shopping-items/:id`, v. [[shopping-service]]): `readJsonBody(request, { allowEmpty: false })` e `invalidRequestResponse` per i due body, e il gestore comune `handleShoppingRouteError`, che usa `errorResponse` per gli `ShoppingError` e `internalErrorResponse` per il resto. A differenza delle rotte dei piani non passa da `llmErrorResponse`: la lista non chiama mai l'LLM.
+- dalla Feature 7 la rotta `GET /api/health` ([[health-check]]): usa solo `errorResponse(503, 'db_unavailable', 'Database non raggiungibile.')` quando il database non risponde. La risposta positiva, `{"status":"ok"}`, non passa dagli helper. Non ha body da leggere né un client: la chiamano l'healthcheck del container e gli script di deploy.
 
 ## Client JSON (`client.ts`)
 
@@ -79,3 +80,4 @@ Restituisce il messaggio mostrabile all'utente: `err.message` se `err` è un `Ap
 - [[e3-pianificatore]] — Panoramica della Feature 4
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
 - [[e4-lista-spesa]] — Panoramica della Feature 6
+- [[health-check]] — Rotta di salute, che usa `errorResponse` (Feature 7)

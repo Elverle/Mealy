@@ -2,7 +2,7 @@
 title: E1 Motore Ricette — Generazione, Adapter LLM e Libreria Persistente
 type: topic
 created: 2026-09-17
-updated: 2026-10-09
+updated: 2026-10-11
 tags: [recipes, llm, generation, fixtures, seed, architecture, e1, feature-2]
 ---
 
@@ -99,6 +99,7 @@ Dalla Feature 5 ([[e2-libreria-preferenze]]) due passi di questa pipeline usano 
 - Fornisce il loader `fixtureRecipesAsDomain` per testare planner e lista spesa in memoria senza DB né LLM.
 - Fornisce il comando `pnpm db:seed` per popolare il database PostgreSQL locale in modo completamente idempotente (skip ricette esistenti per id/slug, `ON CONFLICT DO NOTHING` per alias).
 - **Dalla Feature 6** ([[e4-lista-spesa]]) gli alias sono 35 e vengono letti dal consolidamento della lista della spesa; l'inserimento degli alias è anche un comando a sé, `pnpm db:seed:aliases`, l'unico da usare in produzione (`pnpm db:seed` inserirebbe anche le ricette di esempio).
+- **Dalla Feature 7** ([[e6-deploy]]) il caricamento degli alias è un upsert (`ON CONFLICT DO UPDATE`, non più `DO NOTHING`): corregge anche le voci il cui nome canonico è cambiato. In produzione non si lancia nessun comando: gli alias li carica l'app all'avvio, dopo le migrazioni ([[db-bootstrap]]). Le 18 ricette di esempio non entrano mai in produzione.
 
 ### 5. Dominio Tipato e Normalizzazione Pura (`lib/domain/`)
 - [[domain-types]]: esteso con i contratti Zod per la generazione (`GeneratedRecipeSchema`, `RecipeConstraintsSchema`, `ConstraintOverridesSchema`, `GenerateRecipesRequestSchema`, `GenerationSkipSchema`, `FixtureRecipeSchema`).
@@ -120,3 +121,4 @@ In piena osservanza delle regole architetturali di progetto (`CLAUDE.md § Regol
 - [[domain-types]] — Schemi Zod di generazione e funzioni di testo pure
 - [[e0-fondamenta]] — Architettura fondamentale di Mealy (Feature 1)
 - [[e2-libreria-preferenze]] — Feature 5: scarti e gradimenti nei vincoli di generazione
+- [[e6-deploy]] — Feature 7: alias in upsert, caricati all'avvio in produzione

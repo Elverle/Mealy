@@ -1,0 +1,42 @@
+name: Image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: build arm64 image, push to GHCR
+    # Runner arm64 nativo: l'immagine serve al Raspberry Pi (linux/arm64), senza emulazione.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+
+    env:
+      # Il tag è il commit: scripts/compose-prod.sh sul Raspberry chiede esattamente questo nome.
+      IMAGE: ghcr.io/elverle/mealy:sha-${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: docker build -t "$IMAGE" .
+
+      # L'immagine arm64 viene provata prima di essere pubblicata.
+      - run: bash scripts/smoke-prod.sh "$IMAGE"
+
+      - name: Log in to GHCR
+        # Token e utente passano dall'ambiente, non dal testo del comando.
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+      - run: docker push "$IMAGE"

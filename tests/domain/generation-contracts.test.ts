@@ -341,5 +341,19 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
       }));
       expect(IngredientAliasesFileSchema.safeParse({ aliases: tooFewAliases }).success).toBe(false);
     });
+
+    it('rejects IngredientAliasesFileSchema when the same alias appears twice', () => {
+      const aliases = Array.from({ length: 15 }, (_, i) => ({
+        alias: `alias_${i}`,
+        canonical_name: `name_${i}`,
+      }));
+      // Stesso alias e stesso nome canonico: il seed fallirebbe comunque (v. types.ts).
+      const withDuplicate = [...aliases, { ...aliases[0] }];
+
+      const result = IngredientAliasesFileSchema.safeParse({ aliases: withDuplicate });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0].message).toBe('Lo stesso alias compare più di una volta.');
+    });
   });
 });

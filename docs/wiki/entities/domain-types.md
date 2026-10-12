@@ -2,7 +2,7 @@
 title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-10-09
+updated: 2026-10-11
 tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list]
 ---
 
@@ -162,7 +162,7 @@ I provider LLM con supporto a structured output (come Gemini o OpenAI) richiedon
 ### 4. Contratti Fixtures
 - **`FixtureRecipeSchema`**: estende `GeneratedRecipeSchema` con `id: z.string().uuid()` e `slug: z.string().min(1)`.
 - **`FixtureFileSchema`**: valida `fixtures/recipes.json` (richiede tra 15 e 20 ricette).
-- **`IngredientAliasesFileSchema`**: valida `fixtures/ingredient-aliases.json` (richiede minimo 15 alias).
+- **`IngredientAliasesFileSchema`**: valida `fixtures/ingredient-aliases.json` (richiede minimo 15 alias). **Dalla Feature 7** ha anche un `refine` che rifiuta il file se lo stesso `alias` compare più di una volta, con il messaggio `Lo stesso alias compare più di una volta.`; il confronto è sul solo campo `alias`, quindi vale anche per due voci identiche. Motivo: il seed carica gli alias con un solo `INSERT … ON CONFLICT DO UPDATE`, che Postgres rifiuta se la stessa chiave compare due volte, e in produzione quel caricamento avviene all'avvio dell'app ([[fixtures-and-seed]], [[db-bootstrap]]). È l'unica modifica della Feature 7 a `types.ts`; test in `tests/domain/generation-contracts.test.ts`.
 
 ## Contratti delle Impostazioni Household (Feature 3)
 
@@ -325,3 +325,4 @@ Questi valori sono quelli con cui il wizard di primo avvio si presenta precompil
 - [[shopping-list]] — Funzioni pure della lista della spesa in `lib/domain/shopping-list.ts` e `plan-status.ts`
 - [[shopping-service]] — Uso dei contratti della lista in servizio, API e client
 - [[e4-lista-spesa]] — Panoramica della Feature 6
+- [[e6-deploy]] — Panoramica della Feature 7 (alias unici nel file delle fixture)

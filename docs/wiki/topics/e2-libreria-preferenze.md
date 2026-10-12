@@ -2,7 +2,7 @@
 title: E2 Libreria e Preferenze — Libreria Reale, Giudizi su Ricette e Ingredienti
 type: topic
 created: 2026-10-05
-updated: 2026-10-09
+updated: 2026-10-11
 tags: [library, preferences, recipe-prefs, ingredient-prefs, filters, search, api, ui, e2, feature-5]
 ---
 
@@ -129,6 +129,7 @@ Le preferenze di una ricetta si possono cambiare da due punti contemporaneamente
 - **Feature 6 (lista della spesa)**: i giudizi non impostano `shopping_lists.needs_regeneration`, perché non modificano i piani. Se la Feature 6 introduce una canonicalizzazione dei nomi (alias risolti in scrittura, o vocabolario della libreria nel prompt), il backfill deve riscrivere insieme `recipe_ingredients.canonical_name` e `ingredient_prefs.canonical_name`; se due righe collidono sulla chiave `(household_id, canonical_name)`, vince `dislike` (sezione "Contratti consegnati" del piano, D1-c).
   - **Esito nella Feature 6** ([[e4-lista-spesa]]): la Feature 6 **non** ha introdotto una canonicalizzazione in scrittura, quindi nessun backfill (decisione U1 dei suoi requirements). Gli alias si risolvono solo quando si costruisce la lista della spesa ([[shopping-list]]); ricette, preferenze e planner confrontano ancora il nome canonico esatto, e la regola D1 di questa feature resta com'è. Il contratto di backfill resta valido per una feature futura. I giudizi continuano a non impostare `needs_regeneration`.
 - **Feature 7 (deploy)**: una migrazione in più (`0004`), applicata dallo stesso `pnpm db:migrate`.
+  - **Esito nella Feature 7** ([[e6-deploy]]): in produzione `pnpm db:migrate` non gira. La `0004` la applica l'app all'avvio, insieme alle altre, con il migratore di `drizzle-orm` ([[db-bootstrap]]). In sviluppo e nel gate CI resta `pnpm db:migrate`.
 - **v2 (uso condiviso)**: `ingredient_prefs` è già partizionata per household.
 - **Documenti di progetto allineati dalla feature**: `ARCHITECTURE §4.2` (chiave `(household_id, canonical_name)`) e `§5.4` (bloccare toglie dalle preferite, il giudizio vale dalla selezione successiva, impatto sulle ricette non bloccate, nome canonico esatto), `BACKLOG` S2.3 (chiave della tabella), `DESIGN §4.4` (ricerca per titolo o ingrediente, riga rapida e pannello *Filtri*, ordine delle card, bloccate solo con il filtro dedicato).
 - **Punti aperti delle feature precedenti chiusi qui**: U4 della Feature 4 (★, voto e blocco nascosti) attivato passando gli handler; P17 della Feature 4 (nessun `GET /api/recipes/:id`) con la nuova rotta, mentre il Piano continua a mostrare subito la ricetta che ha già; R1 della Feature 3 (le preferenze ingrediente non toccano `households.updated_at`) **confermato** dall'utente con U2 ([[settings-service]]); R4 della review della Feature 4 (un solo punto di lettura delle preferenze ingrediente) con `lib/prefs/ingredient-prefs.ts`, usato da `lib/plans/service.ts` e `lib/recipes/generate.ts`.
@@ -171,3 +172,4 @@ Adeguati: `tests/db/schema.test.ts` (10 tabelle, colonne di `ingredient_prefs`, 
 - [[e5-impostazioni]] — Feature 3: pagina Impostazioni e punto aperto R1
 - [[e1-motore-ricette]] — Feature 2: generazione delle ricette, ora con gli scarti nei vincoli
 - [[e4-lista-spesa]] — Feature 6: alias risolti solo nella lista della spesa
+- [[e6-deploy]] — Feature 7: migrazioni applicate all'avvio in produzione

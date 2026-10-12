@@ -59,3 +59,17 @@ jobs:
       - run: pnpm test
 
       - run: pnpm build
+
+  image:
+    name: docker image, production stack smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: docker build -t mealy-app:smoke .
+
+      # Avvia lo stack di produzione con l'immagine appena costruita: migrazioni, alias,
+      # pagina iniziale, backup e riavvio (v. scripts/smoke-prod.sh).
+      - run: bash scripts/smoke-prod.sh mealy-app:smoke

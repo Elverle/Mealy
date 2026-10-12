@@ -2,8 +2,8 @@
 title: Fixtures di Test e Seed Idempotente (fixtures-and-seed)
 type: entity
 created: 2026-09-17
-updated: 2026-10-09
-tags: [fixtures, seed, database, testing, offline, household, aliases, ingredients, deploy]
+updated: 2026-10-11
+tags: [fixtures, seed, database, testing, offline, household, aliases, ingredients, upsert, deploy]
 ---
 
 ## File e Responsabilità
@@ -12,9 +12,10 @@ tags: [fixtures, seed, database, testing, offline, household, aliases, ingredien
   - `fixtures/recipes.json`: file JSON con 18 ricette casalinghe italiane predefinite.
   - `fixtures/ingredient-aliases.json`: dizionario di sinonimi e varianti di ingredienti mappati sui loro nomi canonici: **35 voci** dalla Feature 6 (24 fino alla Feature 5).
   - `fixtures/index.ts`: modulo TypeScript che carica, valida ed esporta le costanti delle fixtures e la funzione loader `fixtureRecipesAsDomain`.
-  - `lib/db/seed-core.ts`: logica transazionale idempotente di popolamento database (`seedDatabase`) e, dalla Feature 6, `seedIngredientAliases`.
+  - `lib/db/seed-core.ts`: logica transazionale idempotente di popolamento database (`seedDatabase`) e, dalla Feature 6, `seedIngredientAliases` (dalla Feature 7 un upsert).
   - `lib/db/seed.ts`: script eseguibile da riga di comando via `pnpm db:seed`.
-  - `lib/db/seed-aliases.ts` (Feature 6): script eseguibile via `pnpm db:seed:aliases`, che inserisce **solo** gli alias.
+  - `lib/db/seed-aliases.ts` (Feature 6): script eseguibile via `pnpm db:seed:aliases`, che carica **solo** gli alias, senza household né ricette.
+  - Dalla Feature 7 `seedIngredientAliases` è chiamata anche da `lib/db/bootstrap.ts`, che in produzione carica gli alias all'avvio dell'app ([[db-bootstrap]]).
 - **Scopo**: Garantire l'autonomia dello sviluppo e del testing offline secondo i principi vincolanti del progetto (`CLAUDE.md § Stack`). Fornisce sia un dataset culinario credibile per inizializzare il database di sviluppo, sia strutture dati in memoria pronte all'uso per i test unitari di planner e lista spesa senza richiedere connessioni di rete né chiamate LLM.
 
 ## Corpus di Fixtures Normalizzate
@@ -34,6 +35,8 @@ Contiene 18 ricette rappresentative della cucina casalinga italiana (primi piatt
 
 ### 2. Alias Ingredienti (`fixtures/ingredient-aliases.json`)
 Dizionario di 24 mappature per il consolidamento dei sinonimi nella spesa (es. "cipolle rosse" → "cipolla", "spaghetti" → "pasta", "latte intero" → "latte"). Validato a runtime da `IngredientAliasesFileSchema` (minimo 15 record).
+
+Dalla Feature 7 `IngredientAliasesFileSchema` rifiuta anche un file in cui **lo stesso alias compare due volte** (`Lo stesso alias compare più di una volta.`), anche con lo stesso nome canonico: il seed carica gli alias con un solo `INSERT … ON CONFLICT DO UPDATE`, che Postgres rifiuta se la stessa chiave compare due volte, e in produzione l'app non partirebbe. La validazione avviene all'import di `fixtures/index.ts`, quindi un duplicato fa fallire i test che importano le fixture ([[domain-types]]).
 
 > **Nota (Feature 6)**: la frase sopra è la descrizione originale della Feature 2 e diverge dal file. I tre esempi non sono voci di `fixtures/ingredient-aliases.json`: le voci reali sono, per esempio, `cipolle → cipolla`, `cipolla dorata → cipolla`, `pelati → pomodoro pelato`, `olio evo → olio extravergine di oliva`; `latte intero` e `pasta di semola` sono nomi canonici delle ricette fixture, non alias. Le voci sono 35, non più 24.
 
@@ -88,12 +91,14 @@ Lo script (`lib/db/seed.ts`) carica le variabili d'ambiente (`.env.local` / `.en
    - Per ciascuna delle 18 ricette, verifica preventivamente se esiste già un record con lo stesso UUID (`getRecipeById`) o lo stesso slug (`getRecipeBySlug`).
    - Se presente, la ricetta viene saltata incrementando il contatore `recipesSkipped`.
    - Se assente, viene inserita in modo atomico assieme ai suoi ingredienti tramite `insertRecipe` da [[recipe-repo]], incrementando `recipesInserted`.
-3. **Inserimento Alias Ingredienti**:
-   - Esegue una `INSERT` batch sulla tabella `ingredient_aliases` con clausola:
+3. **Caricamento Alias Ingredienti**:
+   - Esegue una `INSERT` batch sulla tabella `ingredient_aliases`. Fino alla Feature 6 la clausola era `ON CONFLICT DO NOTHING`; **dalla Feature 7 è un upsert**:
      ```sql
-     ON CONFLICT DO NOTHING
+     ON CONFLICT (alias) DO UPDATE
+       SET canonical_name = excluded.canonical_name
+       WHERE ingredient_aliases.canonical_name IS DISTINCT FROM excluded.canonical_name
      ```
-   - Gli alias già presenti non generano errori di chiave duplicata.
+   - Gli alias già presenti e uguali non vengono toccati; quelli con un nome canonico diverso vengono corretti.
    - Dalla Feature 6 questa fase è la funzione esportata `seedIngredientAliases(db)`, che `seedDatabase` chiama (v. "Seed dei Soli Alias").
 4. **Report di Esecuzione**:
    Restituisce l'interfaccia `SeedReport`:
@@ -102,10 +107,11 @@ Lo script (`lib/db/seed.ts`) carica le variabili d'ambiente (`.env.local` / `.en
      household: 'created' | 'existing';
      recipesInserted: number;
      recipesSkipped: number;
-     aliasesInserted: number;
+     aliasesInserted: number; // alias inseriti o corretti
    }
    ```
-   Lo script stampa a console il riassunto dell'operazione e chiude la connessione con `client.end()`.
+   Dalla Feature 7 `aliasesInserted` conta anche le correzioni; il nome del campo è rimasto per non toccare script, test e chiamanti senza cambiare il comportamento (requirements P27 della Feature 7).
+   Lo script stampa a console il riassunto dell'operazione (`Seed completato — household: …, ricette inserite: …, già presenti: …, alias inseriti o aggiornati: …`) e chiude la connessione con `client.end()`.
 
 Grazie a questa strategia a prova di riesecuzione, il comando `pnpm db:seed` può essere lanciato in qualsiasi momento (all'avvio di un container dev, dopo una migrazione o in pipeline CI) senza rischiare corruzione o duplicazione di dati.
 
@@ -121,18 +127,49 @@ export async function seedIngredientAliases(executor: DbExecutor = db): Promise<
 pnpm db:seed:aliases
 ```
 
-- **`seedIngredientAliases`** (`lib/db/seed-core.ts`): lo stesso `insert … onConflictDoNothing` che prima era scritto dentro `seedDatabase`; restituisce quanti alias ha inserito. Accetta un `executor`, quindi può girare dentro una transazione. Non tocca household né ricette.
-- **`lib/db/seed-aliases.ts`**: script sul modello di `lib/db/seed.ts`. Carica `.env.local` e `.env`, importa dinamicamente il client e la funzione, stampa `Alias completati — inseriti: N`, imposta `process.exitCode = 1` in caso d'errore e chiude sempre la connessione.
+- **`seedIngredientAliases`** (`lib/db/seed-core.ts`): alla Feature 6 era lo stesso `insert … onConflictDoNothing` che prima stava dentro `seedDatabase`; dalla Feature 7 è un upsert (v. "Upsert degli Alias"). Restituisce quante righe ha inserito o corretto. Accetta un `executor`, quindi può girare dentro una transazione. Non tocca household né ricette.
+- **`lib/db/seed-aliases.ts`**: script sul modello di `lib/db/seed.ts`. Carica `.env.local` e `.env`, importa dinamicamente il client e la funzione, stampa `Alias completati — inseriti o aggiornati: N`, imposta `process.exitCode = 1` in caso d'errore e chiude sempre la connessione.
 - **Perché esiste** (innesto R4 della review architetturale): fino alla Feature 5 gli alias arrivavano nel DB solo con `pnpm db:seed`. Dalla Feature 6 la lista della spesa li legge: senza alias in produzione la lista funzionerebbe senza fondere nulla (`olio extravergine d'oliva` e `olio extravergine di oliva` su due righe), e nessun test se ne accorgerebbe, perché i test inseriscono alias propri. Eseguire `pnpm db:seed` in produzione metterebbe invece le ricette di esempio nella libreria vera.
 - **Contratto per la Feature 7 (deploy)**: il deploy esegue `pnpm db:migrate` e poi `pnpm db:seed:aliases`; **mai** `pnpm db:seed`. La regola è scritta anche tra i comandi di `CLAUDE.md`.
+  - **Esito nella Feature 7** ([[e6-deploy]]): sul Raspberry non gira nessun comando `pnpm`. Migrazioni e alias li applica l'app all'avvio, con `runDbBootstrap`, che chiama il migratore di drizzle e poi questa stessa `seedIngredientAliases` ([[db-bootstrap]]). La regola di fondo è rispettata: `seedDatabase` non viene mai chiamata in produzione, e la prova dello stack fallisce se trova ricette nel database ([[deploy-scripts]]). `pnpm db:seed:aliases` resta un comando per lo sviluppo; `CLAUDE.md` e `README.md` sono stati allineati.
+
+## Upsert degli Alias (Feature 7)
+
+```ts
+executor
+  .insert(ingredient_aliases)
+  .values(FIXTURE_INGREDIENT_ALIASES)
+  .onConflictDoUpdate({
+    target: ingredient_aliases.alias,
+    set: { canonical_name: sql`excluded.canonical_name` },
+    setWhere: sql`${ingredient_aliases.canonical_name} is distinct from excluded.canonical_name`,
+  })
+  .returning({ alias: ingredient_aliases.alias });
+```
+
+`seedIngredientAliases` allinea la tabella alle fixture (decisione U3 dei requirements della Feature 7):
+
+| Caso | Effetto | Conta nel risultato |
+|---|---|---|
+| Alias assente dal database | Inserito | sì |
+| Alias presente con lo stesso nome canonico | Nessuna scrittura (lo esclude il `setWhere`) | no |
+| Alias presente con un nome canonico diverso | Corretto con quello del file | sì |
+| Alias nel database ma non nel file | **Resta dov'è** | no |
+
+- Il `setWhere` fa sì che `RETURNING` restituisca solo le righe davvero scritte: su una tabella già allineata il risultato è 0. Su questo poggiano l'idempotenza del bootstrap e la riga di log `alias inseriti o aggiornati: 0` che la prova dello stack cerca dopo un riavvio.
+- È un solo `INSERT`: se nel file lo stesso alias comparisse due volte Postgres lo rifiuterebbe. Per questo lo schema del file rifiuta i duplicati (v. "Alias Ingredienti").
+- **Perché serviva**: con `onConflictDoNothing` una voce corretta nel file non raggiungeva un database già popolato. In sviluppo il database si rifà; in produzione il limite sarebbe scattato a ogni deploy.
+- **Perché non cancella**: i test DB inseriscono alias propri, con nomi casuali, nella stessa tabella; una cancellazione di "ciò che non è nel file" li toglierebbe sotto i piedi ai test in esecuzione.
 
 ### Limite noto
-`seedIngredientAliases` **inserisce soltanto**: con `onConflictDoNothing` una voce il cui nome canonico viene corretto nel file, o una voce tolta dal file, non cambia un database già popolato. Il comando è idempotente ma non allinea. Da decidere prima della Feature 7.
+Il limite annotato alla Feature 6 ("`seedIngredientAliases` inserisce soltanto") è **chiuso per le voci corrette**. Resta aperto un solo caso: **un alias tolto da `fixtures/ingredient-aliases.json` non viene cancellato** da un database già popolato, né in sviluppo né in produzione: va tolto a mano.
 
 ## Test
 
 - `tests/fixtures-data/recipes-fixtures.test.ts`: validazione delle fixture e le regole sugli alias descritte sopra.
-- `tests/db/seed.test.ts` (DB reale): seed idempotente, presenza di ogni alias del file e, dalla Feature 6, `seedIngredientAliases` idempotente (la seconda chiamata inserisce 0 voci) e **senza ricette**: il numero di ricette fixture nel DB non cambia e il repository delle ricette non viene mai chiamato (`getRecipeById` e `insertRecipe` sotto `vi.spyOn`).
+- `tests/db/seed.test.ts` (DB reale): seed idempotente, presenza di ogni alias del file e, dalla Feature 6, `seedIngredientAliases` idempotente (la seconda chiamata scrive 0 voci) e **senza ricette**: il numero di ricette fixture nel DB non cambia e il repository delle ricette non viene mai chiamato (`getRecipeById` e `insertRecipe` sotto `vi.spyOn`). Dalla Feature 7 un caso in più: dentro una transazione poi annullata, il nome canonico di un alias viene cambiato a mano e una nuova chiamata lo riporta a quello del file, restituendo 1.
+- `tests/domain/generation-contracts.test.ts`: dalla Feature 7, `IngredientAliasesFileSchema` rifiuta un file con lo stesso alias due volte.
+- `tests/db/bootstrap.test.ts` (Feature 7): su un database usa-e-getta ancora senza alias il bootstrap scrive tutti quelli delle fixture, su uno già allineato ne scrive 0 ([[db-bootstrap]]).
 
 ## Vedi anche
 
@@ -144,3 +181,5 @@ pnpm db:seed:aliases
 - [[shopping-list]] — Risoluzione degli alias nel consolidamento della spesa (Feature 6)
 - [[shopping-repo]] — `listIngredientAliases`, lettura della tabella (Feature 6)
 - [[e4-lista-spesa]] — Panoramica della Feature 6
+- [[db-bootstrap]] — Caricamento degli alias all'avvio in produzione (Feature 7)
+- [[e6-deploy]] — Panoramica della Feature 7
