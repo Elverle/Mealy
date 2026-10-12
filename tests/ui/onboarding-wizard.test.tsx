@@ -57,6 +57,15 @@ describe("OnboardingWizard", () => {
     );
   });
 
+  it("sizes the page on the visible viewport, so the action bar is not pushed below the fold", () => {
+    render(<OnboardingWizard initialSettings={INITIAL_SETTINGS} />);
+
+    // min-h-screen is 100vh: on a phone it includes the area under the browser toolbar.
+    const main = screen.getByRole("main");
+    expect(main).toHaveClass("min-h-dvh");
+    expect(main).not.toHaveClass("min-h-screen");
+  });
+
   it("advances through all 5 steps with Avanti and back with Indietro", () => {
     render(<OnboardingWizard initialSettings={INITIAL_SETTINGS} />);
 

@@ -77,7 +77,7 @@ export function OnboardingWizard({
   }
 
   return (
-    <main className="min-h-screen px-4 py-8 max-w-xl mx-auto flex flex-col gap-6">
+    <main className="min-h-dvh px-4 py-8 max-w-xl mx-auto flex flex-col gap-6">
       {step === 0 && (
         <>
           <p className="font-display text-3xl font-bold text-ink">Benvenuto in Mealy</p>
