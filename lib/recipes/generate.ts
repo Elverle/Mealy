@@ -1,12 +1,9 @@
 import { db } from '@/lib/db';
 import { loadHousehold } from '@/lib/db/repositories/household-repo';
 import {
-  type DbExecutor,
   type RecipeWithDetails,
-  insertRecipeWith,
   listRecipeTitles,
   findSimilarRecipeTitle,
-  slugExists,
   acquireRecipeGenerationLock,
 } from '@/lib/db/repositories/recipe-repo';
 import {
@@ -14,10 +11,11 @@ import {
   type GenerationSkip,
   type MealType,
 } from '@/lib/domain/types';
-import { normalizeTitle, slugify } from '@/lib/domain/recipe-text';
+import { normalizeTitle } from '@/lib/domain/recipe-text';
 import { generateRecipes, type GenerateRecipesOptions } from '@/lib/llm';
 import { loadIngredientPreferences } from '@/lib/prefs/ingredient-prefs';
 import { buildConstraints, findConstraintViolations } from './constraints';
+import { insertGeneratedRecipe } from './store';
 
 export const EXCLUDED_TITLES_IN_PROMPT = 150;
 
@@ -37,22 +35,6 @@ export interface GenerateAndStoreResult {
 export interface GenerateAndStoreDeps {
   model?: GenerateRecipesOptions['model'];
   generate?: typeof generateRecipes;
-}
-
-/**
- * Finds a unique slug by appending incremental numeric suffixes or random characters if collisions occur.
- */
-async function uniqueSlug(executor: DbExecutor, baseSlug: string): Promise<string> {
-  if (!(await slugExists(executor, baseSlug))) {
-    return baseSlug;
-  }
-  for (let i = 2; i <= 99; i++) {
-    const candidate = `${baseSlug}-${i}`;
-    if (!(await slugExists(executor, candidate))) {
-      return candidate;
-    }
-  }
-  return `${baseSlug}-${crypto.randomUUID().slice(0, 6)}`;
 }
 
 /**
@@ -132,35 +114,7 @@ export async function generateAndStoreRecipes(
         continue;
       }
 
-      const slug = await uniqueSlug(tx, slugify(r.title));
-
-      const inserted = await insertRecipeWith(
-        tx,
-        {
-          household_id: household.id,
-          title: r.title,
-          slug,
-          description: r.description,
-          steps: r.steps,
-          meal_types: r.meal_types,
-          tags: r.tags,
-          diet_flags: r.diet_flags,
-          appliances_required: r.appliances_required,
-          servings_base: r.servings_base,
-          prep_minutes: r.prep_minutes,
-          kcal_est: r.kcal_est,
-          macros_est: null,
-          source: 'llm',
-        },
-        r.ingredients.map(({ canonical_name, display_name, qty, unit, category, note }) => ({
-          canonical_name,
-          display_name,
-          qty,
-          unit,
-          category,
-          note,
-        }))
-      );
+      const inserted = await insertGeneratedRecipe(tx, household.id, r);
 
       created.push(inserted);
       known.add(norm);

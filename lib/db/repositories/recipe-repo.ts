@@ -210,6 +210,18 @@ export async function listRecipeTitles(
   return rows.map((r) => r.title);
 }
 
+/** Id e titolo delle ricette dell'household, dalla più recente. */
+export async function listRecipeTitleRefs(
+  executor: DbExecutor,
+  householdId: string
+): Promise<{ id: string; title: string }[]> {
+  return executor
+    .select({ id: recipes.id, title: recipes.title })
+    .from(recipes)
+    .where(eq(recipes.household_id, householdId))
+    .orderBy(desc(recipes.created_at));
+}
+
 /**
  * Finds the most similar recipe title in the household using trigram similarity.
  * Returns null if no title exceeds the threshold.
