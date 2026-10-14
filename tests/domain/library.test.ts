@@ -1,16 +1,19 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import {
+  appendProposedTitle,
   compareLibraryCards,
   filterLibraryCards,
   matchesLibraryFilter,
   parseLibraryQuery,
   recipeIngredientNames,
+  recipeRequestText,
   toLibraryCard,
 } from '@/lib/domain/library';
 import {
   EMPTY_LIBRARY_FILTER,
   LIBRARY_QUERY_MAX,
+  PROPOSAL_EXCLUDE_MAX,
   RecipeSchema,
   type LibraryFilter,
   type LibraryRecipeCard,
@@ -261,5 +264,55 @@ describe('parseLibraryQuery', () => {
       ok: true,
       filter: EMPTY_LIBRARY_FILTER,
     });
+  });
+});
+
+describe('recipeRequestText', () => {
+  it('returns null for an empty query or one shorter than the minimum after trim', () => {
+    expect(recipeRequestText('')).toBeNull();
+    expect(recipeRequestText('  ab  ')).toBeNull();
+  });
+
+  it('returns the query trimmed', () => {
+    expect(recipeRequestText(' abc ')).toBe('abc');
+  });
+
+  it('accepts a query of exactly LIBRARY_QUERY_MAX characters', () => {
+    const text = 'a'.repeat(LIBRARY_QUERY_MAX);
+    expect(recipeRequestText(text)).toBe(text);
+  });
+
+  it('returns null for a query longer than LIBRARY_QUERY_MAX', () => {
+    expect(recipeRequestText('a'.repeat(LIBRARY_QUERY_MAX + 1))).toBeNull();
+  });
+});
+
+describe('appendProposedTitle', () => {
+  it('appends the title at the end', () => {
+    expect(appendProposedTitle(['Lasagne al pesto'], 'Risotto allo zafferano')).toEqual([
+      'Lasagne al pesto',
+      'Risotto allo zafferano',
+    ]);
+  });
+
+  it('removes a duplicate by normalized title and keeps only the new one', () => {
+    expect(appendProposedTitle(['Lasagne al pesto'], 'LASAGNE  al pesto!')).toEqual(['LASAGNE  al pesto!']);
+  });
+
+  it('keeps the last PROPOSAL_EXCLUDE_MAX titles, dropping the oldest', () => {
+    const titles = Array.from({ length: PROPOSAL_EXCLUDE_MAX }, (_, i) => `Ricetta ${i}`);
+    const result = appendProposedTitle(titles, 'Ricetta nuova');
+
+    expect(result).toHaveLength(PROPOSAL_EXCLUDE_MAX);
+    expect(result[0]).toBe('Ricetta 1');
+    expect(result[result.length - 1]).toBe('Ricetta nuova');
+  });
+
+  it('does not mutate the array it receives', () => {
+    const titles = ['Lasagne al pesto'];
+    const result = appendProposedTitle(titles, 'Risotto');
+
+    expect(result).not.toBe(titles);
+    expect(titles).toEqual(['Lasagne al pesto']);
   });
 });

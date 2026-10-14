@@ -4,7 +4,10 @@
 import type { z } from 'zod';
 import { expandDietFlags, normalizeCanonicalName, normalizeTitle } from './recipe-text';
 import {
+  LIBRARY_QUERY_MAX,
   LibraryFilterSchema,
+  PROPOSAL_EXCLUDE_MAX,
+  RECIPE_REQUEST_MIN,
   type LibraryFilter,
   type LibraryRecipeCard,
   type Recipe,
@@ -107,4 +110,25 @@ export function parseLibraryQuery(params: URLSearchParams): LibraryQueryResult {
   return parsed.success
     ? { ok: true, filter: parsed.data }
     : { ok: false, issues: parsed.error.issues };
+}
+
+/**
+ * Testo da mandare al modello per una richiesta libera: il testo cercato senza spazi ai
+ * bordi, oppure `null` se è più corto di RECIPE_REQUEST_MIN o più lungo di LIBRARY_QUERY_MAX.
+ */
+export function recipeRequestText(query: string): string | null {
+  const text = query.trim();
+  return text.length >= RECIPE_REQUEST_MIN && text.length <= LIBRARY_QUERY_MAX ? text : null;
+}
+
+/**
+ * Sequenza di «Un'altra»: aggiunge `title` in coda ai titoli già proposti, toglie un
+ * eventuale doppione (titolo normalizzato) e tiene gli ultimi PROPOSAL_EXCLUDE_MAX.
+ * Restituisce un array nuovo.
+ */
+export function appendProposedTitle(titles: readonly string[], title: string): string[] {
+  const key = normalizeTitle(title);
+  return [...titles.filter((existing) => normalizeTitle(existing) !== key), title].slice(
+    -PROPOSAL_EXCLUDE_MAX
+  );
 }

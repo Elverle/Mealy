@@ -74,6 +74,27 @@ export function exclusionReason(
   return null;
 }
 
+const NO_EXCLUDED_RECIPES: ReadonlySet<string> = new Set<string>();
+
+/**
+ * Motivo per cui una ricetta non si può mettere a mano in un pasto, oppure `null` se si può.
+ * Stesse regole di `exclusionReason`, ma senza gli ingredienti «non mi piace» e senza
+ * esclusioni per id: chi sceglie una ricetta apposta la può mettere nel piano anche se
+ * contiene un ingrediente scartato o se è già in un altro pasto. È l'unica definizione di
+ * "adatta a questo pasto" per la scelta a mano (elenco delle candidate e assegnazione).
+ */
+export function manualChoiceExclusionReason(
+  recipe: Recipe,
+  meal: MealType,
+  household: Pick<Household, 'diet_tags' | 'appliances'>
+): ExclusionReason | null {
+  return exclusionReason(recipe, meal, {
+    household,
+    ingredientPrefs: EMPTY_INGREDIENT_PREFERENCES,
+    excludeRecipeIds: NO_EXCLUDED_RECIPES,
+  });
+}
+
 /** Giorni (in virgola mobile, mai negativi) trascorsi da `lastUsedAt`. */
 function daysSince(lastUsedAt: Date, now: Date): number {
   return Math.max(0, (now.getTime() - lastUsedAt.getTime()) / MS_PER_DAY);
