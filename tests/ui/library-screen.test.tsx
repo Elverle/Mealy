@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryScreen } from "@/components/library/library-screen";
 import { toLibraryCard } from "@/lib/domain/library";
 import type {
+  GeneratedRecipe,
   LibraryRecipeCard,
   Recipe,
   RecipeDetailView,
   RecipePref,
+  RecipeProposal,
 } from "@/lib/domain/types";
 import { ApiRequestError } from "@/lib/http/client";
 
@@ -14,20 +16,50 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
 }));
-vi.mock("@/lib/library/client", () => ({ fetchRecipeDetail: vi.fn() }));
+vi.mock("@/lib/library/client", () => ({
+  fetchRecipeDetail: vi.fn(),
+  requestRecipeProposal: vi.fn(),
+  requestSaveRecipe: vi.fn(),
+}));
 vi.mock("@/lib/prefs/client", () => ({ putRecipePref: vi.fn(), putIngredientPref: vi.fn() }));
 
-import { fetchRecipeDetail } from "@/lib/library/client";
+import { fetchRecipeDetail, requestRecipeProposal, requestSaveRecipe } from "@/lib/library/client";
 import { putRecipePref } from "@/lib/prefs/client";
 
 const fetchMock = vi.mocked(fetchRecipeDetail);
 const putRecipeMock = vi.mocked(putRecipePref);
+const proposeMock = vi.mocked(requestRecipeProposal);
+const saveMock = vi.mocked(requestSaveRecipe);
 
 const HOUSEHOLD = "22222222-2222-4222-8222-222222222222";
 const ID_PESTO = "00000000-0000-4000-8000-000000000001";
 const ID_SALMONE = "00000000-0000-4000-8000-000000000002";
 const ID_RISO = "00000000-0000-4000-8000-000000000003";
 const ID_OLD_FAV = "00000000-0000-4000-8000-000000000004";
+const ID_NUOVA = "00000000-0000-4000-8000-000000000005";
+
+const PROPOSTA: GeneratedRecipe = {
+  title: "Lasagne al pesto",
+  description: "Verdi e cremose",
+  meal_types: ["pranzo", "cena"],
+  tags: [],
+  diet_flags: [],
+  appliances_required: [],
+  servings_base: 2,
+  prep_minutes: 40,
+  kcal_est: null,
+  steps: ["Stendi la pasta", "Inforna"],
+  ingredients: [
+    {
+      canonical_name: "basilico",
+      display_name: "Basilico",
+      qty: 50,
+      unit: "g",
+      category: "ortofrutta",
+      note: null,
+    },
+  ],
+};
 
 function makeRecipe(
   id: string,
@@ -66,6 +98,8 @@ const PESTO = makeRecipe(ID_PESTO, "Pasta al pesto", "basilico", "2026-03-01");
 const SALMONE = makeRecipe(ID_SALMONE, "Salmone al forno", "salmone", "2026-02-01");
 const RISO = makeRecipe(ID_RISO, "Risotto ai funghi", "porcini", "2026-01-01", { blocked: true });
 const OLD_FAV = makeRecipe(ID_OLD_FAV, "Zuppa antica", "orzo", "2020-01-01", { favorite: true, rating: 4 });
+// Ricetta appena salvata: creata «adesso», quindi in cima tra le non preferite.
+const SALVATA = makeRecipe(ID_NUOVA, "Lasagne al pesto", "basilico", new Date().toISOString());
 
 function pref(recipeId: string, overrides: Partial<RecipePref> = {}): RecipePref {
   return { recipe_id: recipeId, rating: null, favorite: false, blocked: false, times_used: 0, last_used_at: null, ...overrides };
@@ -309,5 +343,143 @@ describe("LibraryScreen", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Bloccate" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Preferite" }));
     expect(screen.queryByRole("heading", { level: 3, name: "Pasta al pesto" })).not.toBeInTheDocument();
+  });
+});
+
+/** Scrive nel campo di ricerca della Libreria. */
+function typeQuery(text: string) {
+  fireEvent.change(screen.getByRole("searchbox", { name: "Cerca nella libreria" }), {
+    target: { value: text },
+  });
+}
+
+/** Il pulsante «Chiedi una ricetta per …» per il testo dato (già senza spazi ai bordi). */
+function requestButton(text: string) {
+  return screen.getByRole("button", { name: `Chiedi una ricetta per «${text}»` });
+}
+
+describe("LibraryScreen — chiedere una ricetta", () => {
+  it("shows the request box only from three characters, next to the results", () => {
+    renderScreen([PESTO, SALMONE]);
+
+    typeQuery("pa");
+    expect(screen.queryByText("Non c'è quello che cerchi?")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Chiedi una ricetta/ })).not.toBeInTheDocument();
+
+    typeQuery("pas");
+    expect(screen.getByText("Non c'è quello che cerchi?")).toBeInTheDocument();
+    expect(requestButton("pas")).toBeInTheDocument();
+    expect(shownTitles()).toEqual(["Pasta al pesto"]);
+  });
+
+  it("offers the request also when no recipe matches the search", () => {
+    renderScreen([PESTO, SALMONE]);
+    typeQuery("zzz");
+    expect(screen.getByText("Nessuna ricetta trovata")).toBeInTheDocument();
+    expect(requestButton("zzz")).toBeInTheDocument();
+  });
+
+  it("offers the request also when the blocked filter has no recipes", () => {
+    renderScreen([PESTO, RISO]);
+    fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Bloccate" }));
+    typeQuery("zzz");
+    expect(screen.getByText("Nessuna ricetta bloccata")).toBeInTheDocument();
+    expect(requestButton("zzz")).toBeInTheDocument();
+  });
+
+  it("asks for the trimmed text alone: the meal chips do not go into the request", () => {
+    proposeMock.mockReturnValue(new Promise<RecipeProposal>(() => undefined));
+    renderScreen([PESTO, SALMONE]);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Cena" }));
+    typeQuery("  lasagne  ");
+
+    fireEvent.click(requestButton("lasagne"));
+
+    expect(proposeMock).toHaveBeenCalledTimes(1);
+    expect(proposeMock.mock.calls[0][0]).toEqual({
+      request: "lasagne",
+      mealType: null,
+      excludeTitles: [],
+    });
+  });
+
+  it("saves the proposal only on tap, then clears the search and confirms with a toast", async () => {
+    proposeMock.mockResolvedValue({ recipe: PROPOSTA, duplicate_of: null });
+    saveMock.mockResolvedValue(SALVATA);
+    renderScreen([PESTO, SALMONE]);
+    typeQuery("lasagne");
+    fireEvent.click(requestButton("lasagne"));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Aggiungi alla libreria" }));
+
+    expect(saveMock).toHaveBeenCalledWith(PROPOSTA);
+    expect(await screen.findByText("«Lasagne al pesto» è in libreria")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Cerca nella libreria" })).toHaveValue("");
+    expect(shownTitles()[0]).toBe("Lasagne al pesto");
+  });
+
+  it("does not save the proposal before the tap on Aggiungi alla libreria", async () => {
+    proposeMock.mockResolvedValue({ recipe: PROPOSTA, duplicate_of: null });
+    renderScreen([PESTO, SALMONE]);
+    typeQuery("lasagne");
+    fireEvent.click(requestButton("lasagne"));
+
+    expect(await screen.findByRole("button", { name: "Aggiungi alla libreria" })).toBeInTheDocument();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+  it("closes the proposal with Esc without saving, keeps the list and returns the focus to the request button", async () => {
+    proposeMock.mockResolvedValue({ recipe: PROPOSTA, duplicate_of: null });
+    renderScreen([PESTO, SALMONE]);
+    typeQuery("pasta");
+    fireEvent.click(requestButton("pasta"));
+    await screen.findByRole("button", { name: "Aggiungi alla libreria" });
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(saveMock).not.toHaveBeenCalled();
+    expect(shownTitles()).toEqual(["Pasta al pesto"]);
+    expect(requestButton("pasta")).toHaveFocus();
+  });
+
+  it("keeps the proposal open and shows the error when saving is rejected", async () => {
+    proposeMock.mockResolvedValue({ recipe: PROPOSTA, duplicate_of: null });
+    saveMock.mockRejectedValue(
+      new ApiRequestError(409, "recipe_duplicate", "Questa ricetta è già in libreria.")
+    );
+    renderScreen([PESTO, SALMONE]);
+    typeQuery("pasta");
+    fireEvent.click(requestButton("pasta"));
+    fireEvent.click(await screen.findByRole("button", { name: "Aggiungi alla libreria" }));
+
+    expect(await screen.findByText("Questa ricetta è già in libreria.")).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Lasagne al pesto" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Aggiungi alla libreria" })).toBeEnabled()
+    );
+    expect(shownTitles()).toEqual(["Pasta al pesto"]);
+  });
+
+  it("moves the focus to the library heading after a successful save", async () => {
+    proposeMock.mockResolvedValue({ recipe: PROPOSTA, duplicate_of: null });
+    saveMock.mockResolvedValue(SALVATA);
+    renderScreen([PESTO, SALMONE]);
+    typeQuery("lasagne");
+    fireEvent.click(requestButton("lasagne"));
+    fireEvent.click(await screen.findByRole("button", { name: "Aggiungi alla libreria" }));
+
+    await screen.findByText("«Lasagne al pesto» è in libreria");
+    expect(screen.getByRole("heading", { level: 1, name: "Libreria Ricette" })).toHaveFocus();
+  });
+
+  it("shows neither the search field nor the request on the empty library", () => {
+    renderScreen([]);
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("Non c'è quello che cerchi?")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Chiedi una ricetta/ })).not.toBeInTheDocument();
   });
 });
