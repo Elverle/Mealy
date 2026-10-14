@@ -24,3 +24,6 @@ coverage/
 # Deploy
 backups/
 .smoke/
+
+# Dataset grezzo delle ricette (10 MB, di terzi): resta fuori dal repository
+docs/recipe.csv
