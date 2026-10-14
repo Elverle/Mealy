@@ -2,8 +2,8 @@
 title: Scheda Pasto (meal-card)
 type: entity
 created: 2026-09-15
-updated: 2026-10-05
-tags: [ui, components, meal-card, cards, planner, long-press, accessibility]
+updated: 2026-10-14
+tags: [ui, components, meal-card, cards, planner, long-press, accessibility, manual-choice]
 ---
 
 ## File e Responsabilità
@@ -26,6 +26,7 @@ export interface MealCardProps {
   isLocked?: boolean;             // Stato lucchetto slot
   onToggleFavorite?: (id: string) => void;
   onSwap?: (id: string) => void;
+  onPick?: (id: string) => void;       // Feature 9: apre la scelta dalla libreria; assente → nessun «Scegli»
   onToggleLock?: (id: string) => void;
   onSelect?: (id: string) => void;
   onLongPress?: (id: string) => void;  // Feature 4
@@ -58,6 +59,14 @@ Fino alla Feature 3 *Cambia* e ★ erano sempre visibili (con handler opzionali 
 
 Dalla Feature 5 `PlanSlotCard` passa `isFavorite` e `onToggleFavorite`, quindi la ★ compare su ogni card la cui ricetta esiste e non è bloccata, **anche nelle settimane passate** (il giudizio riguarda la ricetta, non il piano). Il componente `MealCard` non è stato modificato: è cambiato solo chi lo configura ([[plan-screen]]).
 
+### Pulsante *Scegli* (Feature 9)
+Dalla Feature 9 il footer si rende con almeno uno tra `actions`, `onSwap`, `onPick`, `onToggleFavorite`, e senza `actions` le azioni sono tre, nell'ordine *Cambia* · *Scegli* · ★ (decisione U2 della Feature 9, `DESIGN.md §3`): *Cambia* e *Scegli* stanno in un gruppo a sinistra (`flex items-center gap-1`), la ★ resta a destra.
+- **Pulsante "Scegli" (`onPick`)**, solo se `onPick` è definito: icona `Search` (lente, `aria-hidden`) con etichetta `Scegli`, colore neutro `text-ink hover:bg-stone/15` (*Cambia* resta in `tomato`), anello di focus `basil`, tap target ≥ 44 px, `aria-label` `` `Scegli un'altra ricetta per ${title}` ``, attributo `data-slot-action="pick"` (lo usa `PlanSlotCard` per riportarci il focus), disabilitato se `isLocked` come *Cambia*. Il clic chiama `onPick(id)` con `stopPropagation`, quindi non apre il dettaglio.
+- Con `actions` il footer resta sostituito per intero: durante lo swap *Scegli* non compare; nella riga *Tieni / Cambia ancora* l'azione equivalente è il pulsante con la sola icona che `PlanSlotCard` mette tra i due ([[plan-screen]]).
+- `PlanSlotCard` passa `onPick` esattamente quando passa `onSwap` (piano modificabile, giorno non passato), anche su uno slot senza ricetta.
+
+Le tre azioni a 360 px occupano circa 240 px dei 296 disponibili secondo la stima della review architetturale; la prova da telefono non è ancora stata fatta ([[f9-ricette-su-richiesta]]).
+
 ## Long-press (Feature 4)
 
 Attivo solo se `onLongPress` è definito; la pagina Piano lo usa per bloccare/sbloccare lo slot (il lucchetto resta l'alternativa accessibile da tastiera e lettori di schermo).
@@ -76,7 +85,7 @@ Attivo solo se `onLongPress` è definito; la pagina Piano lo usa per bloccare/sb
 ## Test
 
 - Blocchi "MealCard" di `tests/ui/shell.test.tsx` (Feature 1), invariati.
-- `tests/ui/meal-card-plan.test.tsx` (Feature 4, fake timers): `data-testid`, nessuna ★ senza `onToggleFavorite`, nessun *Cambia* senza `onSwap`, nessun footer senza handler né `actions`, `actions` che sostituiscono il footer, long-press con soppressione del click, pressione breve, tolleranza di movimento, tasti non primari, `pointerdown` sul lucchetto, pulizia allo smontaggio.
+- `tests/ui/meal-card-plan.test.tsx` (Feature 4, fake timers): `data-testid`, nessuna ★ senza `onToggleFavorite`, nessun *Cambia* senza `onSwap`, nessun footer senza handler né `actions`, `actions` che sostituiscono il footer, long-press con soppressione del click, pressione breve, tolleranza di movimento, tasti non primari, `pointerdown` sul lucchetto, pulizia allo smontaggio. Dalla Feature 9 il blocco `MealCard (pick action "Scegli")`: `aria-label` e `onPick` con l'id senza `onSelect`, nessun *Scegli* senza `onPick`, disabilitato sul pasto bloccato, footer con il solo `onPick`, ordine *Cambia* · *Scegli* · ★, classe dei 44 px, `actions` che nascondono *Scegli*.
 
 ## Vedi anche
 
@@ -86,3 +95,5 @@ Attivo solo se `onLongPress` è definito; la pagina Piano lo usa per bloccare/sb
 - [[e0-fondamenta]] — Panoramica della Feature 1
 - [[e3-pianificatore]] — Panoramica della Feature 4
 - [[e2-libreria-preferenze]] — Feature 5: ★ attiva sulle card del piano
+- [[slot-recipe-picker]] — Selettore aperto da *Scegli* (Feature 9)
+- [[f9-ricette-su-richiesta]] — Panoramica della Feature 9

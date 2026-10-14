@@ -2,8 +2,8 @@
 title: Pagina Piano — PlanScreen, PlanSlotCard e Avanzamento (plan-screen)
 type: entity
 created: 2026-09-29
-updated: 2026-10-09
-tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, preferences, shopping-list, accessibility, feature-4]
+updated: 2026-10-14
+tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, preferences, shopping-list, manual-choice, accessibility, feature-4, feature-9]
 ---
 
 ## File e Responsabilità
@@ -11,7 +11,7 @@ tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, 
 - **Percorsi file**:
   - `app/(app)/page.tsx`: pagina server `/` (Piano). Sostituisce la home con dati finti della Feature 1.
   - `components/plan/plan-screen.tsx`: componente client `PlanScreen` (intestazione, navigatore di settimane, azioni del piano, card per giorno, footer, sheet, toast).
-  - `components/plan/plan-slot-card.tsx`: componente client `PlanSlotCard`, una `MealCard` con il flusso di swap *Cambia → Tieni / Cambia ancora*.
+  - `components/plan/plan-slot-card.tsx`: componente client `PlanSlotCard`, una `MealCard` con il flusso di swap *Cambia → Tieni / Cambia ancora* e, dalla Feature 9, *Scegli* con il selettore [[slot-recipe-picker]] (`components/plan/slot-recipe-picker.tsx`).
   - `components/plan/generation-progress.tsx`: `GenerationProgress` (skeleton + microcopy a rotazione) e hook `useRotatingMessage`.
 - **Scopo**: la schermata principale del prodotto: genera o rigenera il piano della settimana da pianificare, lo mostra giorno per giorno, permette di cambiare, bloccare e confermare i pasti, di ripetere un piano e di consultare le settimane passate.
 - I componenti importano dal dominio dei piani solo `lib/plans/client.ts`, `lib/plans/format.ts` ed `errors` tramite il client ([[plan-service]]); i chip delle card arrivano da `recipeChips` in `components/sheets/recipe-detail.ts` ([[recipe-sheet]]). Dalla Feature 5 il dettaglio della ricetta è [[recipe-detail-sheet]] (che fa da sé la conversione ricetta → sheet), le preferenze si salvano con `putRecipePref` di `lib/prefs/client.ts` ([[prefs-service]]) e i messaggi d'errore passano da `apiErrorMessage` ([[http-helpers]]). Dalla Feature 6 il footer usa `fetchPlanShoppingList` e `requestBuildShoppingList` di `lib/shopping/client.ts` ([[shopping-service]]).
@@ -46,6 +46,7 @@ Stato: `screen` (`PlanScreenView`), `isGenerating`, `isRecovering`, `generateErr
    - settimana obiettivo senza piano: `EmptyState` `Nessun piano in programma` con azione `Genera piano`; se la settimana corrente ha un piano (`current_plan_id`), sotto il componente un pulsante `Ripeti questa settimana`;
    - settimana corrente senza piano nel weekend: `EmptyState` `Nessun piano per questa settimana` / `Nel weekend si pianifica la settimana che arriva.` con azione `Pianifica la prossima settimana` (solo JS: `EmptyState` non accetta un `href`);
    - settimana passata senza piano: `EmptyState` senza azioni (`Per questa settimana non c'è nessun pasto da mostrare.`).
+   - dalla Feature 9 un commento sul contenitore delle card (quello che durante la navigazione riceve `opacity-60` e `aria-busy`) fissa una regola: **nessun antenato delle card va in `opacity`, `transform` o `filter` a riposo**. Il selettore di *Scegli* e le sue sheet sono `fixed` e stanno dentro le card, senza portale: con `opacity-60` diventano semitrasparenti e la tab bar (`z-40`) può coprirne il footer (innesto R4 della review architetturale della Feature 9, [[sheet-primitive]]).
 7. Footer sticky sopra la tab bar (solo con un piano modificabile e fuori dalla generazione): `Conferma piano` in bozza; su un piano confermato l'azione della lista della spesa (`ShoppingBag`), che dalla Feature 6 dipende dallo stato della lista (v. "Lista della spesa dal footer"). Fino alla Feature 5 era sempre un `Link` `Crea lista della spesa` verso `/lista?piano={plan.id}`, che non creava nulla.
 8. [[recipe-detail-sheet]] dello slot selezionato (`recipeId` e `initialRecipe` dalla ricetta dello slot, `servings` dalle porzioni dello slot): la ricetta si vede subito, con voto, *Preferita* e *Non proporre più*; i 👍/👎 sugli ingredienti compaiono quando arriva il dettaglio dal server. Fino alla Feature 4 qui c'era una `RecipeSheet` **senza** handler di preferenze (requirements U4 della Feature 4, chiuso dalla decisione U1 della Feature 5).
 9. [[toast]], alzato sopra il footer quando il footer è visibile.
@@ -90,13 +91,25 @@ export interface PlanSlotCardProps {
   onToggleLock: (slotId: string) => void;
   onSelectRecipe: (slot: PlanSlotView) => void;
   onToggleFavorite?: (recipeId: string) => void;  // Feature 5: assente → nessuna ★
-  onError: (message: string) => void;
+  onRecipePrefsChange?: (recipeId: string, changed: RecipePrefChanges) => void;  // Feature 9: giudizi dal dettaglio del selettore
+  onPlanStale?: () => void;                        // Feature 9: slot o piano non più modificabili → il genitore rilegge il piano
+  onError: (message: string) => void;              // errori e avvisi da mostrare come toast
 }
 ```
 
 - Props passate a [[meal-card]]: solo il nome del giorno come eyebrow, `MEAL_TYPE_LABELS`, titolo (o `Ricetta non disponibile` se la ricetta è stata eliminata), tempo e chip (`recipeChips`); `onSwap` solo se `editable && swappable`; lucchetto e long-press solo se `editable`. Dalla Feature 5 passa anche `isFavorite` (`slot.recipe.prefs.favorite`) e `onToggleFavorite`, quest'ultimo solo se il genitore ha fornito l'handler, lo slot ha una ricetta e la ricetta **non è bloccata**; l'handler riceve l'**id della ricetta**, non dello slot. La ★ compare anche sulle card non modificabili (settimane passate): il giudizio riguarda la ricetta, non il piano. Fino alla Feature 4 `onToggleFavorite` non veniva mai passato.
 - Modalità `idle → swapping → review`. Lo swap invia come esclusioni le ricette scartate nella sequenza più quella corrente, senza duplicati e al massimo `SWAP_EXCLUDE_MAX` (50). In attesa, al posto del footer un `role="status"` con `Cerco un'alternativa…` seguito dai messaggi di generazione. In revisione la card si rimonta dentro `animate-meal-flip` e mostra `Tieni` (azzera la sequenza) e `Cambia ancora`. Un errore torna alla modalità precedente e passa il messaggio al genitore; se lo slot viene bloccato durante la revisione la sequenza termina.
 - **Focus** (fix m8): all'arrivo della proposta va su `Tieni`, dopo `Tieni` o un errore di nuovo su `Cambia` (su `Cambia ancora` se l'errore arriva in revisione), solo se l'utente non l'ha spostato altrove nel frattempo.
+
+### *Scegli* e il selettore (Feature 9)
+- **Dove compare**: `MealCard` riceve `onPick` esattamente quando riceve `onSwap` (`canSwap = editable && swappable`): piano modificabile e giorno non passato, anche su uno slot senza ricetta. È disabilitato sullo slot bloccato e assente durante uno swap in corso (il footer è sostituito dal messaggio di attesa). Nella riga di revisione compare tra `Tieni` e `Cambia ancora` come pulsante `ghost` con la sola icona `Search` (`size="icon"`, `aria-label="Scegli dalla libreria"`, `data-slot-action="pick"`), nell'ordine `Tieni` · 🔍 · `Cambia ancora` (decisione U2).
+- **Apertura** (`openPicker`): ignorata su slot bloccato o durante uno swap; altrimenti `pickerOpen = true` e la card monta [[slot-recipe-picker]] **fuori** dal `div` con `key` che cambia tra `base` e `review-…`, così il passaggio tra le due modalità non rimonta il selettore (requirements P19).
+- **Chiusura senza assegnazione** (`closePicker`): la card resta com'è (anche in revisione) e il focus torna su *Scegli*, o sull'icona della riga di revisione.
+- **Assegnazione riuscita** (`handleAssigned(plan)`): selettore chiuso, modalità `idle` (niente *Tieni / Cambia ancora*), sequenza degli scarti azzerata, `onPlanChange(plan)` e focus su *Scegli* (spec FR-6.3).
+- **Focus**: la chiave `pick` si aggiunge a `FOCUS_SELECTORS` con il selettore `[data-slot-action="pick"]`, che trova il pulsante di `MealCard` in modalità normale e l'icona in revisione; usa lo stesso meccanismo `pendingFocus` dello swap.
+- **Inoltri**: il selettore riceve `onRecipePrefsChange` e `onPlanStale` dalla card e `onError` come `onNotify`.
+
+`PlanScreen` passa `onRecipePrefsChange={applyRecipePrefs}` (un giudizio dato dal dettaglio del selettore aggiorna tutti gli slot con quella ricetta) e `onPlanStale={() => router.refresh()}`: un rifiuto per piano non più modificabile rilegge il piano con il riallineamento `syncedInitialScreen` già esistente. Il dettaglio dello slot (`sheetSlotId`) resta quello di prima, fuori dal contenitore delle card.
 
 ## `GenerationProgress` e `useRotatingMessage`
 
@@ -114,6 +127,7 @@ Classe `animate-meal-flip`: flip `rotateY` da 80° a 0° in 320 ms; con `prefers
 - `tests/ui/plan-screen.test.tsx` (client mockato): generazione con progress e toast, errori, recupero con backoff e *Smetti di aspettare*, conferma, navigatore e frecce disabilitate, sola lettura delle settimane passate, stati vuoti, *Ripeti*, avviso superato, riallineamento dello stato, esiti dopo lo smontaggio, blocco ottimistico, unione per slot; dalla Feature 5 (con `@/lib/library/client` e `@/lib/prefs/client` mockati) dettaglio aperto subito con le azioni di preferenza, ★ ottimistica su ogni card con ripristino e toast in caso d'errore, secondo tocco ignorato, blocco dal dettaglio senza richieste al piano, voto dal dettaglio, risposta tardiva della ★ che non sovrascrive un voto né rimette preferita una ricetta bloccata, ★ anche su una settimana passata; dalla Feature 6 (con `@/lib/shopping/client` mockato) creazione della lista con navigazione alla Lista, etichetta di attesa ed errore nel toast, link a una lista esistente e a una da aggiornare, rilettura al montaggio che mostra il link quando il server ha già la lista e che cambia solo lo stato della lista lasciando gli slot com'erano, pulsante conservato se il server non ha la lista o se la rilettura fallisce, rilettura tardiva che non annulla una lista appena creata, nessuna rilettura per una bozza o un piano in sola lettura.
 - `tests/ui/plan-slot-card.test.tsx`: swap, *Cambia ancora*, *Tieni*, errori, limite delle esclusioni, card di sola lettura, giorni passati, focus; dalla Feature 5 la ★ (assente senza handler, con ricetta bloccata o senza ricetta; id della ricetta passato all'handler; `aria-pressed`; presente sulle card di sola lettura).
 - `tests/ui/generation-progress.test.tsx`; `tests/ui/shell.test.tsx` rende ora `PlanScreen` con un fixture al posto della vecchia home.
+- Dalla Feature 9: blocco `PlanSlotCard — Scegli` in `tests/ui/plan-slot-card.test.tsx` (presente su una card modificabile e cambiabile, assente in sola lettura o su un giorno passato, disabilitato su slot bloccato, selettore montato per lo slot, assegnazione dallo stato normale con focus su *Scegli*, chiusura senza assegnazione, ordine `Tieni` · icona · `Cambia ancora`, assegnazione dalla revisione che azzera la sequenza, chiusura in revisione con focus sull'icona, piano non più modificabile notificato una volta, avvisi inoltrati a `onError`, nessun *Scegli* durante uno swap, *Scegli* su uno slot senza ricetta) e blocco `scelta a mano` in `tests/ui/plan-screen.test.tsx` (ricetta scelta che compare sulla card, nessun *Scegli* sui giorni passati o su una settimana in sola lettura, rifiuto per piano non più modificabile con toast, selettore chiuso e una sola rilettura). I test esistenti su *Cambia* restano verdi senza modificarne le attese.
 
 ## Vedi anche
 
@@ -130,3 +144,5 @@ Classe `animate-meal-flip`: flip `rotateY` da 80° a 0° in 320 ms; con `prefers
 - [[e3-pianificatore]] — Panoramica della Feature 4
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
 - [[e4-lista-spesa]] — Panoramica della Feature 6
+- [[slot-recipe-picker]] — Selettore aperto da *Scegli* (Feature 9)
+- [[f9-ricette-su-richiesta]] — Panoramica della Feature 9

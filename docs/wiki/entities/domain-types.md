@@ -2,8 +2,8 @@
 title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-10-11
-tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list]
+updated: 2026-10-14
+tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list, recipe-requests]
 ---
 
 ## File e Responsabilità
@@ -14,6 +14,7 @@ tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, r
   - Dalla Feature 4 `lib/domain/` contiene anche il planner puro (`planner.ts`, `planner-config.ts`, `rng.ts`, `week.ts`), documentato in [[planner]].
   - Dalla Feature 5 contiene anche le regole pure della Libreria (`library.ts`, documentato in [[library-service]]) e delle preferenze (`prefs.ts`, documentato in [[prefs-service]]).
   - Dalla Feature 6 contiene anche le regole pure della lista della spesa (`shopping-list.ts`) e la regola "piano chiuso" (`plan-status.ts`), documentate in [[shopping-list]].
+  - Dalla Feature 9 `planner.ts` ha anche `manualChoiceExclusionReason` ([[planner]]) e `library.ts` anche `recipeRequestText` e `appendProposedTitle` ([[library-service]]).
 - **Scopo**: Costituire la **single source of truth** del modello dati dell'intera applicazione (`CLAUDE.md § Regole di architettura`). Nessun tipo di dominio viene ridefinito localmente nei moduli applicativi.
 
 ## Costanti Enum Chiuse
@@ -245,6 +246,25 @@ Sezione `// Shopping List (Feature 6)` in coda a `types.ts`, usata da [[shopping
 
 Le interfacce di funzione del consolidamento (`ShoppingSlotInput`, `BuiltShoppingItem`, `ExistingShoppingItem`, `ShoppingListChanges`, `ShoppingSection`, `AliasMap`) vivono in `lib/domain/shopping-list.ts` ([[shopping-list]]); i tipi riga (`ShoppingListRecord`, `ShoppingItemRecord`, …) in [[shopping-repo]]; il tipo `ShoppingItem` della riga a schermo nel componente ([[shopping-item-row]]). Con gli schemi entità della Feature 1 l'articolo ha quindi quattro definizioni, sullo stesso schema a tre livelli usato per i piani (riga del repository, vista delle API, props del componente), più lo schema entità non più usato.
 
+## Contratti delle Richieste di Ricette e della Scelta a Mano (Feature 9)
+
+Sezione `// Recipe Requests & Manual Slot Choice (Feature 9)` in coda a `types.ts`, usata da [[recipe-proposal-service]], [[plan-service]], [[library-service]] (client), [[recipe-proposal-sheet]] e [[slot-recipe-picker]]. Nessuno schema preesistente è stato modificato: in particolare `GeneratedRecipeSchema`, che è anche lo schema dell'output strutturato LLM, e `LibraryRecipeCardSchema` sono riusati così come sono.
+
+| Schema / Tipo | Forma | Uso |
+|---|---|---|
+| `RECIPE_REQUEST_MIN = 3` | — | Lunghezza minima di una richiesta libera; il massimo è `LIBRARY_QUERY_MAX` (100) |
+| `PROPOSAL_EXCLUDE_MAX = 10` | — | Titoli già proposti nella sequenza di *Un'altra* che il client rimanda al server |
+| `ProposeRecipeRequestSchema` / `ProposeRecipeRequest` | strict: `request` (trim, 3–100), `meal_type: MealType \| null` (default `null`), `exclude_titles: string[]` (ognuno trim, 1–120 caratteri; al più 10; default `[]`) | Body di `POST /api/recipes/propose`. `meal_type: null` = il tipo di pasto lo decide il modello. Il tetto di 120 è quello di `GeneratedRecipeSchema.title` (costante privata `PROPOSAL_TITLE_MAX`) e limita il testo del client che arriva nel prompt |
+| `RecipeProposalSchema` / `RecipeProposal` | strict: `{ recipe: GeneratedRecipe, duplicate_of: { id: uuid, title } \| null }` | Risposta di `POST /api/recipes/propose`; la proposta non è salvata. `duplicate_of` = ricetta della libreria con lo stesso titolo normalizzato |
+| `SAVED_RECIPE_TEXT_MAX = 1000`, `SAVED_RECIPE_STEPS_MAX = 40`, `SAVED_RECIPE_INGREDIENTS_MAX = 60`, `SAVED_RECIPE_TAGS_MAX = 20` | — | Tetti di una ricetta che arriva dal client per essere salvata: descrizione e singolo passo, numero di passi, di ingredienti, di elementi in `tags` / `diet_flags` / `appliances_required`. Più due costanti private: nome canonico e nome mostrato di un ingrediente al più 120, nota al più 300 |
+| `SavedRecipeInputSchema` | `GeneratedRecipeSchema.extend(…)` con i tetti qui sopra | Rivalidazione della ricetta dopo la normalizzazione in `POST /api/recipes` (fix della code review): sono larghi rispetto a ciò che produce il modello e servono solo a non scrivere in libreria corpi di dimensione arbitraria. Restano fuori da `GeneratedRecipeSchema` perché quello è anche lo schema dell'output LLM |
+| `SaveRecipeRequestSchema` / `SaveRecipeRequest` | strict: `{ recipe: SavedRecipeInput }` | Body di `POST /api/recipes` |
+| `SaveRecipeResultSchema` / `SaveRecipeResult` | strict: `{ recipe: Recipe }` | Risposta 201 di `POST /api/recipes`: la ricetta salvata con ingredienti e preferenze (non era nella tabella della spec; requirements P8) |
+| `AssignSlotRecipeRequestSchema` / `AssignSlotRecipeRequest` | strict: `{ recipe_id: uuid }` | Body di `PUT /api/plans/:id/slots/:slotId/recipe`; la risposta è `PlanResultSchema` |
+| `SlotCandidatesSchema` / `SlotCandidates` | strict: `{ recipes: LibraryRecipeCard[], in_plan_recipe_ids: uuid[] }` | Risposta di `GET /api/plans/:id/slots/:slotId/candidates`: ricette adatte al pasto senza quella dello slot, nell'ordine della Libreria; ricette degli altri slot dello stesso piano, senza doppioni |
+
+I tre schemi di risposta sono `.strict()` e `requestJson` rifiuta ciò che non li rispetta: i test di servizio fissano il confine con `Schema.parse(JSON.parse(JSON.stringify(…)))` (innesto R6 della review architetturale). Le interfacce di funzione (`ProposeRecipeInput`, `SaveProposedRecipeInput`, `RecipeProposalInput`) e le props dei componenti vivono nei rispettivi moduli.
+
 ## Funzioni Pure di Normalizzazione Testo (`recipe-text.ts`)
 
 Il modulo `lib/domain/recipe-text.ts` fornisce funzioni pure senza effetti collaterali:
@@ -326,3 +346,5 @@ Questi valori sono quelli con cui il wizard di primo avvio si presenta precompil
 - [[shopping-service]] — Uso dei contratti della lista in servizio, API e client
 - [[e4-lista-spesa]] — Panoramica della Feature 6
 - [[e6-deploy]] — Panoramica della Feature 7 (alias unici nel file delle fixture)
+- [[recipe-proposal-service]] — Uso dei contratti di proposta e salvataggio (Feature 9)
+- [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
