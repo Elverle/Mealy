@@ -1,5 +1,6 @@
 export {
   generateRecipes,
+  generateRecipeFromRequest,
   type GenerateRecipesOptions,
   describeValidationError,
 } from './adapter';
@@ -22,7 +23,10 @@ export {
 
 export {
   MAX_EXCLUDED_TITLES,
+  RECIPE_REQUEST_OPEN,
+  RECIPE_REQUEST_CLOSE,
   buildRecipeInstructions,
   buildRecipePrompt,
+  buildRecipeRequestPrompt,
   buildRepairPrompt,
 } from './prompts';

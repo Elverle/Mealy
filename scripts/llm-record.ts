@@ -1,4 +1,5 @@
 // Usage: pnpm llm:record --name gemini-cena-vegano --count 3 --meal cena --diet vegano --appliance friggitrice-ad-aria
+// Richiesta libera: pnpm llm:record --name gemini-richiesta-lasagne --request "lasagne al pesto" --meal cena
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,6 +15,7 @@ import { getModel, readLlmConfig, getLlmTimeoutMs } from '@/lib/llm/model';
 import {
   buildRecipeInstructions,
   buildRecipePrompt,
+  buildRecipeRequestPrompt,
   MAX_EXCLUDED_TITLES,
 } from '@/lib/llm/prompts';
 
@@ -36,6 +38,7 @@ async function main(): Promise<void> {
       appliance: { type: 'string', multiple: true },
       style: { type: 'string', multiple: true },
       exclude: { type: 'string', multiple: true },
+      request: { type: 'string' },
     },
     strict: true,
   });
@@ -103,10 +106,19 @@ async function main(): Promise<void> {
   }
   const excludeTitles = cleanedTitles.slice(0, MAX_EXCLUDED_TITLES);
 
+  const request = values.request?.trim();
+  if (request !== undefined && (request.length < 3 || request.length > 100)) {
+    console.error('Errore: l\'opzione --request deve avere tra 3 e 100 caratteri.');
+    process.exitCode = 1;
+    return;
+  }
+
   const config = readLlmConfig();
   const model = getModel();
   const instructions = buildRecipeInstructions();
-  const prompt = buildRecipePrompt(constraints, count, excludeTitles);
+  const prompt = request
+    ? buildRecipeRequestPrompt(constraints, request, excludeTitles)
+    : buildRecipePrompt(constraints, count, excludeTitles);
   const timeoutMs = getLlmTimeoutMs();
 
   const outDir = path.resolve(process.cwd(), 'tests/fixtures/llm/recorded');

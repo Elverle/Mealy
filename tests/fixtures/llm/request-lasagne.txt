@@ -1,0 +1,11 @@
+{"recipes":[
+ {"title":"Lasagne al pesto","description":"Lasagne con pesto di basilico, patate e besciamella.","meal_types":["pranzo","cena"],"tags":["comfort-food"],"diet_flags":["vegetariano"],"appliances_required":["fornelli","forno"],"servings_base":2,"prep_minutes":60,"kcal_est":640,
+  "steps":["Lessa le patate a fette sottili.","Mescola il pesto con la besciamella.","Alterna sfoglie, crema al pesto, patate e parmigiano.","Inforna a 180 °C per 30 minuti."],
+  "ingredients":[
+   {"canonical_name":"sfoglia per lasagne","display_name":"sfoglie per lasagne fresche","qty":250,"unit":"g","category":"banco-frigo","note":null},
+   {"canonical_name":"Basilico","display_name":"basilico fresco","qty":50,"unit":"g","category":"ortofrutta","note":null},
+   {"canonical_name":"besciamella","display_name":"besciamella","qty":300,"unit":"ml","category":"banco-frigo","note":null},
+   {"canonical_name":"patata","display_name":"patate","qty":200,"unit":"g","category":"ortofrutta","note":null},
+   {"canonical_name":"parmigiano","display_name":"parmigiano grattugiato","qty":60,"unit":"g","category":"banco-frigo","note":null},
+   {"canonical_name":"sale","display_name":"sale","qty":null,"unit":"qb","category":"dispensa","note":null}]}
+]}

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { APICallError } from 'ai';
-import { generateRecipes } from '@/lib/llm/adapter';
+import { generateRecipes, generateRecipeFromRequest } from '@/lib/llm/adapter';
 import { isLlmError } from '@/lib/llm/errors';
 import type { RecipeConstraints } from '@/lib/domain/types';
 import { createRecordedModel, loadLlmRecording } from '@/tests/helpers/mock-llm';
@@ -184,5 +184,87 @@ describe('lib/llm/adapter', () => {
     const pestoCount = (callJson.match(/- Pasta al pesto/g) || []).length;
     expect(pestoCount).toBe(1);
     expect(callJson).toContain('- Risotto alla milanese');
+  });
+
+  describe('generateRecipeFromRequest', () => {
+    it('returns the single recipe proposed for the request, normalized', async () => {
+      const raw = loadLlmRecording('request-lasagne');
+      const { model, calls } = createRecordedModel([raw]);
+
+      const recipe = await generateRecipeFromRequest(baseConstraints, 'lasagne al pesto', [], { model });
+
+      expect(recipe.title).toBe('Lasagne al pesto');
+      expect(calls).toHaveLength(1);
+      // Diet flags expanded from ['vegetariano'], in DIET_FLAG_VALUES order
+      expect(recipe.diet_flags).toEqual(['vegetariano', 'pescetariano']);
+
+      const basilico = recipe.ingredients.find((i) => i.canonical_name === 'basilico');
+      expect(basilico).toBeDefined();
+
+      const sale = recipe.ingredients.find((i) => i.canonical_name === 'sale');
+      expect(sale).toBeDefined();
+      expect(sale?.qty).toBeNull();
+      expect(sale?.unit).toBe('qb');
+    });
+
+    it('sends the request and the excluded titles in the prompt', async () => {
+      const raw = loadLlmRecording('request-lasagne');
+      const { model, calls } = createRecordedModel([raw]);
+
+      await generateRecipeFromRequest(baseConstraints, 'lasagne al pesto', ['Lasagne bianche ai funghi'], {
+        model,
+      });
+
+      const callJson = JSON.stringify(calls[0]);
+      expect(callJson).toContain('lasagne al pesto');
+      expect(callJson).toContain('<<<RICHIESTA');
+      expect(callJson).toContain('Lasagne bianche ai funghi');
+    });
+
+    it('returns the first recipe when the model answers with several', async () => {
+      const raw = loadLlmRecording('valid-2-recipes');
+      const { model } = createRecordedModel([raw]);
+
+      const recipe = await generateRecipeFromRequest(baseConstraints, 'tofu', [], { model });
+
+      expect(recipe.title).toBe('Tofu croccante con verdure saltate');
+    });
+
+    it('repairs a malformed answer with a second call', async () => {
+      const malformed = loadLlmRecording('malformed-truncated');
+      const valid = loadLlmRecording('request-lasagne');
+      const { model, calls } = createRecordedModel([malformed, valid]);
+
+      const recipe = await generateRecipeFromRequest(baseConstraints, 'lasagne al pesto', [], { model });
+
+      expect(recipe.title).toBe('Lasagne al pesto');
+      expect(calls).toHaveLength(2);
+    });
+
+    it('throws LlmError invalid_output after two invalid answers', async () => {
+      const invalidEnum = loadLlmRecording('invalid-enum');
+      const { model, calls } = createRecordedModel([invalidEnum, invalidEnum]);
+
+      const error = await generateRecipeFromRequest(baseConstraints, 'lasagne al pesto', [], { model }).then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+      expect(isLlmError(error)).toBe(true);
+      if (isLlmError(error)) {
+        expect(error.code).toBe('invalid_output');
+      }
+      expect(calls).toHaveLength(2);
+    });
+
+    it('rejects an empty or blank request with RangeError without invoking the model', async () => {
+      const { model, calls } = createRecordedModel([]);
+
+      await expect(generateRecipeFromRequest(baseConstraints, '   ', [], { model })).rejects.toThrow(
+        RangeError,
+      );
+
+      expect(calls).toHaveLength(0);
+    });
   });
 });
