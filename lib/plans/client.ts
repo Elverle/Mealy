@@ -6,10 +6,12 @@ import {
   PlanMutationResultSchema,
   PlanResultSchema,
   PlanScreenViewSchema,
+  SlotCandidatesSchema,
   type GeneratePlanResult,
   type PlanMutationResult,
   type PlanResult,
   type PlanScreenView,
+  type SlotCandidates,
 } from '@/lib/domain/types';
 import { ApiRequestError, requestJson } from '@/lib/http/client';
 import type { z } from 'zod';
@@ -82,4 +84,26 @@ export function requestSwapSlot(
 /** POST /api/plans/{planId}/repeat (la rotta arriva con WP5): copia il piano sulla settimana obiettivo. */
 export function requestRepeatPlan(planId: string): Promise<GeneratePlanResult> {
   return request(`${planPath(planId)}/repeat`, { method: 'POST' }, GeneratePlanResultSchema);
+}
+
+/** GET /api/plans/{planId}/slots/{slotId}/candidates: ricette della libreria adatte allo slot. */
+export function fetchSlotCandidates(planId: string, slotId: string): Promise<SlotCandidates> {
+  return request(
+    `${planPath(planId)}/slots/${encodeURIComponent(slotId)}/candidates`,
+    { method: 'GET' },
+    SlotCandidatesSchema
+  );
+}
+
+/** PUT /api/plans/{planId}/slots/{slotId}/recipe: mette nello slot la ricetta scelta. */
+export function requestAssignSlotRecipe(
+  planId: string,
+  slotId: string,
+  recipeId: string
+): Promise<PlanResult> {
+  return request(
+    `${planPath(planId)}/slots/${encodeURIComponent(slotId)}/recipe`,
+    { method: 'PUT', body: JSON.stringify({ recipe_id: recipeId }) },
+    PlanResultSchema
+  );
 }

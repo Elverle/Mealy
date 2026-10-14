@@ -574,6 +574,8 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
                 onToggleLock={(slotId) => void handleToggleLock(slotId)}
                 onSelectRecipe={(selected) => setSheetSlotId(selected.id)}
                 onToggleFavorite={(recipeId) => void handleToggleFavorite(recipeId)}
+                onRecipePrefsChange={applyRecipePrefs}
+                onPlanStale={() => router.refresh()}
                 onError={setToast}
               />
             ))}

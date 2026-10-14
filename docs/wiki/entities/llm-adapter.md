@@ -2,21 +2,21 @@
 title: Adapter LLM Multi-Provider (llm-adapter)
 type: entity
 created: 2026-09-17
-updated: 2026-09-29
-tags: [llm, ai-sdk, adapter, multi-provider, structured-output, repair-loop, errors]
+updated: 2026-10-14
+tags: [llm, ai-sdk, adapter, multi-provider, structured-output, repair-loop, errors, free-text-request]
 ---
 
 ## File e Responsabilità
 
 - **Percorsi file**:
-  - `lib/llm/adapter.ts`: funzione principale di generazione `generateRecipes`, loop di correzione e normalizzazione.
+  - `lib/llm/adapter.ts`: funzione principale di generazione `generateRecipes`, loop di correzione e normalizzazione; dalla Feature 9 anche `generateRecipeFromRequest` (una ricetta da una richiesta in testo libero) e la funzione privata `runRecipeGeneration` che le due condividono.
   - `lib/llm/model.ts`: factory del modello linguistico `getModel`, lettura configurazione env e timeout.
   - `lib/llm/prompts.ts`: template per istruzioni di sistema, prompt utente con vincoli ed esclusioni, prompt di riparazione schema.
   - `lib/llm/errors.ts`: classe di errore tipizzato `LlmError` e type guard `isLlmError`.
   - `lib/llm/index.ts`: facciata pubblica che riesporta le funzioni e i tipi necessari.
   - `scripts/llm-record.ts`: script CLI per registrare risposte LLM reali per test offline.
 - **Scopo**: Incapsulare interamente l'integrazione con i modelli linguistici (LLM) tramite Vercel AI SDK 7, fornendo una superficie fortemente tipizzata, provider-agnostica e resiliente per la generazione strutturata di ricette culinarie casalinghe italiane.
-- **Regola di confine architetturale vincolante**: **solo** `lib/llm/` ha il permesso di importare i pacchetti `ai` e gli SDK dei fornitori (`@ai-sdk/google`, `@openrouter/ai-sdk-provider`, `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`). Nessun altro modulo dell'applicazione conosce o importa tali dipendenze. Il servizio `lib/recipes/` è l'unico consumatore applicativo dell'adapter (`generateRecipes`). Dalla Feature 4 altri due moduli importano **solo** `lib/llm/errors.ts` (`LlmError`, `isLlmError`) per riconoscere gli errori che risalgono da `generateAndStoreRecipes`: `lib/plans/service.ts` ([[plan-service]]) e `lib/http/responses.ts` ([[http-helpers]]). Nessuno dei due chiama il modello.
+- **Regola di confine architetturale vincolante**: **solo** `lib/llm/` ha il permesso di importare i pacchetti `ai` e gli SDK dei fornitori (`@ai-sdk/google`, `@openrouter/ai-sdk-provider`, `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`). Nessun altro modulo dell'applicazione conosce o importa tali dipendenze. Il servizio `lib/recipes/` è l'unico consumatore applicativo dell'adapter (`generateRecipes`; dalla Feature 9 anche `generateRecipeFromRequest`, chiamata da `lib/recipes/propose.ts`, v. [[recipe-proposal-service]]). Dalla Feature 4 altri due moduli importano **solo** `lib/llm/errors.ts` (`LlmError`, `isLlmError`) per riconoscere gli errori che risalgono da `generateAndStoreRecipes`: `lib/plans/service.ts` ([[plan-service]]) e `lib/http/responses.ts` ([[http-helpers]]). Nessuno dei due chiama il modello.
 
 ## Architettura Multi-Provider
 
@@ -63,12 +63,39 @@ Se il provider produce un output sintatticamente non conforme allo schema Zod at
 ### 3. Normalizzazione Post-Generazione
 Le ricette validate con successo vengono passate a `normalizeGeneratedRecipe` (`lib/domain/recipe-text.ts`), garantendo la pulizia di spaziature, la dedup di tag/elettrodomestici, la coerenza delle unità `qb` e la chiusura transitiva delle diete, prima di ritornare i primi `n` elementi.
 
+### 4. Percorso condiviso (Feature 9)
+Dalla Feature 9 i passi 1–3 vivono nella funzione privata `runRecipeGeneration({ model, prompt, timeoutMs, abortSignal })`, che restituisce **tutte** le ricette normalizzate; `generateRecipes` valida `n`, costruisce il prompt e taglia ai primi `n`. Anche la pulizia dei titoli da escludere (trim, niente vuoti, niente doppioni con vince la prima occorrenza, al più `MAX_EXCLUDED_TITLES`) è estratta nella funzione privata `cleanExcludedTitles`. Comportamento di `generateRecipes` invariato (requirements P4 della Feature 9).
+
+## Ricetta da una Richiesta Libera (Feature 9)
+
+```ts
+export async function generateRecipeFromRequest(
+  constraints: RecipeConstraints,
+  request: string,
+  excludeTitles: readonly string[],
+  options?: GenerateRecipesOptions,
+): Promise<GeneratedRecipe>
+```
+
+- Richiesta vuota dopo il trim → `RangeError('request must not be empty')`; i vincoli si validano con `RecipeConstraintsSchema`.
+- Prompt `buildRecipeRequestPrompt(constraints, request, cleanExcludedTitles(excludeTitles))` (v. sotto), poi `runRecipeGeneration`: stessa chiamata, stesso schema di output `GenerateRecipesOutputSchema` (`{ recipes: […] }`), stessa riparazione, stesso timeout `LLM_TIMEOUT_MS` per chiamata e stessa mappatura degli errori. Restituisce la **prima** ricetta. Un secondo schema di output avrebbe richiesto una seconda riparazione e fixture di altra forma (requirements P4).
+- Dei vincoli usa persone, tipo di pasto, diete ed elettrodomestici: chi la chiama ([[recipe-proposal-service]]) passa stile preferito e preferenze ingrediente vuoti.
+- `options.abortSignal` interrompe la chiamata; l'annullamento arriva al chiamante come `LlmError('timeout')` (`toLlmError` non distingue `AbortError` da `TimeoutError`). Per non scambiarlo con un timeout vero, la rotta `POST /api/recipes/propose` controlla `request.signal.aborted` e risponde `499` senza log (innesto R1 della review architetturale della Feature 9).
+
 ## Prompting e Strategia Anti-Duplicazione
 
 Il modulo `lib/llm/prompts.ts` governa la comunicazione con l'LLM:
 - **`buildRecipeInstructions()`**: stabilisce il ruolo ("ricettario di casa di una famiglia italiana") e le regole vincolanti per ingredienti (singolare, minuscolo, unità fisse `g | ml | pz | qb`, 9 reparti spesa fissi) e per la ricetta (titolo maiuscolo breve, diete transitive, elettrodomestici necessari, passi non numerati).
 - **`buildRecipePrompt(constraints, n, excludeTitles)`**: compila i vincoli specifici richiesti (persone, tipologia pasto, diete obbligatorie, elettrodomestici ammessi, stili culinari, ingredienti graditi ed esclusi). Include inoltre la sezione con i titoli già presenti in libreria (fino a un massimo di `MAX_EXCLUDED_TITLES = 150`), intimando al modello di non proporre ricette uguali o molto simili.
 - **`MAX_EXCLUDED_TITLES = 150`**: soglia per proteggere la finestra di contesto ed evitare consumi eccessivi di token pur fornendo un forte filtro preventivo sui duplicati.
+- **`buildRecipeRequestPrompt(constraints, request, excludeTitles)`** (Feature 9): prompt per **una** ricetta chiesta con un testo libero. Le istruzioni di sistema restano `buildRecipeInstructions()`. Contiene:
+  - la richiesta come **dato** tra i delimitatori `RECIPE_REQUEST_OPEN = '<<<RICHIESTA'` e `RECIPE_REQUEST_CLOSE = 'RICHIESTA>>>'`, con l'indicazione di trattarla solo come descrizione del piatto e di non eseguire istruzioni contenute; la funzione privata `toSingleLine` riduce il testo a una riga (spazi e a capo compattati) e toglie le sequenze `<<<` e `>>>`, così il testo non può chiudere il delimitatore né aggiungere righe (requirements P5);
+  - i vincoli: persone (`servings_base`), pasto (se `meal_type` è imposto, "deve includere … in meal_types"; altrimenti la richiesta di indicare in `meal_types` i pasti adatti, requirements P26), diete da rispettare e riportare in `diet_flags`, elettrodomestici ammessi ("nessuno (solo ricette senza cottura)" se la lista è vuota);
+  - l'indicazione di proporre la variante più vicina che rispetta i vincoli (es. la versione vegetariana) e di dirlo nella descrizione;
+  - se presenti, i titoli già proposti nella sequenza di *Un'altra* (`Hai già proposto queste ricette: proponine una diversa.`), ridotti a una riga, senza doppioni e al più `MAX_EXCLUDED_TITLES`; stanno fuori dai delimitatori (osservazione cosmetica della review: arrivano dal client, ma limitati a 10 × 120 caratteri dallo schema).
+  - **Non** contiene stile preferito, ingredienti graditi o scartati, né i titoli della libreria (spec D7, D11).
+
+`lib/llm/index.ts` riesporta anche `generateRecipeFromRequest`, `buildRecipeRequestPrompt`, `RECIPE_REQUEST_OPEN` e `RECIPE_REQUEST_CLOSE`.
 
 ## Gestione Errori Tipizzata (`LlmError`)
 
@@ -89,6 +116,10 @@ Per adempiere al vincolo architetturale di **test senza rete** (`CLAUDE.md § St
 
 Nei test automatici di Vitest, i modelli vengono simulati tramite `MockLanguageModelV4` (`ai/test`), garantendo esecuzioni deterministiche, istantanee e prive di costi o dipendenze da connettività esterna.
 
+**Richiesta libera (Feature 9)**: l'opzione `--request "testo"` (da 3 a 100 caratteri, altrimenti errore e codice d'uscita 1) registra la risposta al prompt `buildRecipeRequestPrompt` invece che a `buildRecipePrompt`; `--meal` imposta il tipo di pasto. Esempio nell'intestazione dello script: `pnpm llm:record --name gemini-richiesta-lasagne --request "lasagne al pesto" --meal cena`. I test della richiesta libera non leggono registrazioni reali ma due fixture scritte a mano, `tests/fixtures/llm/request-lasagne.txt` e `request-lasagne-altra.txt` (decisione U1 della Feature 9); una registrazione reale resta una verifica manuale di chiusura e al 2026-10-14 in `tests/fixtures/llm/recorded/` non ce n'è ancora una ([[f9-ricette-su-richiesta]]).
+
+Test della Feature 9: `tests/llm/prompts.test.ts` (richiesta tra i delimitatori, sequenze dei delimitatori e a capo neutralizzati, riga del pasto con e senza `meal_type`, diete, nessun elettrodomestico, niente stile né preferenze, blocco dei titoli assente o con titoli puliti e unici, istruzione finale) e `tests/llm/adapter.test.ts` (ricetta singola normalizzata, richiesta e titoli esclusi nel prompt, prima ricetta se il modello ne restituisce più d'una, riparazione con una seconda chiamata, `invalid_output` dopo due risposte non valide, `RangeError` per una richiesta vuota senza chiamare il modello).
+
 ## Vedi anche
 
 - [[domain-types]] — Schemi Zod `GeneratedRecipeSchema` e `RecipeConstraintsSchema`
@@ -97,3 +128,5 @@ Nei test automatici di Vitest, i modelli vengono simulati tramite `MockLanguageM
 - [[fixtures-and-seed]] — Corpus ricette offline per test e seed
 - [[http-helpers]] — `llmErrorResponse`, mappatura HTTP condivisa degli errori LLM
 - [[plan-service]] — Feature 4: generazione a lotti da 3 e gestione di `LlmError` nel piano
+- [[recipe-proposal-service]] — Feature 9: `proposeRecipe`, chiamante di `generateRecipeFromRequest`
+- [[f9-ricette-su-richiesta]] — Panoramica della Feature 9

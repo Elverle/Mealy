@@ -2,8 +2,8 @@
 title: Helper HTTP di Trasporto — Risposte d'Errore e Client JSON (http-helpers)
 type: entity
 created: 2026-09-29
-updated: 2026-10-11
-tags: [http, api-route, errors, client-fetch, transport, zod, feature-4]
+updated: 2026-10-14
+tags: [http, api-route, errors, client-fetch, transport, zod, abort-signal, feature-4]
 ---
 
 ## File e Responsabilità
@@ -29,6 +29,7 @@ Uso:
 - dalla Feature 5 le cinque rotte di libreria e preferenze (`GET /api/recipes`, `GET /api/recipes/:id`, `PUT /api/recipes/:id/pref`, `GET /api/ingredient-prefs`, `PUT /api/ingredient-prefs/:canonicalName`, v. [[library-service]] e [[prefs-service]]): `invalidRequestResponse`, `internalErrorResponse`, `readJsonBody(request, { allowEmpty: false })` per le due `PUT`, e `errorResponse(404, 'recipe_not_found', 'Ricetta non trovata.')`. Non hanno una classe d'errore né un gestore comune: il servizio restituisce `null` e la rotta risponde 404.
 - dalla Feature 6 le cinque rotte della lista della spesa (`GET` e `POST /api/plans/:id/shopping-list`, `POST /api/plans/:id/shopping-list/items`, `PATCH` e `DELETE /api/shopping-items/:id`, v. [[shopping-service]]): `readJsonBody(request, { allowEmpty: false })` e `invalidRequestResponse` per i due body, e il gestore comune `handleShoppingRouteError`, che usa `errorResponse` per gli `ShoppingError` e `internalErrorResponse` per il resto. A differenza delle rotte dei piani non passa da `llmErrorResponse`: la lista non chiama mai l'LLM.
 - dalla Feature 7 la rotta `GET /api/health` ([[health-check]]): usa solo `errorResponse(503, 'db_unavailable', 'Database non raggiungibile.')` quando il database non risponde. La risposta positiva, `{"status":"ok"}`, non passa dagli helper. Non ha body da leggere né un client: la chiamano l'healthcheck del container e gli script di deploy.
+- dalla Feature 9 le quattro rotte nuove: `POST /api/recipes/propose` e `POST /api/recipes` ([[recipe-proposal-service]]) leggono il body con `readJsonBody(request, { allowEmpty: false })`, rispondono `invalidRequestResponse` e passano dal gestore comune `handleRecipeRouteError` (`lib/recipes/http.ts`), che usa `errorResponse` per i `RecipeError` e `llmErrorResponse(err) ?? internalErrorResponse()` per il resto; la proposta risponde inoltre `499` senza corpo e senza log quando il client ha chiuso la richiesta. `GET …/candidates` e `PUT …/recipe` ([[plan-service]]) passano da `handlePlanRouteError` come le altre rotte dei piani; la `PUT` legge il body con `readJsonBody(request, { allowEmpty: false })`.
 
 ## Client JSON (`client.ts`)
 
@@ -58,8 +59,10 @@ export async function requestJson<T>(url: string, init: RequestInit, schema: z.Z
 - `init` passa a `fetch` così com'è, quindi un `signal` interrompe la richiesta; l'interruzione fa lanciare `fetch` e ricade nel caso `status 0` / `network_error`. Lo usano solo le chiamate della lista della spesa: `patchShoppingItem` per il limite di tempo di 10 s della coda delle spunte ([[check-queue]]) e le altre quattro per il proprio limite di 10 s (`SHOPPING_REQUEST_TIMEOUT_MS`, [[shopping-service]]). **Gli altri client (piani, libreria, preferenze, impostazioni) non hanno un limite di tempo**: una richiesta senza risposta resta in sospeso finché lo decide il browser (osservazione P2 della review architetturale della Feature 6).
 - la coda classifica gli errori sullo `status` di `ApiRequestError`: `0`, `408`, `429` e `≥ 500` si ritentano; un `invalid_response` (status 2xx) vale come spunta applicata; gli altri sono definitivi.
 
+**Dalla Feature 9** c'è un secondo uso di `signal`, per l'**annullamento** e non per un limite di tempo: `requestRecipeProposal` ([[library-service]]) riceve il segnale dell'`AbortController` di [[recipe-proposal-sheet]], che annulla la richiesta quando la sheet si chiude o parte *Un'altra*. Poiché `requestJson` non distingue l'annullamento dalla rete assente (entrambi `0` / `network_error`), chi annulla controlla `signal.aborted` e ignora l'esito; `requestJson` non è stato cambiato per un solo chiamante (requirements P13 della Feature 9). La frase qui sopra sui client senza limite di tempo resta vera: neanche la proposta ne ha uno lato client, e una richiesta che il server tiene aperta fino a `2 × LLM_TIMEOUT_MS` si interrompe solo chiudendo la sheet.
+
 ### `apiErrorMessage(err)` (Feature 5)
-Restituisce il messaggio mostrabile all'utente: `err.message` se `err` è un `ApiRequestError` (quindi anche un `PlanRequestError`), altrimenti il generico `UNKNOWN_ERROR_MESSAGE`. Sostituisce le copie di `err instanceof … ? err.message : 'Qualcosa è andato storto. Riprova.'` che erano scritte in linea in `plan-screen.tsx` e `plan-slot-card.tsx` e che la Feature 5 avrebbe moltiplicato (proposta P3 della review architetturale). La usano [[plan-screen]], [[library-screen]] e [[recipe-detail-sheet]]; dalla Feature 6 anche [[shopping-screen]] e il suo pannello di aggiunta.
+Restituisce il messaggio mostrabile all'utente: `err.message` se `err` è un `ApiRequestError` (quindi anche un `PlanRequestError`), altrimenti il generico `UNKNOWN_ERROR_MESSAGE`. Sostituisce le copie di `err instanceof … ? err.message : 'Qualcosa è andato storto. Riprova.'` che erano scritte in linea in `plan-screen.tsx` e `plan-slot-card.tsx` e che la Feature 5 avrebbe moltiplicato (proposta P3 della review architetturale). La usano [[plan-screen]], [[library-screen]] e [[recipe-detail-sheet]]; dalla Feature 6 anche [[shopping-screen]] e il suo pannello di aggiunta; dalla Feature 9 [[recipe-proposal-sheet]] e [[slot-recipe-picker]], che legge anche `ApiRequestError.code` per decidere l'esito di *Metti nel piano*.
 
 ## Test
 
@@ -81,3 +84,5 @@ Restituisce il messaggio mostrabile all'utente: `err.message` se `err` è un `Ap
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
 - [[e4-lista-spesa]] — Panoramica della Feature 6
 - [[health-check]] — Rotta di salute, che usa `errorResponse` (Feature 7)
+- [[recipe-proposal-service]] — `handleRecipeRouteError` e rotte delle ricette chieste (Feature 9)
+- [[f9-ricette-su-richiesta]] — Panoramica della Feature 9

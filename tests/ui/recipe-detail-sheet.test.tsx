@@ -430,3 +430,40 @@ describe("RecipeDetailSheet ingredient preferences", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Scarta Basilico" })).toBeEnabled());
   });
 });
+
+describe("RecipeDetailSheet primary action", () => {
+  beforeEach(() => {
+    fetchMock.mockResolvedValue(makeDetail());
+  });
+
+  it("shows no primary button without primaryAction", async () => {
+    renderSheet();
+    await waitForReady();
+    expect(screen.queryByRole("button", { name: "Metti nel piano" })).not.toBeInTheDocument();
+  });
+
+  it("shows the primary button only once the recipe is loaded and passes its id on click", async () => {
+    const pending = deferred<RecipeDetailView>();
+    fetchMock.mockReturnValue(pending.promise);
+    const onAction = vi.fn();
+    renderSheet({ primaryAction: { label: "Metti nel piano", onAction } });
+
+    expect(screen.queryByRole("button", { name: "Metti nel piano" })).not.toBeInTheDocument();
+
+    await act(async () => pending.resolve(makeDetail()));
+    fireEvent.click(await screen.findByRole("button", { name: "Metti nel piano" }));
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onAction).toHaveBeenCalledWith(ID_A);
+  });
+
+  it("disables the primary button while busy", async () => {
+    const onAction = vi.fn();
+    renderSheet({ primaryAction: { label: "Metti nel piano", onAction, busy: true } });
+    await waitForReady();
+
+    const button = screen.getByRole("button", { name: "Metti nel piano" });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onAction).not.toHaveBeenCalled();
+  });
+});

@@ -2,8 +2,8 @@
 title: Dettaglio Ricetta con Preferenze — RecipeDetailSheet (recipe-detail-sheet)
 type: entity
 created: 2026-10-05
-updated: 2026-10-05
-tags: [ui, components, recipe-detail, preferences, optimistic-update, ingredient-prefs, sheet, feature-5]
+updated: 2026-10-14
+tags: [ui, components, recipe-detail, preferences, optimistic-update, ingredient-prefs, sheet, primary-action, feature-5, feature-9]
 ---
 
 ## File e Responsabilità
@@ -27,13 +27,18 @@ export interface RecipeDetailSheetProps {
   onRecipePrefsChange?: (recipeId: string, changed: RecipePrefChanges) => void;
   onNotify: (message: string) => void;   // conferme ed errori, da mostrare come toast
   blockedMessage?: string;          // sostituisce il messaggio dopo "Non proporre più"
+  primaryAction?: { label: string; onAction: (recipeId: string) => void; busy?: boolean };  // Feature 9
 }
 ```
 
-| Chi lo usa | `servings` | `initialRecipe` | `blockedMessage` |
-|---|---|---|---|
-| [[plan-screen]] | porzioni dello slot | ricetta dello slot | `Non la proporrò più. In questo piano resta: usa Cambia per sostituirla.` |
-| [[library-screen]] | persone dell'household | assente | assente (messaggio di default) |
+| Chi lo usa | `servings` | `initialRecipe` | `blockedMessage` | `primaryAction` |
+|---|---|---|---|---|
+| [[plan-screen]] | porzioni dello slot | ricetta dello slot | `Non la proporrò più. In questo piano resta: usa Cambia per sostituirla.` | assente |
+| [[library-screen]] | persone dell'household | assente | assente (messaggio di default) | assente |
+| [[slot-recipe-picker]] (Feature 9) | porzioni dello slot | assente | assente | `Metti nel piano`, `busy` durante l'assegnazione |
+
+### Azione primaria (Feature 9)
+Con `primaryAction` la sheet passa a `RecipeSheet` un `footer` ([[recipe-sheet]]) con un `Button` a tutta larghezza (`h-12`) e l'etichetta indicata; il clic chiama `onAction(recipe.id)`, `busy` lo disattiva. Il pulsante compare **solo a ricetta caricata**: durante lo scheletro non c'è. Senza `primaryAction` il dettaglio è identico a quello di Piano e Libreria (requirements P17 della Feature 9). Il componente non gestisce l'esito dell'azione: lo fa chi la passa ([[slot-recipe-picker]]).
 
 ## Caricamento
 
@@ -84,7 +89,8 @@ Il giudizio riguarda il **nome canonico**, non il nome mostrato: la conferma è 
 `tests/ui/recipe-detail-sheet.test.tsx` (jsdom, `@/lib/library/client` e `@/lib/prefs/client` mockati):
 - caricamento: scheletro e poi titolo con i pollici; `initialRecipe` visibile subito e pollici dopo il dettaglio; errore senza e con `initialRecipe`; risposta di una ricetta sostituita ignorata; nessuna richiesta con `recipeId: null`;
 - preferenze: voto e sua rimozione, solo i campi richiesti in `onRecipePrefsChange`, azioni disabilitate durante il salvataggio, blocco con toast di default e con `blockedMessage`, sblocco, ripristino dopo un errore, aggiornamento ottimistico, avviso al genitore anche dopo il passaggio a un'altra ricetta;
-- ingredienti: conferma con impatto e salvataggio per nome canonico, titolo con il nome canonico esatto, annullamento senza chiamate, 👍 senza conferma né toast e sua rimozione, ripristino dopo un errore, giudizio già presente, pollici disabilitati durante il salvataggio.
+- ingredienti: conferma con impatto e salvataggio per nome canonico, titolo con il nome canonico esatto, annullamento senza chiamate, 👍 senza conferma né toast e sua rimozione, ripristino dopo un errore, giudizio già presente, pollici disabilitati durante il salvataggio;
+- azione primaria (Feature 9): nessun pulsante senza `primaryAction`; pulsante solo a ricetta caricata con l'id passato al clic; pulsante disattivato con `busy`.
 
 ## Vedi anche
 
@@ -95,3 +101,5 @@ Il giudizio riguarda il **nome canonico**, non il nome mostrato: la conferma è 
 - [[library-screen]] — Uso dalla Libreria
 - [[toast]] — Dove finiscono i messaggi di `onNotify`
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
+- [[slot-recipe-picker]] — Uso dal selettore del Piano, con *Metti nel piano* (Feature 9)
+- [[f9-ricette-su-richiesta]] — Panoramica della Feature 9

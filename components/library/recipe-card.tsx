@@ -11,7 +11,10 @@ import { cn } from "@/lib/utils";
 export interface RecipeCardProps {
   recipe: LibraryRecipeCard;
   onOpen: (recipeId: string) => void;
-  onToggleFavorite: (recipeId: string) => void;
+  /** Assente → la ★ non è un comando: sulle preferite resta un'icona non interattiva. */
+  onToggleFavorite?: (recipeId: string) => void;
+  /** Etichetta accanto al tempo (es. «Già nel piano»). */
+  badge?: string;
 }
 
 /**
@@ -19,11 +22,25 @@ export interface RecipeCardProps {
  * Titolo e badge restano fuori dal pulsante (stretched link): il titolo è un vero `h3` e il
  * pulsante copre l'intera card con uno pseudo-elemento, prendendo il nome dal suo contenuto.
  */
-export function RecipeCard({ recipe, onOpen, onToggleFavorite }: RecipeCardProps): React.JSX.Element {
+export function RecipeCard({
+  recipe,
+  onOpen,
+  onToggleFavorite,
+  badge,
+}: RecipeCardProps): React.JSX.Element {
   const chips = recipeChips(recipe);
   const baseId = React.useId();
   const metaId = `${baseId}-meta`;
+  const badgeId = `${baseId}-badge`;
   const hasMeta = chips.length > 0 || recipe.rating !== null;
+  const labelledBy = [
+    `${baseId}-time`,
+    `${baseId}-title`,
+    badge !== undefined ? badgeId : null,
+    hasMeta ? metaId : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <Card className="relative p-4 transition-all hover:border-stone/40 hover:shadow-sm">
       <div className="min-h-[44px] pr-12">
@@ -31,6 +48,11 @@ export function RecipeCard({ recipe, onOpen, onToggleFavorite }: RecipeCardProps
           <Clock className="h-3 w-3 text-stone" aria-hidden="true" />
           <span className="tabular-nums">{recipe.prep_minutes} min</span>
         </Badge>
+        {badge !== undefined && (
+          <Badge id={badgeId} variant="saffron-subtle" className="mb-1.5 ml-1.5 text-[11px]">
+            {badge}
+          </Badge>
+        )}
         <h3
           id={`${baseId}-title`}
           className="font-display text-base font-bold text-ink line-clamp-2"
@@ -65,16 +87,14 @@ export function RecipeCard({ recipe, onOpen, onToggleFavorite }: RecipeCardProps
       <button
         type="button"
         onClick={() => onOpen(recipe.id)}
-        aria-labelledby={[`${baseId}-time`, `${baseId}-title`, hasMeta ? metaId : null]
-          .filter(Boolean)
-          .join(" ")}
+        aria-labelledby={labelledBy}
         className="cursor-pointer after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-basil"
       />
       {recipe.blocked ? (
         <span className="absolute right-3 top-3 z-10 flex items-center gap-1 text-[11px] font-semibold text-tomato">
           <Ban className="h-3 w-3" aria-hidden="true" /> Bloccata
         </span>
-      ) : (
+      ) : onToggleFavorite ? (
         <button
           type="button"
           onClick={() => onToggleFavorite(recipe.id)}
@@ -91,6 +111,16 @@ export function RecipeCard({ recipe, onOpen, onToggleFavorite }: RecipeCardProps
             aria-hidden="true"
           />
         </button>
+      ) : (
+        recipe.favorite && (
+          <span
+            role="img"
+            aria-label="Preferita"
+            className="absolute right-3 top-3 z-10 text-saffron"
+          >
+            <Star className="h-4 w-4 fill-saffron" aria-hidden="true" />
+          </span>
+        )
       )}
     </Card>
   );

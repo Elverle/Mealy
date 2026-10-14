@@ -2,6 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   PlanRequestError,
   fetchPlanScreen,
+  fetchSlotCandidates,
+  requestAssignSlotRecipe,
   requestConfirmPlan,
   requestGeneratePlan,
   requestRepeatPlan,
@@ -175,5 +177,49 @@ describe('plan client errors', () => {
 
     expect(error).toBeInstanceOf(PlanRequestError);
     expect(error).toMatchObject({ status: 200, code: 'invalid_response' });
+  });
+});
+
+const RECIPE_ID = '33333333-3333-4333-8333-333333333333';
+
+describe('slot recipe choice requests', () => {
+  it('fetchSlotCandidates GETs the candidates of the slot and parses them', async () => {
+    const candidates = { recipes: [], in_plan_recipe_ids: [RECIPE_ID] };
+    const fetchMock = stubFetch(jsonResponse(200, candidates));
+
+    await expect(fetchSlotCandidates(PLAN_ID, SLOT_ID)).resolves.toEqual(candidates);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`/api/plans/${PLAN_ID}/slots/${SLOT_ID}/candidates`);
+    expect(init.method).toBe('GET');
+  });
+
+  it('requestAssignSlotRecipe PUTs the recipe id to the slot and returns the plan', async () => {
+    const fetchMock = stubFetch(jsonResponse(200, { plan: PLAN }));
+
+    await expect(requestAssignSlotRecipe(PLAN_ID, SLOT_ID, RECIPE_ID)).resolves.toEqual({ plan: PLAN });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`/api/plans/${PLAN_ID}/slots/${SLOT_ID}/recipe`);
+    expect(init.method).toBe('PUT');
+    expect(init.body).toBe(JSON.stringify({ recipe_id: RECIPE_ID }));
+  });
+
+  it('maps a 422 recipe_not_eligible to a PlanRequestError', async () => {
+    stubFetch(
+      jsonResponse(422, {
+        error: { code: 'recipe_not_eligible', message: 'Questa ricetta non è adatta a questo pasto.' },
+      })
+    );
+
+    const error = await requestAssignSlotRecipe(PLAN_ID, SLOT_ID, RECIPE_ID).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(PlanRequestError);
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error).toMatchObject({
+      status: 422,
+      code: 'recipe_not_eligible',
+      message: 'Questa ricetta non è adatta a questo pasto.',
+    });
   });
 });

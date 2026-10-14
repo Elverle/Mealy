@@ -2,7 +2,7 @@
 title: E3 Pianificatore — Piano Settimanale, Swap e Navigatore di Settimane
 type: topic
 created: 2026-09-29
-updated: 2026-10-09
+updated: 2026-10-14
 tags: [planner, meal-plans, weighted-selection, swap, repeat, week-navigator, api, ui, e3, feature-4]
 ---
 
@@ -108,6 +108,7 @@ Le regole di concorrenza sono descritte in [[plan-concurrency-pattern]].
   - **Esito nella Feature 5** ([[e2-libreria-preferenze]]): contratto rispettato senza modifiche a `lib/plans/service.ts` né all'algoritmo del planner. `loadIngredientPreferences` legge `ingredient_prefs` ed è usata anche da `generateAndStoreRecipes`, che passa gli insiemi a `buildConstraints`; la ★ è attiva sulle card del piano; al posto di `RecipeSheet` la pagina monta [[recipe-detail-sheet]], che passa tutti gli handler. Un giudizio non modifica il piano in corso: vale dalla selezione successiva.
 - **Feature 6 (lista della spesa)**: stato della lista in `PlanView.shopping_list`; `shopping_lists.needs_regeneration` va rimesso a `false` alla rigenerazione della lista. Il pulsante *Crea lista della spesa* porta a `/lista?piano={plan.id}`: la lista si lega sempre a un piano esplicito, perché nel weekend possono esistere due piani non chiusi. Per scegliere il piano di default di `/lista` ci sono `PlanScreenView.target_plan_status` e `current_plan_id`.
   - **Esito nella Feature 6** ([[e4-lista-spesa]]): `needs_regeneration` è azzerato da `markShoppingListGenerated` a ogni creazione o aggiornamento della lista ([[shopping-repo]]). La lista resta legata a un piano esplicito: tutte le rotte hanno il piano o l'articolo nell'URL, e `/lista?piano={plan.id}` continua a valere. Sono cambiate due cose rispetto a quanto scritto qui sopra: il footer del Piano non è più un link fisso, ma un **pulsante** `Crea lista della spesa` che crea la lista e poi apre `/lista?piano=…`, oppure un link `Vai alla lista della spesa` / `Lista della spesa da aggiornare` se la lista esiste ([[plan-screen]]); e il piano di default di `/lista` **non** si sceglie con `target_plan_status` e `current_plan_id`, ma con `getShoppingScreen` e `pickDefaultShoppingPlan`: tra i piani confermati e non chiusi, quello più avanti che ha già una lista, altrimenti il più avanti ([[shopping-service]]). La lista si crea solo su piani confermati: `markShoppingListStale` nella rigenerazione di una bozza (fix m2) resta innocuo. `isPlanClosed` è stata spostata in `lib/domain/plan-status.ts` ([[plan-service]]).
+- **Sviluppi nella Feature 9** ([[f9-ricette-su-richiesta]]): accanto allo swap, che non cambia, la **scelta a mano**. La card ha tre azioni (*Cambia* · *Scegli* · ★, `DESIGN.md §3` aggiornato) e la riga di revisione `Tieni` · 🔍 · `Cambia ancora`; *Scegli* apre il selettore delle ricette adatte al pasto ([[slot-recipe-picker]]) e `assignSlotRecipe` mette nello slot la ricetta scelta, sotto il lock dei piani e con gli stessi effetti dello swap (uso contato sul piano confermato, lista da aggiornare), ma senza sorteggio né LLM ([[plan-service]]). La regola di idoneità è `manualChoiceExclusionReason` ([[planner]]): come `exclusionReason` ma senza gli ingredienti scartati e senza escludere le ricette già in un altro pasto. Il protocollo di sorteggio, *Ripeti* e generazione sono invariati.
 - **Punti aperti di F3 chiusi qui**: R1 (le preferenze ingredienti non rendono "superato" un piano: accettato), R2 (la pagina Piano è `app/(app)/page.tsx`), Q1 (`React.cache()` su `getSettings` **non adottato**: due letture dell'household per richiesta su una LAN domestica non ne giustificano il costo).
 
 ## Strategia di Test
@@ -134,3 +135,4 @@ Adeguati: `tests/home.test.tsx` (pagina server), `tests/ui/shell.test.tsx` (rend
 - [[e1-motore-ricette]] — Feature 2: generazione delle ricette usata dal planner
 - [[e2-libreria-preferenze]] — Feature 5: preferenze su ricette e ingredienti cablate nel planner e nel Piano
 - [[e4-lista-spesa]] — Feature 6: lista della spesa creata dal piano confermato
+- [[f9-ricette-su-richiesta]] — Feature 9: *Scegli* e scelta a mano di una ricetta per lo slot

@@ -142,3 +142,59 @@ describe('MealCard (plan behaviours)', () => {
     expect(onLongPress).not.toHaveBeenCalled();
   });
 });
+
+describe('MealCard (pick action "Scegli")', () => {
+  const pickName = "Scegli un'altra ricetta per Salmone al forno";
+
+  it('shows Scegli with its aria-label and calls onPick with the id, not onSelect', () => {
+    const onPick = vi.fn();
+    const onSelect = vi.fn();
+    render(<MealCard {...base} onPick={onPick} onSelect={onSelect} />);
+    const pick = screen.getByRole('button', { name: pickName });
+    expect(pick).toHaveTextContent('Scegli');
+    fireEvent.click(pick);
+    expect(onPick).toHaveBeenCalledWith('meal-1');
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('renders no Scegli button without onPick', () => {
+    render(<MealCard {...base} onSwap={vi.fn()} onToggleFavorite={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /^Scegli/ })).toBeNull();
+  });
+
+  it('disables Scegli when the meal is locked, like Cambia', () => {
+    render(<MealCard {...base} isLocked onSwap={vi.fn()} onPick={vi.fn()} />);
+    expect(screen.getByRole('button', { name: pickName })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cambia Salmone al forno' })).toBeDisabled();
+  });
+
+  it('shows the footer when only onPick is provided', () => {
+    const { container } = render(<MealCard {...base} onPick={vi.fn()} />);
+    expect(container.querySelector('.border-t')).not.toBeNull();
+    expect(screen.getByRole('button', { name: pickName })).toBeInTheDocument();
+  });
+
+  it('orders the footer as Cambia, Scegli, preferiti', () => {
+    render(
+      <MealCard {...base} onSwap={vi.fn()} onPick={vi.fn()} onToggleFavorite={vi.fn()} />
+    );
+    const names = screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'));
+    const cambia = names.indexOf('Cambia Salmone al forno');
+    const scegli = names.indexOf(pickName);
+    const preferiti = names.indexOf('Aggiungi ai preferiti');
+    expect(cambia).toBeGreaterThanOrEqual(0);
+    expect(scegli).toBeGreaterThan(cambia);
+    expect(preferiti).toBeGreaterThan(scegli);
+  });
+
+  it('gives the pick button the 44 px minimum height class (jsdom has no layout)', () => {
+    render(<MealCard {...base} onPick={vi.fn()} />);
+    expect(screen.getByRole('button', { name: pickName })).toHaveClass('min-h-[44px]');
+  });
+
+  it('actions replace the footer and hide Scegli', () => {
+    render(<MealCard {...base} onPick={vi.fn()} actions={<button>Tieni</button>} />);
+    expect(screen.getByRole('button', { name: 'Tieni' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Scegli/ })).toBeNull();
+  });
+});

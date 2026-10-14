@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Button } from "@/components/ui/button";
 import { RecipeSheet } from "@/components/sheets/recipe-sheet";
 import { findRecipeIngredient, toRecipeDetail } from "@/components/sheets/recipe-detail";
 import { applyRecipePrefPatch, defaultRecipePref } from "@/lib/domain/prefs";
@@ -38,6 +39,11 @@ export interface RecipeDetailSheetProps {
   onNotify: (message: string) => void;
   /** Sostituisce il messaggio mostrato dopo "Non proporre più". */
   blockedMessage?: string;
+  /**
+   * Azione primaria in fondo al dettaglio (es. «Metti nel piano»). Compare solo a ricetta
+   * caricata. Assente: il dettaglio è identico a quello di Libreria e Piano.
+   */
+  primaryAction?: { label: string; onAction: (recipeId: string) => void; busy?: boolean };
 }
 
 type LoadState = "idle" | "loading" | "ready" | "error";
@@ -74,6 +80,7 @@ export function RecipeDetailSheet({
   onRecipePrefsChange,
   onNotify,
   blockedMessage,
+  primaryAction,
 }: RecipeDetailSheetProps): React.JSX.Element {
   const [detail, setDetail] = React.useState<RecipeDetailView | null>(null);
   const [loadState, setLoadState] = React.useState<LoadState>("idle");
@@ -242,6 +249,17 @@ export function RecipeDetailSheet({
           : undefined
       }
       ingredientsDisabled={savingIngredient}
+      footer={
+        primaryAction && recipe ? (
+          <Button
+            className="h-12 w-full text-base font-semibold"
+            disabled={primaryAction.busy === true}
+            onClick={() => primaryAction.onAction(recipe.id)}
+          >
+            {primaryAction.label}
+          </Button>
+        ) : undefined
+      }
     />
   );
 }

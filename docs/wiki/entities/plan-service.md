@@ -2,8 +2,8 @@
 title: Servizio Piani, API e Client (plan-service)
 type: entity
 created: 2026-09-29
-updated: 2026-10-09
-tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat, week-navigator, feature-4]
+updated: 2026-10-14
+tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat, week-navigator, manual-choice, feature-4, feature-9]
 ---
 
 ## File e Responsabilità
@@ -37,6 +37,8 @@ export async function repeatPlan(sourcePlanId: string, options?: PlanServiceOpti
 export async function confirmPlan(planId: string, options?: PlanServiceOptions): Promise<PlanResult>;
 export async function setSlotLock(planId: string, slotId: string, locked: boolean, options?: PlanServiceOptions): Promise<PlanResult>;
 export async function swapSlot(planId: string, slotId: string, request: SwapSlotRequest, options?: PlanServiceOptions): Promise<PlanMutationResult>;
+export async function listSlotCandidates(planId: string, slotId: string, options?: PlanServiceOptions): Promise<SlotCandidates>;          // Feature 9
+export async function assignSlotRecipe(planId: string, slotId: string, recipeId: string, options?: PlanServiceOptions): Promise<PlanResult>; // Feature 9
 ```
 
 Le opzioni esistono per i test DB (household dedicati, orologio fisso, RNG seedato, `generate` iniettato con `vi.fn`).
@@ -80,6 +82,26 @@ Sotto lock (una rigenerazione concorrente non può cancellare lo slot a metà): 
 4. Transazione: lock, rilettura di piano, slot, impostazioni e libreria, nuova scelta, `updateSlotRecipe`; su piano `active` `incrementRecipeUsage([{ recipeId: nuova, day: slot.day }])` (la sostituita **non** si decrementa); `markShoppingListStale`.
 5. `{ plan, generation }`, con `superseded` calcolato sull'household riletto.
 
+### Scelta a mano (Feature 9)
+Accanto allo swap, l'utente può mettere in uno slot una ricetta precisa della libreria ([[f9-ricette-su-richiesta]], [[slot-recipe-picker]]). Le due funzioni stanno in `service.ts` perché riusano le funzioni private `resolveClock`, `loadOpenOwnedPlan` e `findSwappableSlot` dello swap. **Non** chiamano mai `generate` né l'LLM, non usano `rng` e non aggiungono a `service.ts` import da `lib/llm` o `lib/recipes` (spec D12); l'unica regola di idoneità è `manualChoiceExclusionReason` ([[planner]]). Se la ricetta voluta non c'è, è il client a chiederla e salvarla con `lib/recipes` ([[recipe-proposal-service]]) e poi ad assegnarla.
+
+**`listSlotCandidates(planId, slotId)`**:
+1. `loadHousehold`, orologio, `loadOpenOwnedPlan(db, …)` (`plan_not_found`, `plan_archived`) e `findSwappableSlot` (`slot_not_found`, `slot_locked`, `slot_past`): gli stessi controlli dello swap, senza transazione.
+2. `listRecipesWith(db, { household_id })`, poi le ricette con `manualChoiceExclusionReason(recipe, slot.meal, household) === null` tranne quella dello slot, trasformate con `toLibraryCard` e ordinate con `compareLibraryCards` ([[library-service]]): preferite prima, poi le più recenti. Gli ingredienti «non mi piace» non escludono.
+3. `in_plan_recipe_ids`: le ricette degli **altri** slot del piano, giorni passati compresi, senza doppioni (requirements P12).
+
+Uno slot senza ricetta ha le sue candidate come gli altri.
+
+**`assignSlotRecipe(planId, slotId, recipeId)`**: una transazione con `acquirePlanLock`, sullo stato riletto ([[plan-concurrency-pattern]]). Ordine dei controlli (requirements P11):
+1. piano aperto dell'household (`plan_not_found`, `plan_archived`);
+2. slot del piano, non bloccato, non passato (`slot_not_found`, `slot_locked`, `slot_past`);
+3. household riletto con `getHouseholdById(id, tx)`; libreria riletta con `listRecipesWith(tx, …)`: ricetta assente o di un altro household → `recipe_not_found`;
+4. `manualChoiceExclusionReason(recipe, slot.meal, household riletto)` non nullo (bloccata, altro pasto, dieta, elettrodomestico) → `recipe_not_eligible`;
+5. ricetta già nello slot (richiesta ripetuta) → risposta con il piano, **senza scritture**;
+6. altrimenti `updateSlotRecipe`, `incrementRecipeUsage([{ recipeId, day: slot.day }])` solo se il piano è `active`, `markShoppingListStale`, rilettura con `getPlanById`.
+
+Restituisce `{ plan: toPlanView(updated, household riletto) }`. Gli effetti sono quelli dello swap; la ricetta tolta non si decrementa. Due assegnazioni sovrapposte sullo stesso slot si serializzano sul lock: entrambe rispondono 200 e nello slot resta una delle due ricette, quella dell'ultima transazione. È il punto in cui, in futuro, registrare il segnale implicito "scelta a mano" (`v2-funzionalita.md` §2.5); oggi non lo registra.
+
 ## Errori di Dominio (`errors.ts`)
 
 | Codice | HTTP | Messaggio |
@@ -93,8 +115,10 @@ Sotto lock (una rigenerazione concorrente non può cancellare lo slot a metà): 
 | `repeat_same_week` | 409 | `Questo piano è già quello della settimana da pianificare.` |
 | `insufficient_recipes` | 422 | `Non ho trovato abbastanza ricette per i tuoi vincoli. Prova ad allargare le impostazioni.` |
 | `no_alternatives` | 422 | `Non ci sono altre ricette adatte a questo pasto.` |
+| `recipe_not_found` | 404 | `Ricetta non trovata.` (Feature 9) |
+| `recipe_not_eligible` | 422 | `Questa ricetta non è adatta a questo pasto.` (Feature 9) |
 
-`PlanError(code)` usa il messaggio della tabella; `isPlanError(err)` è la type guard.
+`PlanError(code)` usa il messaggio della tabella; `isPlanError(err)` è la type guard. `recipe_not_found` ha lo stesso codice e messaggio della risposta 404 di `GET /api/recipes/:id` ([[library-service]]), che però non passa da `PlanError`.
 
 ## API HTTP (`app/api/plans/**`)
 
@@ -108,6 +132,10 @@ Tutte le rotte hanno `runtime = 'nodejs'` e `dynamic = 'force-dynamic'`. Un id o
 | `POST /api/plans/:id/confirm` | — | 200 `PlanResult` | 404 `plan_not_found`; 409 `plan_archived` | — |
 | `PATCH /api/plans/:id/slots/:slotId` | `{ locked: boolean }` (strict, body obbligatorio) | 200 `PlanResult` | 400; 404 `plan_not_found` / `slot_not_found`; 409 `plan_archived` | — |
 | `POST /api/plans/:id/slots/:slotId/swap` | `{ exclude_recipe_ids?: uuid[] }` (max 50; body vuoto ammesso) | 200 `PlanMutationResult` | 400 con `details`; 404; 409 `plan_archived` / `slot_locked` / `slot_past`; 422 `no_alternatives`; errori LLM | 250 |
+| `GET /api/plans/:id/slots/:slotId/candidates` (Feature 9) | — | 200 `SlotCandidates` | 404 `plan_not_found` / `slot_not_found`; 409 `plan_archived` / `slot_locked` / `slot_past`; 500 | — |
+| `PUT /api/plans/:id/slots/:slotId/recipe` (Feature 9) | `{ recipe_id: uuid }` (strict, body obbligatorio) | 200 `PlanResult` | 400 con `details`; 404 `plan_not_found` / `slot_not_found` / `recipe_not_found`; 409 `plan_archived` / `slot_locked` / `slot_past`; 422 `recipe_not_eligible`; 500 | — |
+
+Tag di log delle due rotte della Feature 9: `[api/plans/candidates]` e `[api/plans/slot-recipe]`. Passano da `handlePlanRouteError` come le altre, quindi un errore LLM verrebbe mappato anche qui, ma il servizio non ne produce.
 
 **Durate**: il caso peggiore di `POST /api/plans` è `maxGenerationRoundsPlan × 2 × LLM_TIMEOUT_MS` (ogni lotto può includere la chiamata di riparazione): 6 minuti con i default, 8 con `LLM_TIMEOUT_MS = 120000`, coperti da `maxDuration = 500`; swap e *Ripeti* fanno al più un giro (`2 × LLM_TIMEOUT_MS`) con `maxDuration = 250` (fix m3 della code review, `ARCHITECTURE §6`). Sul Raspberry (Next standalone) `maxDuration` non è applicato: conta solo per l'opzione Vercel.
 
@@ -121,6 +149,8 @@ export function requestConfirmPlan(planId: string): Promise<PlanResult>;        
 export function requestSlotLock(planId: string, slotId: string, locked: boolean): Promise<PlanResult>;               // PATCH
 export function requestSwapSlot(planId: string, slotId: string, excludeRecipeIds: string[]): Promise<PlanMutationResult>; // POST …/swap
 export function requestRepeatPlan(planId: string): Promise<GeneratePlanResult>;       // POST /api/plans/{id}/repeat
+export function fetchSlotCandidates(planId: string, slotId: string): Promise<SlotCandidates>;                        // Feature 9: GET …/candidates
+export function requestAssignSlotRecipe(planId: string, slotId: string, recipeId: string): Promise<PlanResult>;      // Feature 9: PUT …/recipe
 ```
 
 Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte ogni `ApiRequestError` in `PlanRequestError` con gli stessi `status`, `code` e `message` (rete → `0` / `network_error` / `Connessione non disponibile.`; 2xx non conforme → `invalid_response`).
@@ -135,6 +165,7 @@ Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte
 - `tests/plans/swap.test.ts` e `tests/plans/repeat.test.ts` (DB): mai ripetizioni, generazione solo senza alternative, errori di dominio, uso su piano confermato, lista marcata da rigenerare, swap concorrenti, `slot_past`, pre-assegnazioni di *Ripeti*.
 - `tests/api/plans.test.ts`, `tests/api/plans-swap.test.ts`, `tests/api/plans-repeat.test.ts` (servizio mockato): status, corpi, `maxDuration`, mappatura di ogni `PlanErrorCode` e degli errori LLM, nessun messaggio interno nei 500.
 - `tests/plans/client.test.ts` e `tests/plans/format.test.ts`.
+- `tests/plans/assign.test.ts` (Feature 9, DB): candidate solo adatte con ingredienti scartati ammessi e senza la ricetta dello slot, preferite prima, `in_plan_recipe_ids` senza la ricetta dello slot, rifiuti di piano e slot, slot senza ricetta; assegnazione su bozza senza toccare l'uso, su piano confermato con lista (uso contato, lista segnata), ingrediente scartato ammesso, ricetta già in un altro slot, ricetta inesistente o di un altro household, bloccata, di un altro pasto, non vegetariana o con un elettrodomestico mancante, richiesta ripetuta senza scritture, household riletto sotto lock, due assegnazioni sovrapposte. L'asserzione di confine `SlotCandidatesSchema.parse(JSON.parse(JSON.stringify(…)))` fissa la compatibilità con lo schema del client (innesto R6). `tests/api/plans-assign.test.ts` (servizio mockato) e casi aggiunti in `tests/plans/client.test.ts`.
 - `tests/plans/ingredient-prefs.test.ts` (Feature 5, DB): con uno scarto attivo 20 piani seedati non contengono mai le ricette con quell'ingrediente e `generate` non viene chiamata; controprova senza lo scarto; swap senza alternative dopo uno scarto → `no_alternatives`. `tests/prefs/planner-integration.test.ts` fa lo stesso passando dai servizi delle preferenze, anche per una ricetta bloccata.
 
 ## Vedi anche
@@ -150,3 +181,5 @@ Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte
 - [[shopping-list]] — `isPlanClosed` in `lib/domain/plan-status.ts` (Feature 6)
 - [[shopping-service]] — Servizio della lista della spesa, che consuma `needs_regeneration` e usa lo stesso lock dei piani (Feature 6)
 - [[e3-pianificatore]] — Panoramica della Feature 4
+- [[slot-recipe-picker]] — Selettore che usa candidate e assegnazione (Feature 9)
+- [[f9-ricette-su-richiesta]] — Panoramica della Feature 9

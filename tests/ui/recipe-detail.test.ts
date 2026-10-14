@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   findRecipeIngredient,
   ingredientRowId,
+  proposalToRecipeDetail,
   recipeChips,
   toRecipeDetail,
 } from '@/components/sheets/recipe-detail';
-import type { Ingredient, Recipe, RecipeIngredientInfo } from '@/lib/domain/types';
+import type {
+  GeneratedRecipe,
+  Ingredient,
+  Recipe,
+  RecipeIngredientInfo,
+} from '@/lib/domain/types';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 
@@ -39,6 +45,26 @@ function makeIngredient(qty: number | null): Ingredient {
     category: 'dispensa',
     qty,
   } as Ingredient;
+}
+
+function makeProposal(overrides: Partial<GeneratedRecipe> = {}): GeneratedRecipe {
+  return {
+    title: 'Lasagne al forno',
+    description: 'Classiche',
+    meal_types: ['pranzo'],
+    tags: ['comfort-food', 'piatto-unico', 'veloce'],
+    diet_flags: ['vegetariano'],
+    appliances_required: [],
+    servings_base: 2,
+    prep_minutes: 60,
+    kcal_est: null,
+    steps: ['Stendi la sfoglia', 'Inforna'],
+    ingredients: [
+      { canonical_name: 'farina', display_name: 'Farina', qty: 200, unit: 'g', category: 'dispensa', note: null },
+      { canonical_name: 'sale', display_name: 'Sale', qty: null, unit: 'qb', category: 'dispensa', note: null },
+    ],
+    ...overrides,
+  };
 }
 
 describe('recipeChips', () => {
@@ -166,5 +192,58 @@ describe('toRecipeDetail', () => {
         recipesCount: 3,
       });
     });
+  });
+});
+
+describe('proposalToRecipeDetail', () => {
+  it('uses the title as id prefix and carries the proposal fields', () => {
+    const recipe = makeProposal();
+    const detail = proposalToRecipeDetail(recipe, 2);
+    expect(detail).toMatchObject({
+      id: 'proposal:Lasagne al forno',
+      title: 'Lasagne al forno',
+      description: 'Classiche',
+      prepTimeMinutes: 60,
+      servings: 2,
+      steps: ['Stendi la sfoglia', 'Inforna'],
+    });
+  });
+
+  it('scales quantities from servings_base to the requested servings', () => {
+    const detail = proposalToRecipeDetail(makeProposal(), 4);
+    expect(detail.servings).toBe(4);
+    expect(detail.ingredients[0]).toMatchObject({ name: 'Farina', amount: 400, unit: 'g' });
+  });
+
+  it('uses amount 0 when qty is null', () => {
+    const detail = proposalToRecipeDetail(makeProposal(), 4);
+    expect(detail.ingredients[1]).toMatchObject({ name: 'Sale', amount: 0, unit: 'qb' });
+  });
+
+  it('gives the same chips as the library recipe', () => {
+    const recipe = makeProposal();
+    expect(proposalToRecipeDetail(recipe, 2).tags).toEqual(recipeChips(recipe));
+  });
+
+  it('has no judgements: not favorite, not blocked, no rating', () => {
+    const detail = proposalToRecipeDetail(makeProposal(), 2);
+    expect(detail.isFavorite).toBe(false);
+    expect(detail.isBlocked).toBe(false);
+    expect(detail.rating).toBeUndefined();
+  });
+
+  it('gives each ingredient a synthetic id from the proposal title and its index', () => {
+    const detail = proposalToRecipeDetail(makeProposal(), 2);
+    expect(detail.ingredients.map((ing) => ing.id)).toEqual([
+      'proposal:Lasagne al forno:0',
+      'proposal:Lasagne al forno:1',
+    ]);
+    expect(detail.ingredients.every((ing) => ing.preference === undefined)).toBe(true);
+  });
+
+  it('changes the id with the title, so a new proposal resets the servings', () => {
+    const first = proposalToRecipeDetail(makeProposal(), 2);
+    const second = proposalToRecipeDetail(makeProposal({ title: 'Lasagne verdi' }), 2);
+    expect(second.id).not.toBe(first.id);
   });
 });

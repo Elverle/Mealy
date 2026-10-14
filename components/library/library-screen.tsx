@@ -10,14 +10,19 @@ import {
   RecipeDetailSheet,
   type RecipePrefChanges,
 } from "@/components/recipes/recipe-detail-sheet";
+import { RecipeProposalSheet } from "@/components/recipes/recipe-proposal-sheet";
+import { RecipeRequestBox } from "@/components/recipes/recipe-request-box";
 import { Button } from "@/components/ui/button";
-import { filterLibraryCards } from "@/lib/domain/library";
+import { filterLibraryCards, toLibraryCard } from "@/lib/domain/library";
 import {
   EMPTY_LIBRARY_FILTER,
+  type GeneratedRecipe,
   type LibraryFilter,
   type LibraryRecipeCard,
+  type Recipe,
 } from "@/lib/domain/types";
 import { apiErrorMessage } from "@/lib/http/client";
+import { requestSaveRecipe } from "@/lib/library/client";
 import { putRecipePref } from "@/lib/prefs/client";
 
 export interface LibraryScreenProps {
@@ -52,7 +57,11 @@ export function LibraryScreen({ initialRecipes, persons }: LibraryScreenProps): 
   const [filter, setFilter] = React.useState<LibraryFilter>(EMPTY_LIBRARY_FILTER);
   const [sheetRecipeId, setSheetRecipeId] = React.useState<string | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
+  // Testo della richiesta di una ricetta; null = nessuna proposta aperta.
+  const [requestText, setRequestText] = React.useState<string | null>(null);
   const savingFavorites = React.useRef<Set<string>>(new Set());
+  const requestButtonRef = React.useRef<HTMLButtonElement>(null);
+  const headingRef = React.useRef<HTMLHeadingElement>(null);
 
   const visible = React.useMemo(
     () => filterLibraryCards(cards, { ...filter, q: query }),
@@ -101,12 +110,41 @@ export function LibraryScreen({ initialRecipes, persons }: LibraryScreenProps): 
     }
   };
 
+  /** Chiusura della proposta senza salvare: il focus torna sul pulsante che l'ha aperta. */
+  const closeProposal = (): void => {
+    setRequestText(null);
+    requestButtonRef.current?.focus();
+  };
+
+  /** Salva la proposta in libreria. Se rigetta, la sheet resta aperta (lo gestisce RecipeProposalSheet). */
+  const handleAddToLibrary = async (recipe: GeneratedRecipe): Promise<void> => {
+    let saved: Recipe;
+    try {
+      saved = await requestSaveRecipe(recipe);
+    } catch (err) {
+      setToast(apiErrorMessage(err));
+      throw err;
+    }
+    const card = toLibraryCard(saved);
+    setCards((prev) => [card, ...prev.filter((existing) => existing.id !== card.id)]);
+    setRequestText(null);
+    resetFilters();
+    setToast(`«${saved.title}» è in libreria`);
+    headingRef.current?.focus();
+  };
+
   const emptyAction = { actionLabel: "Azzera filtri", onAction: resetFilters };
 
   return (
     <main className="px-4 py-6 max-w-xl mx-auto">
       <header className="mb-5">
-        <h1 className="font-display text-2xl font-bold text-ink">Libreria Ricette</h1>
+        <h1
+          ref={headingRef}
+          tabIndex={-1}
+          className="font-display text-2xl font-bold text-ink focus:outline-none"
+        >
+          Libreria Ricette
+        </h1>
         <p className="text-stone text-xs mt-0.5">Tutte le tue ricette, da ritrovare e giudicare</p>
       </header>
 
@@ -159,6 +197,7 @@ export function LibraryScreen({ initialRecipes, persons }: LibraryScreenProps): 
               ))}
             </div>
           )}
+          <RecipeRequestBox query={query} onRequest={setRequestText} buttonRef={requestButtonRef} />
         </>
       )}
 
@@ -168,6 +207,14 @@ export function LibraryScreen({ initialRecipes, persons }: LibraryScreenProps): 
         onClose={() => setSheetRecipeId(null)}
         onRecipePrefsChange={patchCard}
         onNotify={setToast}
+      />
+      <RecipeProposalSheet
+        request={requestText}
+        mealType={null}
+        servings={persons}
+        acceptLabel="Aggiungi alla libreria"
+        onAccept={handleAddToLibrary}
+        onClose={closeProposal}
       />
       <Toast message={toast} onDismiss={() => setToast(null)} />
     </main>

@@ -23,7 +23,7 @@ Con l'adozione di Tailwind CSS v4, la configurazione non risiede più in un file
   --color-basil: #3E6B4F;
   --color-tomato: #C4482F;
   --color-saffron: #E0A83C;
-  --color-stone: #8A8377;
+  --color-stone: #726B5F;
 
   --font-display: var(--font-fraunces), serif;
   --font-sans: var(--font-figtree), sans-serif;
@@ -39,7 +39,7 @@ Con l'adozione di Tailwind CSS v4, la configurazione non risiede più in un file
 | `basil` | `#3E6B4F` | **Accento Primario & Azioni Positive**: Verde foglia di basilico. Utilizzato per bottoni principali, tab attive, spunte lista e badge confermati. |
 | `tomato` | `#C4482F` | **Accento Distruttivo & Sostituzioni**: Rosso pomodoro maturo. Riservato all'azione "Cambia" ricetta e alle cancellazioni/blocchi. |
 | `saffron` | `#E0A83C` | **Accento Preferenze & Valutazioni**: Giallo caldo zafferano. Identifica le ricette preferite (stella ★) e le valutazioni 1–5. |
-| `stone` | `#8A8377` | **Neutro & Bordo**: Grigio pietra calda. Utilizzato per bordi tenui (`border-stone/20`), testi secondari, metadati e stati inattivi. |
+| `stone` | `#726B5F` | **Neutro & Bordo**: Grigio pietra calda. Utilizzato per bordi tenui (`border-stone/20`), testi secondari, metadati e stati inattivi. Dal 14 ottobre 2026 più scuro (era `#8A8377`, 3,5:1 su `paper`): 4,9:1 su `paper` e 5,3:1 su bianco, quindi AA anche per il testo piccolo e i placeholder. |
 
 ## Tipografia
 

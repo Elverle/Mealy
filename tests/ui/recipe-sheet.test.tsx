@@ -206,6 +206,111 @@ describe("RecipeSheet disabled states", () => {
   });
 });
 
+describe("RecipeSheet placeholder, notice and footer", () => {
+  it("shows the placeholder title and content instead of the skeleton while loading", () => {
+    renderSheet({
+      recipe: null,
+      isLoading: true,
+      placeholder: { title: "«lasagne»", content: <p>Cerco una ricetta…</p> },
+    });
+    expect(screen.getByText("«lasagne»")).toBeInTheDocument();
+    expect(screen.getByText("Cerco una ricetta…")).toBeInTheDocument();
+    expect(screen.queryByText("Apro la ricetta…")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Caricamento della ricetta" })).not.toBeInTheDocument();
+  });
+
+  it("shows the placeholder even without isLoading", () => {
+    renderSheet({
+      recipe: null,
+      placeholder: { title: "«lasagne»", content: <p>Nessuna ricetta trovata</p> },
+    });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Nessuna ricetta trovata")).toBeInTheDocument();
+  });
+
+  it("renders the notice and the footer below the header and at the end of the sheet", () => {
+    renderSheet({
+      notice: <p>Questa ce l'hai già: «Pasta al pomodoro»</p>,
+      footer: <button type="button">Metti nel piano</button>,
+    });
+    expect(screen.getByText("Questa ce l'hai già: «Pasta al pomodoro»")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Metti nel piano" })).toBeInTheDocument();
+  });
+
+  it("renders no footer area when footer is not passed", () => {
+    renderSheet();
+    expect(document.querySelector("[data-sheet-footer]")).toBeNull();
+  });
+
+  it("anchors the footer outside the scrolling body, after it", () => {
+    renderSheet({ footer: <button type="button">Metti nel piano</button> });
+    const button = screen.getByRole("button", { name: "Metti nel piano" });
+    const footer = button.closest("[data-sheet-footer]");
+    const body = document.querySelector("[data-sheet-body]");
+    expect(footer).not.toBeNull();
+    expect(body?.contains(button)).toBe(false);
+    expect(body?.nextElementSibling).toBe(footer);
+  });
+
+  it("keeps the title and the subtitle in the fixed header, outside the scrolling body", () => {
+    renderSheet({ subtitle: "Hai chiesto «pasta»" });
+    const title = screen.getByRole("heading", { level: 2, name: "Pasta al pomodoro" });
+    const subtitle = screen.getByText("Hai chiesto «pasta»");
+    const body = document.querySelector("[data-sheet-body]");
+    expect(body?.contains(title)).toBe(false);
+    expect(body?.contains(subtitle)).toBe(false);
+  });
+
+  it("keeps the same panel height while waiting and with the recipe", () => {
+    const { rerenderWith } = renderSheet({
+      recipe: null,
+      placeholder: { title: "«pasta»", content: <p>Cerco una ricetta…</p> },
+    });
+    const waiting = screen.getByRole("dialog");
+    expect(waiting).toHaveClass("h-[92dvh]");
+
+    rerenderWith({ recipe: makeRecipe(), placeholder: undefined });
+    expect(screen.getByRole("dialog")).toBe(waiting);
+    expect(waiting).toHaveClass("h-[92dvh]");
+  });
+});
+
+describe("RecipeSheet structure and copy", () => {
+  it("names the dialog after the recipe title", () => {
+    renderSheet();
+    expect(screen.getByRole("dialog", { name: "Pasta al pomodoro" })).toBeInTheDocument();
+  });
+
+  it("uses section headings one level below the title", () => {
+    renderSheet();
+    expect(screen.getByRole("heading", { level: 3, name: "Ingredienti" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Preparazione" })).toBeInTheDocument();
+  });
+
+  it("shows a unit without an amount without a stray space", () => {
+    renderSheet({
+      recipe: makeRecipe({
+        ingredients: [{ id: "ing-1", name: "Sale", amount: 0, unit: "qb" }],
+      }),
+    });
+    expect(screen.getByText("(qb)")).toBeInTheDocument();
+  });
+
+  it("keeps the footer visible with a recipe and no action handlers", () => {
+    renderSheet({
+      onRate: undefined,
+      onToggleFavorite: undefined,
+      onToggleBlock: undefined,
+      onIngredientPreference: undefined,
+      footer: <button type="button">Metti nel piano</button>,
+    });
+    expect(screen.queryByRole("button", { name: "Vota 1 stelle" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Non proporre più" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Scarta Basilico" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Metti nel piano" })).toBeInTheDocument();
+  });
+});
+
 describe("RecipeSheet rating state", () => {
   it("marks only the current rating star as pressed", () => {
     renderSheet({ recipe: makeRecipe({ rating: 4 }) });

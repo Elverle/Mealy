@@ -702,3 +702,88 @@ export type ShoppingItemResult = z.infer<typeof ShoppingItemResultSchema>;
 // Risposta di DELETE /api/shopping-items/:id
 export const DeleteShoppingItemResultSchema = z.object({ id: z.string().uuid() });
 export type DeleteShoppingItemResult = z.infer<typeof DeleteShoppingItemResultSchema>;
+
+// ============================================================================
+// Recipe Requests & Manual Slot Choice (Feature 9)
+// ============================================================================
+
+// Lunghezza minima del testo di una richiesta libera; il massimo è LIBRARY_QUERY_MAX.
+export const RECIPE_REQUEST_MIN = 3;
+// Titoli già proposti nella sequenza di «Un'altra» che il client rimanda al server.
+export const PROPOSAL_EXCLUDE_MAX = 10;
+const PROPOSAL_TITLE_MAX = 120; // come GeneratedRecipeSchema.title
+
+// Body di POST /api/recipes/propose. meal_type null: il tipo di pasto lo decide il modello.
+export const ProposeRecipeRequestSchema = z
+  .object({
+    request: z.string().trim().min(RECIPE_REQUEST_MIN).max(LIBRARY_QUERY_MAX),
+    meal_type: MealTypeSchema.nullable().default(null),
+    exclude_titles: z
+      .array(z.string().trim().min(1).max(PROPOSAL_TITLE_MAX))
+      .max(PROPOSAL_EXCLUDE_MAX)
+      .default([]),
+  })
+  .strict();
+export type ProposeRecipeRequest = z.infer<typeof ProposeRecipeRequestSchema>;
+
+// Risposta di POST /api/recipes/propose. duplicate_of: ricetta della libreria con lo stesso
+// titolo normalizzato, oppure null. La proposta non è salvata sul server.
+export const RecipeProposalSchema = z
+  .object({
+    recipe: GeneratedRecipeSchema,
+    duplicate_of: z
+      .object({ id: z.string().uuid(), title: z.string().min(1) })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+export type RecipeProposal = z.infer<typeof RecipeProposalSchema>;
+
+// Tetti di una ricetta che arriva dal client per essere salvata: larghi rispetto a ciò che
+// produce il modello, servono solo a non scrivere in libreria corpi di dimensione arbitraria.
+// Restano fuori da GeneratedRecipeSchema, che è anche lo schema dell'output strutturato LLM.
+export const SAVED_RECIPE_TEXT_MAX = 1000; // descrizione e singolo passo
+export const SAVED_RECIPE_STEPS_MAX = 40;
+export const SAVED_RECIPE_INGREDIENTS_MAX = 60;
+export const SAVED_RECIPE_TAGS_MAX = 20; // tags, diet_flags, appliances_required
+const SAVED_INGREDIENT_NAME_MAX = 120;
+const SAVED_INGREDIENT_NOTE_MAX = 300;
+
+export const SavedRecipeInputSchema = GeneratedRecipeSchema.extend({
+  description: z.string().max(SAVED_RECIPE_TEXT_MAX),
+  tags: z.array(MealStyleTagSchema).max(SAVED_RECIPE_TAGS_MAX),
+  diet_flags: z.array(DietFlagSchema).max(SAVED_RECIPE_TAGS_MAX),
+  appliances_required: z.array(ApplianceSchema).max(SAVED_RECIPE_TAGS_MAX),
+  steps: z.array(z.string().min(1).max(SAVED_RECIPE_TEXT_MAX)).min(1).max(SAVED_RECIPE_STEPS_MAX),
+  ingredients: z
+    .array(
+      GeneratedIngredientSchema.extend({
+        canonical_name: z.string().min(1).max(SAVED_INGREDIENT_NAME_MAX),
+        display_name: z.string().min(1).max(SAVED_INGREDIENT_NAME_MAX),
+        note: z.string().max(SAVED_INGREDIENT_NOTE_MAX).nullable(),
+      })
+    )
+    .min(1)
+    .max(SAVED_RECIPE_INGREDIENTS_MAX),
+});
+
+// Body di POST /api/recipes
+export const SaveRecipeRequestSchema = z.object({ recipe: SavedRecipeInputSchema }).strict();
+export type SaveRecipeRequest = z.infer<typeof SaveRecipeRequestSchema>;
+
+// Risposta di POST /api/recipes: la ricetta salvata, completa di ingredienti e preferenze.
+export const SaveRecipeResultSchema = z.object({ recipe: RecipeSchema }).strict();
+export type SaveRecipeResult = z.infer<typeof SaveRecipeResultSchema>;
+
+// Body di PUT /api/plans/:id/slots/:slotId/recipe (la risposta è PlanResultSchema)
+export const AssignSlotRecipeRequestSchema = z.object({ recipe_id: z.string().uuid() }).strict();
+export type AssignSlotRecipeRequest = z.infer<typeof AssignSlotRecipeRequestSchema>;
+
+// Risposta di GET /api/plans/:id/slots/:slotId/candidates
+export const SlotCandidatesSchema = z
+  .object({
+    recipes: z.array(LibraryRecipeCardSchema), // adatte al pasto, senza quella dello slot, nell'ordine della Libreria
+    in_plan_recipe_ids: z.array(z.string().uuid()), // ricette degli altri slot dello stesso piano, senza doppioni
+  })
+  .strict();
+export type SlotCandidates = z.infer<typeof SlotCandidatesSchema>;

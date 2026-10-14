@@ -19,6 +19,7 @@ import { getModel, getLlmTimeoutMs } from './model';
 import {
   buildRecipeInstructions,
   buildRecipePrompt,
+  buildRecipeRequestPrompt,
   buildRepairPrompt,
   MAX_EXCLUDED_TITLES,
 } from './prompts';
@@ -105,23 +106,9 @@ function toLlmError(err: unknown): LlmError {
 }
 
 /**
- * Generates recipe candidates from the configured or injected LLM provider,
- * applying validation, automatic 1-step repair if needed, and normalization.
+ * Titoli senza spazi ai bordi, non vuoti, senza doppioni (vince la prima occorrenza), al più MAX_EXCLUDED_TITLES.
  */
-export async function generateRecipes(
-  constraints: RecipeConstraints,
-  n: number,
-  excludeTitles: readonly string[],
-  options?: GenerateRecipesOptions,
-): Promise<GeneratedRecipe[]> {
-  if (!Number.isInteger(n) || n < GENERATE_COUNT_MIN || n > GENERATE_COUNT_MAX) {
-    throw new RangeError('n must be an integer between 1 and 10');
-  }
-
-  const parsed = RecipeConstraintsSchema.parse(constraints);
-  const model = options?.model ?? getModel();
-
-  // Clean titles: trim, remove empty, deduplicate preserving first occurrence, slice(0, MAX_EXCLUDED_TITLES)
+function cleanExcludedTitles(excludeTitles: readonly string[]): string[] {
   const cleanedTitles: string[] = [];
   const seen = new Set<string>();
   for (const raw of excludeTitles) {
@@ -131,23 +118,33 @@ export async function generateRecipes(
       cleanedTitles.push(t);
     }
   }
-  const titles = cleanedTitles.slice(0, MAX_EXCLUDED_TITLES);
+  return cleanedTitles.slice(0, MAX_EXCLUDED_TITLES);
+}
 
+interface RecipeCall {
+  model: LanguageModel;
+  prompt: string;
+  timeoutMs: number;
+  abortSignal?: AbortSignal;
+}
+
+/**
+ * Chiamata al modello più un tentativo di riparazione; restituisce le ricette normalizzate.
+ */
+async function runRecipeGeneration(call: RecipeCall): Promise<GeneratedRecipe[]> {
   const instructions = buildRecipeInstructions();
-  const prompt = buildRecipePrompt(parsed, n, titles);
-  const timeoutMs = options?.timeoutMs ?? getLlmTimeoutMs();
 
   let result;
   try {
     result = await generateText({
-      model,
+      model: call.model,
       instructions,
-      prompt,
+      prompt: call.prompt,
       output: Output.object({ schema: GenerateRecipesOutputSchema }),
       temperature: 0.8,
       maxRetries: 1,
-      timeout: timeoutMs,
-      abortSignal: options?.abortSignal,
+      timeout: call.timeoutMs,
+      abortSignal: call.abortSignal,
     });
   } catch (err) {
     if (NoObjectGeneratedError.isInstance(err)) {
@@ -155,21 +152,21 @@ export async function generateRecipes(
       const validationErrors = describeValidationError(err.cause);
       const repairPrompt = buildRepairPrompt(validationErrors);
       const messages = [
-        { role: 'user' as const, content: prompt },
+        { role: 'user' as const, content: call.prompt },
         ...(err.text && err.text.length > 0 ? [{ role: 'assistant' as const, content: err.text }] : []),
         { role: 'user' as const, content: repairPrompt },
       ];
 
       try {
         result = await generateText({
-          model,
+          model: call.model,
           instructions,
           messages,
           output: Output.object({ schema: GenerateRecipesOutputSchema }),
           temperature: 0.2,
           maxRetries: 1,
-          timeout: timeoutMs,
-          abortSignal: options?.abortSignal,
+          timeout: call.timeoutMs,
+          abortSignal: call.abortSignal,
         });
       } catch (err2) {
         if (NoObjectGeneratedError.isInstance(err2)) {
@@ -186,5 +183,62 @@ export async function generateRecipes(
     }
   }
 
-  return result.output.recipes.map(normalizeGeneratedRecipe).slice(0, n);
+  return result.output.recipes.map(normalizeGeneratedRecipe);
+}
+
+/**
+ * Generates recipe candidates from the configured or injected LLM provider,
+ * applying validation, automatic 1-step repair if needed, and normalization.
+ */
+export async function generateRecipes(
+  constraints: RecipeConstraints,
+  n: number,
+  excludeTitles: readonly string[],
+  options?: GenerateRecipesOptions,
+): Promise<GeneratedRecipe[]> {
+  if (!Number.isInteger(n) || n < GENERATE_COUNT_MIN || n > GENERATE_COUNT_MAX) {
+    throw new RangeError('n must be an integer between 1 and 10');
+  }
+
+  const parsed = RecipeConstraintsSchema.parse(constraints);
+  const model = options?.model ?? getModel();
+  const titles = cleanExcludedTitles(excludeTitles);
+
+  const recipes = await runRecipeGeneration({
+    model,
+    prompt: buildRecipePrompt(parsed, n, titles),
+    timeoutMs: options?.timeoutMs ?? getLlmTimeoutMs(),
+    abortSignal: options?.abortSignal,
+  });
+
+  return recipes.slice(0, n);
+}
+
+/**
+ * Genera una sola ricetta a partire da una richiesta in testo libero. Stesso percorso di
+ * `generateRecipes` (schema di output, riparazione, timeout, errori `LlmError`).
+ * Dei vincoli usa persone, tipo di pasto, diete ed elettrodomestici.
+ */
+export async function generateRecipeFromRequest(
+  constraints: RecipeConstraints,
+  request: string,
+  excludeTitles: readonly string[],
+  options?: GenerateRecipesOptions,
+): Promise<GeneratedRecipe> {
+  if (request.trim().length === 0) {
+    throw new RangeError('request must not be empty');
+  }
+
+  const parsed = RecipeConstraintsSchema.parse(constraints);
+  const model = options?.model ?? getModel();
+  const prompt = buildRecipeRequestPrompt(parsed, request, cleanExcludedTitles(excludeTitles));
+
+  const [recipe] = await runRecipeGeneration({
+    model,
+    prompt,
+    timeoutMs: options?.timeoutMs ?? getLlmTimeoutMs(),
+    abortSignal: options?.abortSignal,
+  });
+
+  return recipe;
 }

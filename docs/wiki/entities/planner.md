@@ -2,8 +2,8 @@
 title: Planner Puro — Selezione Pesata, Settimane e RNG (planner)
 type: entity
 created: 2026-09-29
-updated: 2026-10-05
-tags: [planner, domain, pure-functions, weighted-selection, rng, week, recency, feature-4]
+updated: 2026-10-14
+tags: [planner, domain, pure-functions, weighted-selection, rng, week, recency, manual-choice, feature-4, feature-9]
 ---
 
 ## File e Responsabilità
@@ -61,6 +61,9 @@ Il fuso `Europe/Rome` (`APP_TIME_ZONE`) protegge dal container del Raspberry che
 ### `exclusionReason(recipe, meal, ctx): ExclusionReason | null`
 Filtri duri, in quest'ordine (vince il primo che scatta): `'blocked'` (`prefs.blocked`), `'meal_type'`, `'diet'` (ogni dieta dell'household deve stare in `expandDietFlags(recipe.diet_flags)`), `'appliance'`, `'disliked_ingredient'`, `'excluded'` (id in `ctx.excludeRecipeIds`). Un commento incrociato ricorda che le stesse regole vivono in `findConstraintViolations` ([[recipe-generation]]), applicate all'output dell'LLM: chi modifica una deve controllare l'altra (proposta P3 della review architetturale).
 
+### `manualChoiceExclusionReason(recipe, meal, household): ExclusionReason | null` (Feature 9)
+Motivo per cui una ricetta non si può mettere **a mano** in un pasto, oppure `null`. Chiama `exclusionReason` con `ingredientPrefs = EMPTY_INGREDIENT_PREFERENCES` e un insieme vuoto di id esclusi, quindi i motivi possibili sono solo `'blocked'`, `'meal_type'`, `'diet'` e `'appliance'`: gli ingredienti «non mi piace» e la presenza in un altro pasto **non** escludono (spec D8, D10). È l'**unica** definizione di "adatta a questo pasto" per la scelta a mano, usata sia per l'elenco delle candidate sia per l'assegnazione ([[plan-service]]); servizi e componenti non ne hanno copie (requirements P9 della Feature 9). Il sorteggio (`selectRecipes`, swap, generazione, *Ripeti*) continua a usare `exclusionReason` con gli scarti: una ricetta chiesta apposta con un ingrediente scartato si può mettere nel piano a mano ma non viene mai sorteggiata (`ARCHITECTURE §5.4`).
+
 ### `recipeWeight(recipe, ingredientLikes, now, config?)`
 Prodotto di `ratingFactor × favoriteBoost × recencyDecay × noveltyBonus × ingredientAffinity`. Il `recencyDecay` è misurato in giorni (virgola mobile, mai negativi) da `prefs.last_used_at`:
 - mai usata → `1`;
@@ -96,6 +99,8 @@ Tutti puri, senza DB (`tests/domain/`):
 - `planner.test.ts`: ordine delle esclusioni, pesi attesi (incluse pausa morbida e preferite senza pausa), riproducibilità e indipendenza dall'ordine di input, max 1 occorrenza, `needMore` (anche sulle 18 fixture con 20 seed), tipo più scarso per primo, test statistici su 10 000 estrazioni (preferite ~1.5×, like ingredienti ~1.3×, preferita usata ieri contro mai usata ~1.25×), `computeGenerationCount`, lotti.
 - `plan-contracts.test.ts`: parse degli schemi del piano in `types.ts` ([[domain-types]]).
 
+Dalla Feature 9 `planner.test.ts` ha un blocco `manualChoiceExclusionReason`: `null` per una ricetta adatta, `blocked`, `meal_type`, `diet`, `appliance`, e un ingrediente scartato ignorato a differenza di `exclusionReason`.
+
 Dalla Feature 5 il cablaggio con i dati reali è verificato su DB, senza toccare i test puri: `tests/prefs/ingredient-prefs.test.ts` (4000 estrazioni con due gradimenti letti dal DB, rapporto atteso 1.3), `tests/plans/ingredient-prefs.test.ts` e `tests/prefs/planner-integration.test.ts` (scarti e blocchi mai presenti in 20 piani seedati).
 
 ## Vedi anche
@@ -106,3 +111,4 @@ Dalla Feature 5 il cablaggio con i dati reali è verificato su DB, senza toccare
 - [[recipe-generation]] — `findConstraintViolations`, le stesse regole sull'output LLM
 - [[prefs-service]] — `loadIngredientPreferences`, origine di scarti e gradimenti (Feature 5)
 - [[e3-pianificatore]] — Panoramica della Feature 4
+- [[f9-ricette-su-richiesta]] — Feature 9: scelta a mano con `manualChoiceExclusionReason`

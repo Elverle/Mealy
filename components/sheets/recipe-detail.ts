@@ -3,6 +3,7 @@ import {
   DIET_FLAG_LABELS,
   MEAL_STYLE_TAG_LABELS,
   type DietFlag,
+  type GeneratedRecipe,
   type Ingredient,
   type Recipe,
   type RecipeIngredientInfo,
@@ -43,6 +44,12 @@ export function findRecipeIngredient(recipe: Recipe, rowId: string): Ingredient 
   return index === -1 ? null : ingredients[index];
 }
 
+/** Quantità scalata su `servings`, a un decimale; 0 quando la quantità manca. */
+function scaledAmount(qty: number | null | undefined, servings: number, servingsBase: number): number {
+  if (qty == null) return 0;
+  return Math.round(((qty * servings) / servingsBase) * AMOUNT_DECIMALS_FACTOR) / AMOUNT_DECIMALS_FACTOR;
+}
+
 /**
  * Vista di dettaglio per la RecipeSheet, con quantità scalate su `servings`.
  * Solo con `ingredientInfo` ogni ingrediente riceve anche `canonicalName`, `preference` e `recipesCount`.
@@ -56,11 +63,7 @@ export function toRecipeDetail(
     const base = {
       id: ingredientRowId(recipe, ing, index),
       name: ing.display_name,
-      amount:
-        ing.qty == null
-          ? 0
-          : Math.round(((ing.qty * servings) / recipe.servings_base) * AMOUNT_DECIMALS_FACTOR) /
-            AMOUNT_DECIMALS_FACTOR,
+      amount: scaledAmount(ing.qty, servings, recipe.servings_base),
       unit: ing.unit,
     };
     if (!ingredientInfo) return base;
@@ -85,5 +88,31 @@ export function toRecipeDetail(
     rating: recipe.prefs?.rating ?? undefined,
     isFavorite: recipe.prefs?.favorite ?? false,
     isBlocked: recipe.prefs?.blocked ?? false,
+  };
+}
+
+/**
+ * Vista di dettaglio di una ricetta proposta e non ancora in libreria, con quantità scalate
+ * su `servings`. Senza giudizi: nessun voto, non preferita, non bloccata, ingredienti senza
+ * preferenza. L'id cambia con il titolo, così una nuova proposta riallinea le porzioni.
+ */
+export function proposalToRecipeDetail(recipe: GeneratedRecipe, servings: number): RecipeDetail {
+  const id = `proposal:${recipe.title}`;
+  return {
+    id,
+    title: recipe.title,
+    description: recipe.description,
+    prepTimeMinutes: recipe.prep_minutes,
+    servings,
+    tags: recipeChips(recipe),
+    ingredients: recipe.ingredients.map((ing, index) => ({
+      id: `${id}:${index}`,
+      name: ing.display_name,
+      amount: scaledAmount(ing.qty, servings, recipe.servings_base),
+      unit: ing.unit,
+    })),
+    steps: recipe.steps,
+    isFavorite: false,
+    isBlocked: false,
   };
 }

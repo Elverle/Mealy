@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Star, RefreshCw, Lock, Unlock, Clock } from "lucide-react";
+import { Star, RefreshCw, Lock, Unlock, Clock, Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,8 @@ export interface MealCardProps {
   isLocked?: boolean;
   onToggleFavorite?: (id: string) => void;
   onSwap?: (id: string) => void;
+  /** Apre la scelta di una ricetta dalla libreria. Assente → nessun pulsante «Scegli». */
+  onPick?: (id: string) => void;
   onToggleLock?: (id: string) => void;
   onSelect?: (id: string) => void;
   onLongPress?: (id: string) => void;
@@ -40,6 +42,7 @@ export function MealCard({
   isLocked = false,
   onToggleFavorite,
   onSwap,
+  onPick,
   onToggleLock,
   onSelect,
   onLongPress,
@@ -96,7 +99,7 @@ export function MealCard({
       }
     : {};
 
-  const showFooter = Boolean(actions || onSwap || onToggleFavorite);
+  const showFooter = Boolean(actions || onSwap || onPick || onToggleFavorite);
 
   return (
     <Card
@@ -190,20 +193,40 @@ export function MealCard({
         <div className="mt-3 flex items-center justify-between border-t border-stone/15 pt-2">
           {actions ?? (
             <>
-              {onSwap && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSwap(id);
-                  }}
-                  disabled={isLocked}
-                  aria-label={`Cambia ${title}`}
-                  className="flex min-h-[44px] items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-tomato transition-colors hover:bg-tomato/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tomato active:scale-95 cursor-pointer disabled:pointer-events-none disabled:opacity-40"
-                >
-                  <RefreshCw className="h-4 w-4 stroke-[2.25]" />
-                  <span>Cambia</span>
-                </button>
+              {(onSwap || onPick) && (
+                <div className="flex items-center gap-1">
+                  {onSwap && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSwap(id);
+                      }}
+                      disabled={isLocked}
+                      aria-label={`Cambia ${title}`}
+                      className="flex min-h-[44px] items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-tomato transition-colors hover:bg-tomato/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tomato active:scale-95 cursor-pointer disabled:pointer-events-none disabled:opacity-40"
+                    >
+                      <RefreshCw className="h-4 w-4 stroke-[2.25]" />
+                      <span>Cambia</span>
+                    </button>
+                  )}
+                  {onPick && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPick(id);
+                      }}
+                      disabled={isLocked}
+                      aria-label={`Scegli un'altra ricetta per ${title}`}
+                      data-slot-action="pick"
+                      className="flex min-h-[44px] items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-ink transition-colors hover:bg-stone/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil active:scale-95 cursor-pointer disabled:pointer-events-none disabled:opacity-40"
+                    >
+                      <Search className="h-4 w-4 stroke-[2.25]" aria-hidden="true" />
+                      <span>Scegli</span>
+                    </button>
+                  )}
+                </div>
               )}
 
               {onToggleFavorite && (

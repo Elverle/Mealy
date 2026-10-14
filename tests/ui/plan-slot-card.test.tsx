@@ -1,8 +1,8 @@
 import * as React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtureRecipesAsDomain } from "@/fixtures";
-import { PlanSlotCard } from "@/components/plan/plan-slot-card";
+import { PlanSlotCard, type PlanSlotCardProps } from "@/components/plan/plan-slot-card";
 import {
   SWAP_EXCLUDE_MAX,
   type PlanMutationResult,
@@ -15,6 +15,23 @@ vi.mock("@/lib/plans/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/plans/client")>();
   return { ...original, requestSwapSlot: vi.fn() };
 });
+
+vi.mock("@/components/plan/slot-recipe-picker", () => ({
+  SlotRecipePicker: (props: {
+    slot: PlanSlotView;
+    onClose: () => void;
+    onAssigned: (plan: PlanView) => void;
+    onPlanStale: () => void;
+    onNotify: (message: string) => void;
+  }) => (
+    <div data-testid="picker" data-slot-id={props.slot.id}>
+      <button onClick={() => props.onAssigned(makeResult(RECIPE_C).plan)}>finto-assegna</button>
+      <button onClick={props.onClose}>finto-chiudi</button>
+      <button onClick={() => { props.onPlanStale(); props.onClose(); }}>finto-scaduto</button>
+      <button onClick={() => props.onNotify("avviso dal selettore")}>finto-avviso</button>
+    </div>
+  ),
+}));
 
 import { PlanRequestError, requestSwapSlot } from "@/lib/plans/client";
 
@@ -48,6 +65,8 @@ interface HarnessProps {
   onError?: (message: string) => void;
   onToggleLock?: (slotId: string) => void;
   onToggleFavorite?: (recipeId: string) => void;
+  onPlanStale?: () => void;
+  onRecipePrefsChange?: PlanSlotCardProps["onRecipePrefsChange"];
 }
 
 /** Fa da genitore: sostituisce lo slot con quello del piano restituito dallo swap. */
@@ -59,6 +78,8 @@ function Harness({
   onError = vi.fn(),
   onToggleLock = vi.fn(),
   onToggleFavorite,
+  onPlanStale,
+  onRecipePrefsChange,
 }: HarnessProps) {
   const [slot, setSlot] = React.useState(initial);
   return (
@@ -74,6 +95,8 @@ function Harness({
       onToggleLock={onToggleLock}
       onSelectRecipe={vi.fn()}
       onToggleFavorite={onToggleFavorite}
+      onPlanStale={onPlanStale}
+      onRecipePrefsChange={onRecipePrefsChange}
       onError={onError}
     />
   );
@@ -368,5 +391,168 @@ describe("PlanSlotCard", () => {
 
       expect(screen.getByRole("button", { name: "Aggiungi ai preferiti" })).toBeInTheDocument();
     });
+  });
+});
+
+describe("PlanSlotCard — Scegli", () => {
+  const scegliName = (title: string) => `Scegli un'altra ricetta per ${title}`;
+
+  beforeEach(() => {
+    vi.mocked(requestSwapSlot).mockReset();
+  });
+
+  it("offers Scegli on an editable card that can be swapped", () => {
+    render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+    expect(screen.getByRole("button", { name: scegliName(RECIPE_A.title) })).toBeInTheDocument();
+  });
+
+  it("offers no Scegli on a read-only card or on a slot that cannot be swapped", () => {
+    const { unmount } = render(<Harness initial={makeSlot(RECIPE_A)} editable={false} />);
+    expect(screen.queryByRole("button", { name: scegliName(RECIPE_A.title) })).toBeNull();
+    unmount();
+
+    render(<Harness initial={makeSlot(RECIPE_A)} swappable={false} />);
+    expect(screen.queryByRole("button", { name: scegliName(RECIPE_A.title) })).toBeNull();
+  });
+
+  it("disables Scegli on a locked slot and does not open the picker", () => {
+    render(<Harness initial={makeSlot(RECIPE_A, true)} />);
+
+    const scegli = screen.getByRole("button", { name: scegliName(RECIPE_A.title) });
+    expect(scegli).toBeDisabled();
+    fireEvent.click(scegli);
+    expect(screen.queryByTestId("picker")).toBeNull();
+  });
+
+  it("mounts the picker for this slot when Scegli is tapped", () => {
+    render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: scegliName(RECIPE_A.title) }));
+
+    expect(screen.getByTestId("picker")).toHaveAttribute("data-slot-id", SLOT_ID);
+  });
+
+  it("applies an assignment from the normal state and puts the focus back on Scegli", async () => {
+    const onPlanChange = vi.fn();
+    render(<Harness initial={makeSlot(RECIPE_A)} onPlanChange={onPlanChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: scegliName(RECIPE_A.title) }));
+    fireEvent.click(screen.getByRole("button", { name: "finto-assegna" }));
+
+    expect(onPlanChange).toHaveBeenCalledTimes(1);
+    expect(onPlanChange).toHaveBeenCalledWith(makeResult(RECIPE_C).plan);
+    expect(screen.queryByTestId("picker")).toBeNull();
+    expect(screen.getByText(RECIPE_C.title)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tieni" })).toBeNull();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: scegliName(RECIPE_C.title) })
+      )
+    );
+  });
+
+  it("closes without assigning and keeps the card as it was, focus on Scegli", async () => {
+    const onPlanChange = vi.fn();
+    render(<Harness initial={makeSlot(RECIPE_A)} onPlanChange={onPlanChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: scegliName(RECIPE_A.title) }));
+    fireEvent.click(screen.getByRole("button", { name: "finto-chiudi" }));
+
+    expect(screen.queryByTestId("picker")).toBeNull();
+    expect(onPlanChange).not.toHaveBeenCalled();
+    expect(screen.getByText(RECIPE_A.title)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: scegliName(RECIPE_A.title) })
+      )
+    );
+  });
+
+  it("shows Tieni, the library icon and Cambia ancora, in this order, after a swap", async () => {
+    vi.mocked(requestSwapSlot).mockResolvedValueOnce(makeResult(RECIPE_B));
+    render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+    const tieni = await screen.findByRole("button", { name: "Tieni" });
+    const row = tieni.parentElement as HTMLElement;
+
+    const labels = within(row)
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim());
+    expect(labels).toEqual(["Tieni", "Scegli dalla libreria", "Cambia ancora"]);
+  });
+
+  it("assigns from the review row, clears the review and restarts the Cambia sequence", async () => {
+    vi.mocked(requestSwapSlot)
+      .mockResolvedValueOnce(makeResult(RECIPE_B))
+      .mockReturnValueOnce(new Promise<PlanMutationResult>(() => {}));
+    render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+    fireEvent.click(await screen.findByRole("button", { name: "Scegli dalla libreria" }));
+    fireEvent.click(screen.getByRole("button", { name: "finto-assegna" }));
+
+    expect(screen.queryByRole("button", { name: "Tieni" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cambia ancora" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_C.title}` }));
+    expect(requestSwapSlot).toHaveBeenLastCalledWith(PLAN_ID, SLOT_ID, [RECIPE_C.id]);
+  });
+
+  it("keeps the review on close and brings the focus back to the library icon", async () => {
+    vi.mocked(requestSwapSlot).mockResolvedValueOnce(makeResult(RECIPE_B));
+    render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+    fireEvent.click(await screen.findByRole("button", { name: "Scegli dalla libreria" }));
+    fireEvent.click(screen.getByRole("button", { name: "finto-chiudi" }));
+
+    expect(screen.queryByTestId("picker")).toBeNull();
+    expect(screen.getByRole("button", { name: "Tieni" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambia ancora" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Scegli dalla libreria" })
+      )
+    );
+  });
+
+  it("notifies the parent once and closes the picker when the plan is stale", () => {
+    const onPlanStale = vi.fn();
+    render(<Harness initial={makeSlot(RECIPE_A)} onPlanStale={onPlanStale} />);
+
+    fireEvent.click(screen.getByRole("button", { name: scegliName(RECIPE_A.title) }));
+    fireEvent.click(screen.getByRole("button", { name: "finto-scaduto" }));
+
+    expect(onPlanStale).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("picker")).toBeNull();
+  });
+
+  it("forwards the picker notices to onError", () => {
+    const onError = vi.fn();
+    render(<Harness initial={makeSlot(RECIPE_A)} onError={onError} />);
+
+    fireEvent.click(screen.getByRole("button", { name: scegliName(RECIPE_A.title) }));
+    fireEvent.click(screen.getByRole("button", { name: "finto-avviso" }));
+
+    expect(onError).toHaveBeenCalledWith("avviso dal selettore");
+  });
+
+  it("offers no Scegli while a swap is pending", () => {
+    vi.mocked(requestSwapSlot).mockReturnValueOnce(new Promise<PlanMutationResult>(() => {}));
+    render(<Harness initial={makeSlot(RECIPE_A)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+
+    expect(screen.getByText("Cerco un'alternativa…")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Scegli/ })).toBeNull();
+  });
+
+  it("offers Scegli on a slot without a recipe", () => {
+    render(<Harness initial={makeSlot(null)} />);
+
+    expect(
+      screen.getByRole("button", { name: scegliName("Ricetta non disponibile") })
+    ).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@
 title: Servizio di Generazione e Route API (recipe-generation)
 type: entity
 created: 2026-09-17
-updated: 2026-10-05
+updated: 2026-10-14
 tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches, ingredient-prefs]
 ---
 
@@ -11,7 +11,8 @@ tags: [recipes, generation, constraints, deduplication, api-route, transactions,
 - **Percorsi file**:
   - `lib/recipes/constraints.ts`: aggregazione dei vincoli (`buildConstraints`) e verifica post-generazione (`findConstraintViolations`).
   - `lib/recipes/generate.ts`: logica orchestratrice del servizio `generateAndStoreRecipes`, gestione lock transazionale e pipeline di deduplicazione.
-  - `lib/recipes/index.ts`: modulo di esportazione del dominio ricette.
+  - `lib/recipes/store.ts` (Feature 9): `insertGeneratedRecipe`, la scrittura di una ricetta generata con slug univoco, condivisa con il salvataggio delle ricette chieste ([[recipe-proposal-service]]).
+  - `lib/recipes/index.ts`: modulo di esportazione del dominio ricette (riesporta `constraints` e `generate`). La Feature 9 **non** l'ha modificato: i suoi file (`propose.ts`, `store.ts`, `errors.ts`, `http.ts`) si importano direttamente, perché i test esistenti sostituiscono il barrel con un mock che elenca solo `generateAndStoreRecipes` (requirements P1 della Feature 9).
   - `app/api/recipes/generate/route.ts`: route handler Next.js `POST /api/recipes/generate` con validazione input e mappatura degli errori HTTP.
 - **Scopo**: Gestire l'intero ciclo di vita della generazione ricette: tradurre il profilo del nucleo familiare e le preferenze contingenti in vincoli formali, invocare l'adapter LLM all'esterno di transazioni DB, applicare una severa cascata di filtri anti-duplicazione e persistere le nuove ricette in modo atomico.
 
@@ -38,6 +39,8 @@ Esegue un controllo deterministico a posteriori su ciascuna ricetta generata dal
 Restituisce l'elenco delle violazioni: un array vuoto attesta la piena conformità della ricetta.
 
 Le stesse quattro regole sono applicate alla libreria da `exclusionReason` del planner ([[planner]]); dalla Feature 4 un commento incrociato nei due file ricorda di allinearle quando se ne modifica una (proposta P3 della review architetturale).
+
+**Dalla Feature 9** le due funzioni servono anche le ricette chieste dall'utente ([[recipe-proposal-service]]), senza varianti (requirements P27 della Feature 9): `proposeRecipe` e `saveProposedRecipe` chiamano `buildConstraints(household, mealType, { meal_style_tags: [] })` senza il quarto parametro, quindi con `ingredient_dislikes` vuoto il controllo sugli ingredienti non scatta e una ricetta chiesta può contenere un ingrediente scartato (spec D7). Una ricetta che passa `findConstraintViolations` deve passare anche `manualChoiceExclusionReason` ([[planner]]), altrimenti il flusso *chiedi → salva → metti nel piano* fallirebbe a ogni richiesta: `tests/recipes/propose.test.ts` lo verifica per una ricetta appena salvata (innesto R6 della review architetturale della Feature 9). Le regole restano due copie tenute insieme da un commento, senza un test che le confronti per intero (osservazione P2 della stessa review).
 
 I valori base arrivano dai vincoli che l'utente imposta nel wizard di primo avvio e in `/impostazioni` (Feature 3, [[e5-impostazioni]]); `tests/settings/service.test.ts` verifica che un salvataggio si rifletta in `buildConstraints`.
 
@@ -98,6 +101,8 @@ All'interno della transazione, ogni ricetta generata attraversa una sequenza a 4
 4. **Generazione Slug Univoco (`uniqueSlug`)**: genera lo slug tramite `slugify(title)`. Se già esistente a livello globale (`slugExists`), tenta suffissi sequenziali `-2`, `-3` fino a `-99`, ricorrendo infine a un suffisso esadecimale casuale da 6 caratteri.
 5. **Persistenza**: inserisce atomisticamente ricetta e ingredienti via `insertRecipeWith`.
 
+Dalla Feature 9 i passi 4 e 5 non sono più scritti nel ciclo: la chiamata è `insertGeneratedRecipe(tx, household.id, recipe)` di `lib/recipes/store.ts`, dove è stata spostata anche la funzione privata `uniqueSlug`. Il comportamento della generazione a lotti è invariato (stessi campi, `source: 'llm'`, `macros_est: null`); la stessa funzione scrive le ricette chieste dall'utente ([[recipe-proposal-service]]), che però saltano il livello 3: per loro la somiglianza trigram non conta (spec D11).
+
 L'oggetto finale restituito (`GenerateAndStoreResult`) riassume:
 - `requested`: numero di ricette richieste.
 - `created`: array delle `RecipeWithDetails` effettivamente create e salvate.
@@ -148,3 +153,5 @@ Dalla Feature 4 la rotta costruisce queste risposte con gli helper condivisi di 
 - [[planner]] — `exclusionReason`, le stesse regole sulla libreria
 - [[prefs-service]] — `loadIngredientPreferences` e origine di scarti e gradimenti (Feature 5)
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
+- [[recipe-proposal-service]] — Feature 9: ricette chieste dall'utente, stessi vincoli e stessa scrittura
+- [[f9-ricette-su-richiesta]] — Panoramica della Feature 9

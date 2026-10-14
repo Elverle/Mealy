@@ -1,0 +1,9 @@
+{"recipes":[
+ {"title":"Lasagne bianche ai funghi","description":"Lasagne senza pomodoro, con funghi champignon e besciamella.","meal_types":["pranzo"],"tags":["comfort-food"],"diet_flags":["vegetariano"],"appliances_required":["fornelli","forno"],"servings_base":2,"prep_minutes":55,"kcal_est":590,
+  "steps":["Rosola i funghi a fette in padella.","Alterna sfoglie, funghi, besciamella e parmigiano.","Inforna a 180 °C per 30 minuti."],
+  "ingredients":[
+   {"canonical_name":"sfoglia per lasagne","display_name":"sfoglie per lasagne fresche","qty":250,"unit":"g","category":"banco-frigo","note":null},
+   {"canonical_name":"fungo champignon","display_name":"funghi champignon","qty":300,"unit":"g","category":"ortofrutta","note":null},
+   {"canonical_name":"besciamella","display_name":"besciamella","qty":300,"unit":"ml","category":"banco-frigo","note":null},
+   {"canonical_name":"parmigiano","display_name":"parmigiano grattugiato","qty":60,"unit":"g","category":"banco-frigo","note":null}]}
+]}

@@ -2,8 +2,8 @@
 title: Generazione Fuori, Selezione Dentro il Lock
 type: concept
 created: 2026-09-29
-updated: 2026-10-09
-tags: [architecture, concurrency, transactions, advisory-lock, llm, planner, shopping-list, feature-4]
+updated: 2026-10-14
+tags: [architecture, concurrency, transactions, advisory-lock, llm, planner, shopping-list, manual-choice, feature-4]
 ---
 
 ## Il Problema
@@ -77,6 +77,20 @@ Conseguenze:
 - resta una finestra, giudicata cosmetica dalla review architetturale della feature: la ricostruzione legge gli articoli e poi riscrive `checked` per ognuno, mentre le spunte non prendono il lock; una spunta salvata tra i due passi viene sovrascritta. La proposta che la chiudeva (R3-b: la ricostruzione toglie soltanto le spunte, non ne scrive) non è stata applicata;
 - lato client vale una regola analoga a "la selezione si rifà sullo stato riletto": una vista intera letta dal server non si applica se nel frattempo è stata confermata una modifica ([[shopping-screen]]).
 
+### Esito nella Feature 9
+La Feature 9 aggiunge una scrittura sui piani, la **scelta a mano** (`assignSlotRecipe`, [[plan-service]]), e una scrittura in libreria, il **salvataggio di una ricetta chiesta** (`saveProposedRecipe`, [[recipe-proposal-service]]). Entrambe seguono la regola, con la chiamata lenta tenuta del tutto fuori dalle transazioni.
+
+| Operazione | Fase 1 | Fase 2 |
+|---|---|---|
+| `proposeRecipe` + `saveProposedRecipe` | chiamata LLM in una richiesta HTTP a sé (`POST /api/recipes/propose`), senza scritture; la proposta resta nel browser | richiesta separata (`POST /api/recipes`): transazione con `acquireRecipeGenerationLock`, household riletto e vincoli ricontrollati, doppione cercato sui titoli riletti, `insertGeneratedRecipe` |
+| `listSlotCandidates` | lettura senza transazione né lock | — |
+| `assignSlotRecipe` | — | tutto sotto `acquirePlanLock`: piano, slot, household e libreria riletti, controlli di idoneità sullo stato riletto, `updateSlotRecipe`, uso della ricetta e lista da aggiornare |
+
+Conseguenze:
+- nel flusso dal Piano le due fasi sono tre richieste concatenate dal **client** (proposta, salvataggio, assegnazione), perché `plans` non chiama l'LLM né `recipes` (spec D12). Tra il salvataggio e l'assegnazione il piano può cambiare: l'assegnazione lo rilegge e, se lo slot non è più modificabile, la ricetta resta in libreria e il client lo dice con un toast ([[slot-recipe-picker]]);
+- un'assegnazione sovrapposta a uno swap, a una rigenerazione o a un'altra assegnazione vede lo stato già aggiornato; le candidate mostrate dal selettore possono essere superate nel frattempo, e l'assegnazione risponde `recipe_not_eligible` o con un codice di piano non più modificabile;
+- `assignSlotRecipe` legge l'intera libreria **dentro** il lock per trovare una sola ricetta (requirements P10); la review architetturale (R7) la indica come la lettura evitabile, da sostituire con una lettura per id quando la libreria crescerà.
+
 ## Vedi anche
 
 - [[plan-service]] — Implementazione di generazione, swap, conferma e blocco
@@ -88,3 +102,5 @@ Conseguenze:
 - [[shopping-service]] — Costruzione della lista e aggiunta a mano sotto il lock dei piani (Feature 6)
 - [[e3-pianificatore]] — Panoramica della Feature 4
 - [[e4-lista-spesa]] — Panoramica della Feature 6
+- [[recipe-proposal-service]] — Salvataggio di una ricetta chiesta sotto il lock di generazione (Feature 9)
+- [[f9-ricette-su-richiesta]] — Panoramica della Feature 9

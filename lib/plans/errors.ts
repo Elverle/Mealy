@@ -10,6 +10,8 @@ export const PLAN_ERROR_CODES = [
   'insufficient_recipes',
   'no_alternatives',
   'repeat_same_week',
+  'recipe_not_found',
+  'recipe_not_eligible',
 ] as const;
 export type PlanErrorCode = (typeof PLAN_ERROR_CODES)[number];
 
@@ -39,6 +41,8 @@ export const PLAN_ERROR_HTTP: Record<PlanErrorCode, { status: number; message: s
     status: 409,
     message: 'Questo piano è già quello della settimana da pianificare.',
   },
+  recipe_not_found: { status: 404, message: 'Ricetta non trovata.' },
+  recipe_not_eligible: { status: 422, message: 'Questa ricetta non è adatta a questo pasto.' },
 };
 
 export class PlanError extends Error {

@@ -55,7 +55,7 @@ export function LibraryFilters({
           aria-label="Cerca nella libreria"
           placeholder="Cerca ricetta o ingrediente…"
           maxLength={LIBRARY_QUERY_MAX}
-          className="min-h-[44px] w-full rounded-xl border border-stone/20 bg-white py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-stone/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil"
+          className="min-h-[44px] w-full rounded-xl border border-stone/20 bg-white py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil"
         />
       </div>
 

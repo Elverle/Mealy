@@ -2,7 +2,7 @@
 title: Repository Ricette (recipe-repo)
 type: entity
 created: 2026-09-15
-updated: 2026-10-09
+updated: 2026-10-14
 tags: [database, repository, recipes, ingredients, preferences, drizzle, transactions, trigram, advisory-lock, executor, row-lock]
 ---
 
@@ -53,6 +53,10 @@ Wrapper di comodo per inserimenti standalone: apre una propria transazione `db.t
 Estrae la lista dei soli titoli delle ricette appartenenti all'household, ordinati dal più recente al più vecchio (`created_at DESC`):
 - Supporta opzioni per filtrare per tipologia di pasto (`options.mealType`) e limitare il numero di risultati (`options.limit`).
 - Utilizzato dal servizio di generazione per raccogliere i titoli recenti (fino a 150) da iniettare nel prompt negativo dell'LLM.
+- Dalla Feature 9 anche da `saveProposedRecipe` ([[recipe-proposal-service]]), dentro la transazione e dopo il lock, senza opzioni: tutti i titoli dell'household, per rifiutare un titolo normalizzato già presente (`recipe_duplicate`).
+
+### `listRecipeTitleRefs(executor, householdId): Promise<{ id: string; title: string }[]>` (Feature 9)
+Id e titolo di tutte le ricette dell'household, dalla più recente (`created_at DESC`), bloccate comprese. La usa `proposeRecipe` ([[recipe-proposal-service]]) per valorizzare `duplicate_of` con l'id della ricetta che ha lo stesso titolo normalizzato: `listRecipeTitles` restituisce solo i titoli, e caricare la libreria intera con gli ingredienti per un confronto di titoli sarebbe sprecato (requirements P7 della Feature 9). È l'unica modifica della Feature 9 al repository.
 
 ### `findSimilarRecipeTitle(executor, householdId, title, threshold = TITLE_SIMILARITY_THRESHOLD): Promise<string | null>`
 Esegue una query ad alte prestazioni basata sull'estensione PostgreSQL `pg_trgm` e sull'indice GIN su `recipes.title`:
@@ -72,7 +76,7 @@ Acquisisce un lock di sessione a livello di transazione:
 ```sql
 SELECT pg_advisory_xact_lock(hashtext('mealy:recipes:generate'));
 ```
-**Regola vincolante**: deve essere invocato unicamente all'interno di una transazione database attiva. Il lock garantisce che due generazioni simultanee non entrino in conflitto e viene rilasciato automaticamente dal database alla chiusura della transazione.
+**Regola vincolante**: deve essere invocato unicamente all'interno di una transazione database attiva. Il lock garantisce che due generazioni simultanee non entrino in conflitto e viene rilasciato automaticamente dal database alla chiusura della transazione. Dalla Feature 9 lo prende anche `saveProposedRecipe` ([[recipe-proposal-service]]): salvataggi di ricette chieste e generazioni a lotti si serializzano sullo stesso lock, e due salvataggi sovrapposti dello stesso titolo ne producono uno solo.
 
 ### `getRecipeById(id: string): Promise<RecipeWithDetails | null>`
 Recupera una singola ricetta dato il suo UUID, eseguendo la join automatica con `ingredients` e `prefs` tramite l'API relazionale di Drizzle (`db.query.recipes.findFirst`).
@@ -114,6 +118,9 @@ Dalla Feature 5 `listRecipes` è chiamata anche a ogni visita della Libreria, a 
 
 ### Nuovo chiamante di `listRecipesWith` (Feature 6)
 `addManualShoppingItem` ([[shopping-service]]) legge l'intera libreria dell'household con `listRecipesWith(tx, { household_id })`, dentro la transazione che tiene il lock dei piani, per dedurre il reparto di un articolo aggiunto a mano. È un'altra lettura completa, una per articolo aggiunto; il rimedio annotato in testa a `lib/shopping/service.ts` è lo stesso della Feature 5 (conteggio in SQL su `recipe_ingredients_canonical_name_idx`). Il repository non è stato modificato.
+
+### Nuovi chiamanti di `listRecipesWith` (Feature 9)
+`listSlotCandidates` (con `db`) e `assignSlotRecipe` (con la transazione, sotto il lock dei piani) di [[plan-service]] leggono l'intera libreria dell'household: il primo per elencare le ricette adatte allo slot, il secondo per trovare **una** ricetta per id e controllarne l'idoneità (requirements P10: `getRecipeById` non accetta un executor né controlla l'household). La seconda lettura è evitabile; la review architetturale della Feature 9 (R7) fissa la soglia per intervenire (oltre 200 ricette, o più di 300 ms sul Pi per aprire *Scegli*) e il rimedio: `getRecipeById(id, executor = db)` con controllo dell'household.
 
 ## Esempio d'Uso con Transazione Esterna
 
@@ -169,3 +176,4 @@ await db.transaction(async (tx) => {
 - [[library-service]] — Lettura della libreria per card e dettaglio (Feature 5)
 - [[ingredient-pref-repo]] — Repository dei giudizi sugli ingredienti (Feature 5)
 - [[shopping-service]] — Lettura della libreria per il reparto degli articoli a mano (Feature 6)
+- [[recipe-proposal-service]] — `listRecipeTitleRefs`, salvataggio sotto il lock di generazione (Feature 9)

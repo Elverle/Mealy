@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtureRecipesAsDomain } from "@/fixtures";
 import { PlanScreen, discardPendingPlanToast } from "@/components/plan/plan-screen";
+import { toLibraryCard } from "@/lib/domain/library";
 import { defaultRecipePref } from "@/lib/domain/prefs";
 import type {
   GeneratePlanResult,
@@ -12,6 +13,7 @@ import type {
   PlanView,
   PlanWeekView,
   RecipePref,
+  SlotCandidates,
 } from "@/lib/domain/types";
 
 const router = vi.hoisted(() => ({
@@ -35,6 +37,8 @@ vi.mock("@/lib/plans/client", async (importOriginal) => {
     requestSlotLock: vi.fn(),
     requestSwapSlot: vi.fn(),
     requestRepeatPlan: vi.fn(),
+    fetchSlotCandidates: vi.fn(),
+    requestAssignSlotRecipe: vi.fn(),
   };
 });
 
@@ -58,6 +62,8 @@ import { putRecipePref } from "@/lib/prefs/client";
 import {
   PlanRequestError,
   fetchPlanScreen,
+  fetchSlotCandidates,
+  requestAssignSlotRecipe,
   requestConfirmPlan,
   requestGeneratePlan,
   requestRepeatPlan,
@@ -1262,6 +1268,79 @@ describe("PlanScreen", () => {
       expect(
         await screen.findByRole("button", { name: "Rimuovi dai preferiti" })
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("scelta a mano", () => {
+    const CANDIDATE = RECIPES[2];
+    const scegliName = (title: string) => `Scegli un'altra ricetta per ${title}`;
+
+    function candidates(): SlotCandidates {
+      return { recipes: [toLibraryCard(CANDIDATE)], in_plan_recipe_ids: [RECIPES[1].id] };
+    }
+
+    /** Piano con lo slot 0 già sostituito dalla ricetta scelta, come lo restituisce l'assegnazione. */
+    function assignedPlan(): PlanView {
+      const plan = makePlan();
+      plan.slots[0] = { ...plan.slots[0], recipe: CANDIDATE };
+      plan.shopping_list = { exists: true, needs_regeneration: true };
+      return plan;
+    }
+
+    /** Nel selettore aperto: tap sulla card della ricetta candidata, poi su «Metti nel piano». */
+    async function pickCandidateFromPicker(): Promise<void> {
+      fireEvent.click(
+        await screen.findByRole("button", { name: (name) => name.includes(CANDIDATE.title) })
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Metti nel piano" }));
+    }
+
+    it("puts a recipe chosen from the picker into the slot and shows it on the card", async () => {
+      vi.mocked(fetchSlotCandidates).mockResolvedValueOnce(candidates());
+      vi.mocked(requestAssignSlotRecipe).mockResolvedValueOnce({ plan: assignedPlan() });
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: scegliName(RECIPES[0].title) }));
+      await pickCandidateFromPicker();
+
+      expect(fetchSlotCandidates).toHaveBeenCalledWith(PLAN_ID, SLOT_IDS[0]);
+      expect(requestAssignSlotRecipe).toHaveBeenCalledWith(PLAN_ID, SLOT_IDS[0], CANDIDATE.id);
+      const card = screen.getByTestId(`meal-card-${SLOT_IDS[0]}`);
+      await waitFor(() => expect(within(card).getByText(CANDIDATE.title)).toBeInTheDocument());
+      expect(within(card).queryByText(RECIPES[0].title)).toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("offers no Scegli on the meals of past days or on a read-only week", () => {
+      const { unmount } = render(
+        <PlanScreen initialScreen={makeScreen({ today: "2026-10-01" })} />
+      );
+      expect(screen.queryAllByRole("button", { name: /^Scegli un'altra ricetta/ })).toHaveLength(0);
+      unmount();
+
+      const open = render(<PlanScreen initialScreen={makeScreen()} />);
+      expect(screen.getAllByRole("button", { name: /^Scegli un'altra ricetta/ })).toHaveLength(2);
+      open.unmount();
+
+      render(<PlanScreen initialScreen={makePastScreen()} />);
+      expect(screen.queryAllByRole("button", { name: /^Scegli un'altra ricetta/ })).toHaveLength(0);
+    });
+
+    it("toasts a stale-plan refusal, closes the picker and rereads the plan once", async () => {
+      vi.mocked(fetchSlotCandidates).mockResolvedValueOnce(candidates());
+      vi.mocked(requestAssignSlotRecipe).mockRejectedValueOnce(
+        new PlanRequestError(409, "slot_locked", "Sblocca il pasto per cambiarlo.")
+      );
+      render(<PlanScreen initialScreen={makeScreen()} />);
+
+      fireEvent.click(screen.getByRole("button", { name: scegliName(RECIPES[0].title) }));
+      await pickCandidateFromPicker();
+
+      expect(await screen.findByText("Sblocca il pasto per cambiarlo.")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(router.refresh).toHaveBeenCalledTimes(1);
+      const card = screen.getByTestId(`meal-card-${SLOT_IDS[0]}`);
+      expect(within(card).getByText(RECIPES[0].title)).toBeInTheDocument();
     });
   });
 });

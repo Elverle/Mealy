@@ -6,6 +6,7 @@ import {
   computeGenerationCount,
   exclusionReason,
   isFresh,
+  manualChoiceExclusionReason,
   recipeWeight,
   selectRecipes,
   splitGenerationBatches,
@@ -21,6 +22,7 @@ import { createRng } from '@/lib/domain/rng';
 import {
   DEFAULT_HOUSEHOLD,
   DEFAULT_HOUSEHOLD_ID,
+  type Household,
   type Ingredient,
   type MealType,
   type Recipe,
@@ -548,6 +550,51 @@ describe('lib/domain/planner', () => {
       const sets = toIngredientPreferenceSets(['  Basilico'], ['AGLIO  rosso']);
       expect([...sets.likes]).toEqual(['basilico']);
       expect([...sets.dislikes]).toEqual(['aglio rosso']);
+    });
+  });
+
+  describe('manualChoiceExclusionReason', () => {
+    const HOUSEHOLD: Pick<Household, 'diet_tags' | 'appliances'> = {
+      diet_tags: [],
+      appliances: ['fornelli', 'forno'],
+    };
+
+    it('returns null for a recipe that fits the meal, diets and appliances', () => {
+      const recipe = makeRecipe({ meal_types: ['cena'], appliances_required: ['forno'] });
+      expect(manualChoiceExclusionReason(recipe, 'cena', HOUSEHOLD)).toBeNull();
+    });
+
+    it('returns blocked for a blocked recipe', () => {
+      const id = nextId();
+      const recipe = makeRecipe({ id, meal_types: ['cena'], prefs: makePrefs(id, { blocked: true }) });
+      expect(manualChoiceExclusionReason(recipe, 'cena', HOUSEHOLD)).toBe('blocked');
+    });
+
+    it('returns meal_type when the recipe is not for that meal', () => {
+      const recipe = makeRecipe({ meal_types: ['pranzo'] });
+      expect(manualChoiceExclusionReason(recipe, 'cena', HOUSEHOLD)).toBe('meal_type');
+    });
+
+    it('returns diet when the household diet is not met by the recipe', () => {
+      const recipe = makeRecipe({ meal_types: ['cena'], diet_flags: ['vegetariano'] });
+      expect(
+        manualChoiceExclusionReason(recipe, 'cena', { diet_tags: ['vegano'], appliances: ['fornelli'] })
+      ).toBe('diet');
+    });
+
+    it('returns appliance when the recipe needs an appliance the household lacks', () => {
+      const recipe = makeRecipe({ meal_types: ['cena'], appliances_required: ['forno'] });
+      expect(
+        manualChoiceExclusionReason(recipe, 'cena', { diet_tags: [], appliances: ['fornelli'] })
+      ).toBe('appliance');
+    });
+
+    it('ignores the ingredients the household dislikes, unlike exclusionReason', () => {
+      const recipe = makeRecipe({ meal_types: ['cena'], ingredients: [makeIngredient('cipolla')] });
+      const ctx = makeCtx({ ingredientPrefs: toIngredientPreferenceSets([], ['cipolla']) });
+
+      expect(exclusionReason(recipe, 'cena', ctx)).toBe('disliked_ingredient');
+      expect(manualChoiceExclusionReason(recipe, 'cena', HOUSEHOLD)).toBeNull();
     });
   });
 });

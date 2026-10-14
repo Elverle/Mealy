@@ -22,11 +22,13 @@ import {
   type PlanWithSlots,
 } from '@/lib/db/repositories/plan-repo';
 import { listRecipesWith, type RecipeWithDetails } from '@/lib/db/repositories/recipe-repo';
+import { compareLibraryCards, toLibraryCard } from '@/lib/domain/library';
 import { isPlanClosed } from '@/lib/domain/plan-status';
 import { APP_TIME_ZONE, PLANNER_CONFIG, type PlannerConfig } from '@/lib/domain/planner-config';
 import {
   computeGenerationCount,
   exclusionReason,
+  manualChoiceExclusionReason,
   selectRecipes,
   splitGenerationBatches,
   type IngredientPreferenceSets,
@@ -49,6 +51,7 @@ import {
   type PlanView,
   type PlanWeek,
   type PlanWeekView,
+  type SlotCandidates,
   type SwapSlotRequest,
 } from '@/lib/domain/types';
 import { addDays, isoWeekday, listDays, mondayOf, resolveTargetWeek, todayInTimeZone } from '@/lib/domain/week';
@@ -697,6 +700,89 @@ export async function swapSlot(
     plan: toPlanView(updated, freshHousehold),
     generation: { rounds, created, failed: llmError !== null },
   };
+}
+
+// ============================================================================
+// Scelta a mano di una ricetta
+// ============================================================================
+
+/**
+ * Ricette della libreria che si possono mettere a mano nello slot: non bloccate, del tipo
+ * di pasto dello slot, che rispettano diete ed elettrodomestici. Gli ingredienti «non mi
+ * piace» non le escludono. Manca quella già nello slot; l'ordine è quello della Libreria.
+ */
+export async function listSlotCandidates(
+  planId: string,
+  slotId: string,
+  options: PlanServiceOptions = {}
+): Promise<SlotCandidates> {
+  const household = await loadHousehold(options.householdId);
+  const { today, currentWeekStart } = resolveClock(options);
+
+  const plan = await loadOpenOwnedPlan(db, planId, household, currentWeekStart);
+  const slot = findSwappableSlot(plan, slotId, today);
+
+  const library = await listRecipesWith(db, { household_id: household.id });
+  const recipes = library
+    .filter(
+      (recipe) =>
+        recipe.id !== slot.recipe_id &&
+        manualChoiceExclusionReason(recipe, slot.meal, household) === null
+    )
+    .map(toLibraryCard)
+    .sort(compareLibraryCards);
+
+  const inPlan = new Set<string>();
+  for (const other of plan.slots) {
+    if (other.id !== slot.id && other.recipe_id !== null) inPlan.add(other.recipe_id);
+  }
+  return { recipes, in_plan_recipe_ids: [...inPlan] };
+}
+
+/**
+ * Mette nello slot la ricetta scelta dall'utente. Stessi effetti di uno swap (uso della
+ * ricetta se il piano è confermato, lista della spesa da aggiornare), ma nessun sorteggio
+ * e nessuna chiamata LLM. Tutto si rilegge sotto il lock dei piani dell'household.
+ */
+export async function assignSlotRecipe(
+  planId: string,
+  slotId: string,
+  recipeId: string,
+  options: PlanServiceOptions = {}
+): Promise<PlanResult> {
+  const household = await loadHousehold(options.householdId);
+  const { today, currentWeekStart } = resolveClock(options);
+
+  const { updated, freshHousehold } = await db.transaction(async (tx) => {
+    await acquirePlanLock(tx, household.id);
+    const plan = await loadOpenOwnedPlan(tx, planId, household, currentWeekStart);
+    const slot = findSwappableSlot(plan, slotId, today);
+
+    const current = await getHouseholdById(household.id, tx);
+    if (!current) throw new Error(`Household ${household.id} non trovato`);
+
+    const library = await listRecipesWith(tx, { household_id: household.id });
+    const recipe = library.find((candidate) => candidate.id === recipeId);
+    if (!recipe) throw new PlanError('recipe_not_found');
+    if (manualChoiceExclusionReason(recipe, slot.meal, current) !== null) {
+      throw new PlanError('recipe_not_eligible');
+    }
+
+    // Richiesta ripetuta: la ricetta è già quella dello slot, niente da scrivere.
+    if (slot.recipe_id === recipeId) return { updated: plan, freshHousehold: current };
+
+    await updateSlotRecipe(tx, slotId, recipeId);
+    if (plan.status === 'active') {
+      await incrementRecipeUsage(tx, [{ recipeId, day: slot.day }]);
+    }
+    await markShoppingListStale(tx, planId);
+
+    const fresh = await getPlanById(tx, planId);
+    if (!fresh) throw new PlanError('plan_not_found');
+    return { updated: fresh, freshHousehold: current };
+  });
+
+  return { plan: toPlanView(updated, freshHousehold) };
 }
 
 // ============================================================================
