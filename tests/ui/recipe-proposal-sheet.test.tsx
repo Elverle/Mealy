@@ -285,6 +285,29 @@ describe("RecipeProposalSheet primary action", () => {
     expect(screen.getByRole("button", { name: "Un'altra" })).toBeEnabled();
   });
 
+  it("ignores close while onAccept is pending and closes again once it settles", async () => {
+    requestMock.mockResolvedValue(proposal(LASAGNE));
+    const pending = deferred<void>();
+    const onAccept = vi.fn(() => pending.promise);
+    const { onClose } = renderSheet({ onAccept });
+    await screen.findByRole("heading", { name: "Lasagne al pesto" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi alla libreria" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByTestId("sheet-backdrop"));
+
+    expect(onClose).not.toHaveBeenCalled();
+
+    await act(async () => pending.reject(new Error("salvataggio fallito")));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Aggiungi alla libreria" })).toBeEnabled()
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("re-enables the actions and keeps the proposal when onAccept rejects", async () => {
     requestMock.mockResolvedValue(proposal(LASAGNE));
     const onAccept = vi.fn().mockRejectedValue(new Error("salvataggio fallito"));

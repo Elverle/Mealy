@@ -12,7 +12,11 @@ import {
   runtime as detailRuntime,
   dynamic as detailDynamic,
 } from '@/app/api/recipes/[id]/route';
-import { EMPTY_LIBRARY_FILTER, type GeneratedRecipe } from '@/lib/domain/types';
+import {
+  EMPTY_LIBRARY_FILTER,
+  SAVED_RECIPE_TEXT_MAX,
+  type GeneratedRecipe,
+} from '@/lib/domain/types';
 import { getRecipeDetail, listLibrary } from '@/lib/library/service';
 import { RecipeError } from '@/lib/recipes/errors';
 import { saveProposedRecipe } from '@/lib/recipes/propose';
@@ -197,6 +201,10 @@ describe('POST /api/recipes', () => {
     [
       'a recipe whose only step is blank (valid for the schema, invalid after normalization)',
       JSON.stringify({ recipe: { ...validRecipe(), steps: ['   '] } }),
+    ],
+    [
+      'a recipe with a description over the size limit',
+      JSON.stringify({ recipe: { ...validRecipe(), description: 'a'.repeat(SAVED_RECIPE_TEXT_MAX + 1) } }),
     ],
   ])('rejects %s with 400 invalid_request without calling the service', async (_label, body) => {
     const response = await savePOST(postSave(body));

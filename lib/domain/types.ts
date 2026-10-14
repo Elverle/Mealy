@@ -739,8 +739,36 @@ export const RecipeProposalSchema = z
   .strict();
 export type RecipeProposal = z.infer<typeof RecipeProposalSchema>;
 
+// Tetti di una ricetta che arriva dal client per essere salvata: larghi rispetto a ciò che
+// produce il modello, servono solo a non scrivere in libreria corpi di dimensione arbitraria.
+// Restano fuori da GeneratedRecipeSchema, che è anche lo schema dell'output strutturato LLM.
+export const SAVED_RECIPE_TEXT_MAX = 1000; // descrizione e singolo passo
+export const SAVED_RECIPE_STEPS_MAX = 40;
+export const SAVED_RECIPE_INGREDIENTS_MAX = 60;
+export const SAVED_RECIPE_TAGS_MAX = 20; // tags, diet_flags, appliances_required
+const SAVED_INGREDIENT_NAME_MAX = 120;
+const SAVED_INGREDIENT_NOTE_MAX = 300;
+
+export const SavedRecipeInputSchema = GeneratedRecipeSchema.extend({
+  description: z.string().max(SAVED_RECIPE_TEXT_MAX),
+  tags: z.array(MealStyleTagSchema).max(SAVED_RECIPE_TAGS_MAX),
+  diet_flags: z.array(DietFlagSchema).max(SAVED_RECIPE_TAGS_MAX),
+  appliances_required: z.array(ApplianceSchema).max(SAVED_RECIPE_TAGS_MAX),
+  steps: z.array(z.string().min(1).max(SAVED_RECIPE_TEXT_MAX)).min(1).max(SAVED_RECIPE_STEPS_MAX),
+  ingredients: z
+    .array(
+      GeneratedIngredientSchema.extend({
+        canonical_name: z.string().min(1).max(SAVED_INGREDIENT_NAME_MAX),
+        display_name: z.string().min(1).max(SAVED_INGREDIENT_NAME_MAX),
+        note: z.string().max(SAVED_INGREDIENT_NOTE_MAX).nullable(),
+      })
+    )
+    .min(1)
+    .max(SAVED_RECIPE_INGREDIENTS_MAX),
+});
+
 // Body di POST /api/recipes
-export const SaveRecipeRequestSchema = z.object({ recipe: GeneratedRecipeSchema }).strict();
+export const SaveRecipeRequestSchema = z.object({ recipe: SavedRecipeInputSchema }).strict();
 export type SaveRecipeRequest = z.infer<typeof SaveRecipeRequestSchema>;
 
 // Risposta di POST /api/recipes: la ricetta salvata, completa di ingredienti e preferenze.

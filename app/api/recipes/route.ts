@@ -1,9 +1,6 @@
 import { internalErrorResponse, invalidRequestResponse, readJsonBody } from '@/lib/http/responses';
 import { parseLibraryQuery } from '@/lib/domain/library';
-import {
-  GeneratedRecipeSchema,
-  SaveRecipeRequestSchema,
-} from '@/lib/domain/types';
+import { SaveRecipeRequestSchema, SavedRecipeInputSchema } from '@/lib/domain/types';
 import { normalizeGeneratedRecipe } from '@/lib/domain/recipe-text';
 import { listLibrary } from '@/lib/library/service';
 import { handleRecipeRouteError } from '@/lib/recipes/http';
@@ -35,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success) return invalidRequestResponse(parsed.error.issues);
 
   // Il client non è una fonte fidata: la ricetta si ri-normalizza e si rivalida qui.
-  const normalized = GeneratedRecipeSchema.safeParse(normalizeGeneratedRecipe(parsed.data.recipe));
+  const normalized = SavedRecipeInputSchema.safeParse(normalizeGeneratedRecipe(parsed.data.recipe));
   if (!normalized.success) return invalidRequestResponse(normalized.error.issues);
 
   try {

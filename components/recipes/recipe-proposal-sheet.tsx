@@ -25,8 +25,8 @@ export interface RecipeProposalSheetProps {
   acceptLabel: string;
   /**
    * Azione primaria sulla ricetta proposta. Finché la promessa è in corso i pulsanti sono
-   * disattivati. La sheet non si chiude da sola: chi chiama porta `request` a null quando
-   * ha finito. Se la promessa rigetta, i pulsanti tornano attivi e la proposta resta a
+   * disattivati e la sheet ignora ✕, Esc e sfondo. La sheet non si chiude da sola: chi
+   * chiama porta `request` a null quando ha finito. Se la promessa rigetta, i pulsanti tornano attivi e la proposta resta a
    * schermo. I messaggi (toast) li mostra chi chiama.
    */
   onAccept: (recipe: GeneratedRecipe) => Promise<void>;
@@ -139,6 +139,12 @@ export function RecipeProposalSheet({
     }
   };
 
+  // Durante `onAccept` la sheet non si chiude (✕, Esc, sfondo): l'esito del salvataggio
+  // agirebbe su una proposta successiva, chiudendola o azzerandola al posto di questa.
+  const handleClose = (): void => {
+    if (!accepting) onClose();
+  };
+
   const message = useRotatingMessage(
     PENDING_MESSAGES,
     GENERATION_MESSAGE_INTERVAL_MS,
@@ -214,7 +220,7 @@ export function RecipeProposalSheet({
     <RecipeSheet
       recipe={view}
       isOpen={request !== null}
-      onClose={onClose}
+      onClose={handleClose}
       placeholder={placeholder}
       notice={notice}
       footer={footer}

@@ -7,6 +7,10 @@ import {
   ProposeRecipeRequestSchema,
   RECIPE_REQUEST_MIN,
   RecipeProposalSchema,
+  SAVED_RECIPE_INGREDIENTS_MAX,
+  SAVED_RECIPE_STEPS_MAX,
+  SAVED_RECIPE_TAGS_MAX,
+  SAVED_RECIPE_TEXT_MAX,
   SaveRecipeRequestSchema,
   SlotCandidatesSchema,
 } from '@/lib/domain/types';
@@ -105,6 +109,38 @@ describe('SaveRecipeRequestSchema', () => {
 
   it('rejects an extra key next to the recipe', () => {
     expect(SaveRecipeRequestSchema.safeParse({ recipe: GENERATED_RECIPE, extra: true }).success).toBe(false);
+  });
+
+  const INGREDIENT = GENERATED_RECIPE.ingredients[0];
+
+  it.each([
+    ['a description too long', { description: 'a'.repeat(SAVED_RECIPE_TEXT_MAX + 1) }],
+    ['a step too long', { steps: ['a'.repeat(SAVED_RECIPE_TEXT_MAX + 1)] }],
+    ['too many steps', { steps: Array.from({ length: SAVED_RECIPE_STEPS_MAX + 1 }, () => 'Mescola.') }],
+    [
+      'too many ingredients',
+      { ingredients: Array.from({ length: SAVED_RECIPE_INGREDIENTS_MAX + 1 }, () => INGREDIENT) },
+    ],
+    ['too many tags', { tags: Array.from({ length: SAVED_RECIPE_TAGS_MAX + 1 }, () => 'veloce') }],
+    ['an ingredient name too long', { ingredients: [{ ...INGREDIENT, display_name: 'a'.repeat(121) }] }],
+    ['an ingredient note too long', { ingredients: [{ ...INGREDIENT, note: 'a'.repeat(301) }] }],
+  ])('rejects %s', (_label, patch) => {
+    const body = { recipe: { ...GENERATED_RECIPE, ...patch } };
+    expect(SaveRecipeRequestSchema.safeParse(body).success).toBe(false);
+  });
+
+  it('accepts a recipe exactly at the limits', () => {
+    const recipe = {
+      ...GENERATED_RECIPE,
+      description: 'a'.repeat(SAVED_RECIPE_TEXT_MAX),
+      steps: Array.from({ length: SAVED_RECIPE_STEPS_MAX }, () => 'a'.repeat(SAVED_RECIPE_TEXT_MAX)),
+      ingredients: Array.from({ length: SAVED_RECIPE_INGREDIENTS_MAX }, () => ({
+        ...INGREDIENT,
+        display_name: 'a'.repeat(120),
+        note: 'a'.repeat(300),
+      })),
+    };
+    expect(SaveRecipeRequestSchema.safeParse({ recipe }).success).toBe(true);
   });
 });
 
