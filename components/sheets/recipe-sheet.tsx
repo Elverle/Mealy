@@ -66,6 +66,15 @@ export interface RecipeSheetProps {
   actionsDisabled?: boolean;
   /** Disabilita 👍/👎 e la conferma di esclusione (salvataggio in corso). */
   ingredientsDisabled?: boolean;
+  /**
+   * Titolo e contenuto mostrati quando `recipe` è null (es. attesa o errore di una proposta).
+   * Ha la precedenza sullo scheletro di `isLoading`.
+   */
+  placeholder?: { title: string; content: React.ReactNode };
+  /** Avviso sotto l'intestazione della ricetta. */
+  notice?: React.ReactNode;
+  /** Azioni in fondo alla sheet, sempre visibili mentre si scorre. */
+  footer?: React.ReactNode;
 }
 
 const SKELETON_ROWS = [0, 1, 2];
@@ -96,6 +105,9 @@ export function RecipeSheet({
   isLoading = false,
   actionsDisabled = false,
   ingredientsDisabled = false,
+  placeholder,
+  notice,
+  footer,
 }: RecipeSheetProps) {
   const [servings, setServings] = React.useState(recipe?.servings || 4);
   const [pendingDislikeIngredient, setPendingDislikeIngredient] =
@@ -130,24 +142,31 @@ export function RecipeSheet({
   }, [pendingIngredientId]);
 
   if (!recipe) {
-    if (!isLoading) return null;
+    if (!placeholder && !isLoading) return null;
+    // Stessa coppia Sheet/SheetContent del ramo principale: il pannello non si rimonta passando dall'attesa alla ricetta.
     return (
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <SheetContent
           side="bottom"
-          className="max-h-[92vh] overflow-y-auto px-4 pb-8 pt-6 sm:px-6"
+          className="max-h-[92dvh] overflow-y-auto px-4 pb-8 pt-6 sm:px-6"
         >
           <SheetHeader className="mb-4">
-            <SheetTitle className="text-2xl mt-2">Apro la ricetta…</SheetTitle>
+            <SheetTitle className="text-2xl mt-2 break-words">
+              {placeholder ? placeholder.title : "Apro la ricetta…"}
+            </SheetTitle>
           </SheetHeader>
-          <div role="status" aria-label="Caricamento della ricetta" className="space-y-3">
-            {SKELETON_ROWS.map((row) => (
-              <div
-                key={row}
-                className="h-12 rounded-xl bg-stone/15 animate-pulse motion-reduce:animate-none"
-              />
-            ))}
-          </div>
+          {placeholder ? (
+            placeholder.content
+          ) : (
+            <div role="status" aria-label="Caricamento della ricetta" className="space-y-3">
+              {SKELETON_ROWS.map((row) => (
+                <div
+                  key={row}
+                  className="h-12 rounded-xl bg-stone/15 animate-pulse motion-reduce:animate-none"
+                />
+              ))}
+            </div>
+          )}
         </SheetContent>
       </Sheet>
     );
@@ -177,7 +196,7 @@ export function RecipeSheet({
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         side="bottom"
-        className="max-h-[92vh] overflow-y-auto px-4 pb-8 pt-6 sm:px-6"
+        className="max-h-[92dvh] overflow-y-auto px-4 pb-8 pt-6 sm:px-6"
       >
         <SheetHeader className="mb-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -204,6 +223,8 @@ export function RecipeSheet({
             </SheetDescription>
           )}
         </SheetHeader>
+
+        {notice && <div className="mb-3">{notice}</div>}
 
         {/* Portion selector */}
         <div className="my-4 flex items-center justify-between rounded-xl bg-white p-3 border border-stone/20">
@@ -452,6 +473,12 @@ export function RecipeSheet({
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {footer && (
+          <div className="sticky bottom-0 -mx-4 -mb-8 mt-6 border-t border-stone/20 bg-paper px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6">
+            {footer}
           </div>
         )}
       </SheetContent>

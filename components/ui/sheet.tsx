@@ -11,6 +11,9 @@ interface SheetContextType {
 
 const SheetContext = React.createContext<SheetContextType | null>(null);
 
+/** Sheet aperte, dalla prima all'ultima aperta: solo l'ultima risponde a Esc, e lo scroll della pagina torna quando non ce n'è più nessuna. */
+const openSheets: symbol[] = [];
+
 function useSheet() {
   const context = React.useContext(SheetContext);
   if (!context) {
@@ -99,30 +102,37 @@ export interface SheetContentProps
 const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
   ({ className, children, side = "bottom", ...props }, ref) => {
     const { open, setOpen } = useSheet();
+    const [sheetId] = React.useState(() => Symbol("sheet"));
 
-    // Close on Escape
+    // Registrazione nella pila: dipende solo da `open`, così l'ordine resta quello di apertura
+    // anche quando chi usa la sheet passa un nuovo `onOpenChange` a ogni render.
     React.useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === "Escape" && open) {
-          setOpen(false);
-        }
-      };
-      if (open) {
-        window.addEventListener("keydown", handleKeyDown);
-        document.body.style.overflow = "hidden";
-      }
+      if (!open) return;
+      openSheets.push(sheetId);
+      document.body.style.overflow = "hidden";
       return () => {
-        window.removeEventListener("keydown", handleKeyDown);
-        document.body.style.overflow = "";
+        const index = openSheets.indexOf(sheetId);
+        if (index !== -1) openSheets.splice(index, 1);
+        if (openSheets.length === 0) document.body.style.overflow = "";
       };
-    }, [open, setOpen]);
+    }, [open, sheetId]);
+
+    // Esc chiude solo la sheet in cima alla pila.
+    React.useEffect(() => {
+      if (!open) return;
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape" && openSheets[openSheets.length - 1] === sheetId) setOpen(false);
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [open, setOpen, sheetId]);
 
     if (!open) return null;
 
     const sideClasses = {
       bottom:
-        "inset-x-0 bottom-0 max-h-[90vh] rounded-t-2xl border-t border-stone/20 animate-in slide-in-from-bottom duration-300",
-      top: "inset-x-0 top-0 max-h-[90vh] rounded-b-2xl border-b border-stone/20 animate-in slide-in-from-top duration-300",
+        "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-t border-stone/20 animate-in slide-in-from-bottom duration-300",
+      top: "inset-x-0 top-0 max-h-[90dvh] rounded-b-2xl border-b border-stone/20 animate-in slide-in-from-top duration-300",
       right:
         "inset-y-0 right-0 h-full w-full sm:max-w-md border-l border-stone/20 animate-in slide-in-from-right duration-300",
       left: "inset-y-0 left-0 h-full w-full sm:max-w-md border-r border-stone/20 animate-in slide-in-from-left duration-300",
