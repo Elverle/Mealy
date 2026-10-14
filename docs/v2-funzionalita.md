@@ -33,6 +33,10 @@ Scrivere una richiesta in linguaggio naturale, per esempio "una cena leggera con
 - **Dipende da**: il catalogo per la prima strada; l'adattatore LLM che c'è già per la seconda.
 - **Deciso (Feature 9)**: la ricetta inventata entra in libreria solo dopo conferma.
 - **Anticipato dalla Feature 9**: la strada "inventare". Dal campo di ricerca della Libreria e dal selettore del Piano si chiede una ricetta con un testo libero; l'LLM ne propone una, che entra in libreria solo con *Aggiungi alla libreria* o *Metti nel piano*. **Resta per il catalogo**: cercare tra le ricette del catalogo e ordinarle per pertinenza alla richiesta.
+- **Da valutare (critica Impeccable del 14 ottobre 2026)**:
+  - **la proposta come pagina, non come sheet**: è il momento in cui la libreria cresce, e oggi un tap sullo sfondo la chiude. Una pagina con il proprio «indietro» (o una card nell'elenco) la renderebbe più difficile da perdere;
+  - ***Un'altra* che tiene le proposte già viste**: oggi ogni *Un'altra* butta la proposta corrente e ne costa un'altra da 10–30 s. Due o tre proposte da scorrere avanti e indietro farebbero sentire l'attesa come un guadagno;
+  - **le sheet impilate come una pila navigabile** (selettore, dettaglio, proposta): un solo sfondo, un «indietro» e la profondità annunciata, invece di modali indipendenti uno sopra l'altro.
 
 ### 1.3 Inserimento manuale di una ricetta
 

@@ -6,7 +6,7 @@
   --color-basil: #3E6B4F;
   --color-tomato: #C4482F;
   --color-saffron: #E0A83C;
-  --color-stone: #8A8377;
+  --color-stone: #726B5F;
 
   --font-display: var(--font-fraunces), serif;
   --font-sans: var(--font-figtree), sans-serif;
@@ -20,8 +20,8 @@
   --destructive: #C4482F;
   --destructive-foreground: #FAF7F2;
   --muted: #FAF7F2;
-  --muted-foreground: #8A8377;
-  --border: rgba(138, 131, 119, 0.2);
+  --muted-foreground: #726B5F;
+  --border: rgba(114, 107, 95, 0.2);
   --radius: 0.75rem;
 }
 
@@ -44,4 +44,20 @@ body {
 .animate-meal-flip { animation: meal-flip 320ms ease-out both; }
 @media (prefers-reduced-motion: reduce) {
   .animate-meal-flip { animation: meal-fade 200ms ease-out both; }
+}
+
+/* Sheet dal basso: il pannello sale, lo sfondo si scurisce; con reduced-motion solo dissolvenza */
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+}
+.animate-sheet-in { animation: sheet-in 340ms cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-backdrop-in { animation: meal-fade 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-in { animation: meal-fade 160ms ease-out; }
+}
+/* Sheet impilate (i portali stanno in body in ordine di apertura): lo sfondo scuro è uno solo */
+[data-sheet-root] ~ [data-sheet-root] [data-sheet-backdrop] {
+  background-color: transparent;
+  backdrop-filter: none;
+  animation: none;
 }

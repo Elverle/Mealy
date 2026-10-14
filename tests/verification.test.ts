@@ -42,7 +42,7 @@ describe("Project Structure & Config Verification", () => {
     expect(cssContent).toContain("--color-basil: #3E6B4F;");
     expect(cssContent).toContain("--color-tomato: #C4482F;");
     expect(cssContent).toContain("--color-saffron: #E0A83C;");
-    expect(cssContent).toContain("--color-stone: #8A8377;");
+    expect(cssContent).toContain("--color-stone: #726B5F;");
     expect(cssContent).toContain("--font-display: var(--font-fraunces), serif;");
     expect(cssContent).toContain("--font-sans: var(--font-figtree), sans-serif;");
   });

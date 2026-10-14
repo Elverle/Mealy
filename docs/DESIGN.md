@@ -24,7 +24,7 @@ Tono: quaderno di cucina moderno, non "app di dieta". Caldo ma pulito; il colore
 | `basil` | `#3E6B4F` | Primario: azioni, tab attiva, conferme |
 | `tomato` | `#C4482F` | Accento: swap, alert, elementi "da decidere" |
 | `saffron` | `#E0A83C` | Highlight: preferite (stella), badge |
-| `stone` | `#8A8377` | Testo secondario, bordi, disabled |
+| `stone` | `#726B5F` | Testo secondario, bordi, disabled (4,9:1 su `paper`, 5,3:1 su bianco: AA per il testo piccolo) |
 
 Dark mode: rimandata (v1 light-only, i contesti d'uso sono diurni/serali in casa e al supermercato illuminato).
 

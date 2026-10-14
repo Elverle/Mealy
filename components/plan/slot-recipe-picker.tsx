@@ -10,7 +10,7 @@ import {
 import { RecipeProposalSheet } from "@/components/recipes/recipe-proposal-sheet";
 import { RecipeRequestBox } from "@/components/recipes/recipe-request-box";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { filterLibraryCards } from "@/lib/domain/library";
 import {
   EMPTY_LIBRARY_FILTER,
@@ -214,80 +214,84 @@ export function SlotRecipePicker({
           if (!open) onClose();
         }}
       >
-        <SheetContent side="bottom" className="h-[92dvh] max-h-[92dvh] px-4 pb-8 pt-6 sm:px-6">
-          <SheetHeader className="mb-3">
+        <SheetContent className="h-[92dvh]">
+          <SheetHeader>
             <SheetTitle>{`Scegli per ${formatDayLabel(slot.day)} · ${MEAL_TYPE_LABELS[slot.meal]}`}</SheetTitle>
           </SheetHeader>
 
-          {/* Campo di ricerca: stesse classi di LibraryFilters, senza autoFocus */}
-          <div className="relative">
-            <Search
-              className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone"
-              aria-hidden="true"
-            />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Cerca tra le ricette adatte"
-              placeholder="Cerca ricetta o ingrediente…"
-              maxLength={LIBRARY_QUERY_MAX}
-              className="min-h-[44px] w-full rounded-xl border border-stone/20 bg-white py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-stone/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil"
-            />
+          {/* Campo di ricerca fisso sopra l'elenco: stesse classi di LibraryFilters, senza autoFocus */}
+          <div className="shrink-0 px-4 pb-3 sm:px-6">
+            <div className="relative">
+              <Search
+                className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                aria-label="Cerca tra le ricette adatte"
+                placeholder="Cerca ricetta o ingrediente…"
+                maxLength={LIBRARY_QUERY_MAX}
+                className="min-h-[44px] w-full rounded-xl border border-stone/20 bg-white py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil"
+              />
+            </div>
           </div>
 
-          {loadState === "loading" && (
-            <div
-              role="status"
-              aria-label="Caricamento delle ricette"
-              className="mt-3 space-y-3"
-            >
-              {SKELETON_ROWS.map((row) => (
-                <div
-                  key={row}
-                  className="h-20 rounded-xl bg-stone/15 animate-pulse motion-reduce:animate-none"
-                />
-              ))}
-            </div>
-          )}
-
-          {loadState === "error" && (
-            <div className="mt-3 space-y-3">
-              <p
-                role="alert"
-                className="rounded-xl border border-tomato/30 bg-tomato/10 p-3 text-sm text-ink"
+          <SheetBody>
+            {loadState === "loading" && (
+              <div
+                role="status"
+                aria-label="Caricamento delle ricette"
+                className="mt-3 space-y-3"
               >
-                {loadError}
-              </p>
-              <Button variant="outline" onClick={() => load()}>
-                Riprova
-              </Button>
-            </div>
-          )}
+                {SKELETON_ROWS.map((row) => (
+                  <div
+                    key={row}
+                    className="h-20 rounded-xl bg-stone/15 animate-pulse motion-reduce:animate-none"
+                  />
+                ))}
+              </div>
+            )}
 
-          {loadState === "ready" && candidates !== null && (
-            <>
-              {candidates.recipes.length === 0 ? (
-                <p className="py-8 text-center text-sm text-stone">
-                  {"Nessun'altra ricetta adatta a questo pasto"}
+            {loadState === "error" && (
+              <div className="mt-3 space-y-3">
+                <p
+                  role="alert"
+                  className="rounded-xl border border-tomato/30 bg-tomato/10 p-3 text-sm text-ink"
+                >
+                  {loadError}
                 </p>
-              ) : visible.length === 0 ? (
-                <p className="py-8 text-center text-sm text-stone">Nessuna ricetta trovata</p>
-              ) : (
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {visible.map((card) => (
-                    <RecipeCard
-                      key={card.id}
-                      recipe={card}
-                      onOpen={setDetailId}
-                      badge={inPlan.has(card.id) ? IN_PLAN_BADGE : undefined}
-                    />
-                  ))}
-                </div>
-              )}
-              <RecipeRequestBox query={query} onRequest={setRequestText} />
-            </>
-          )}
+                <Button variant="outline" onClick={() => load()}>
+                  Riprova
+                </Button>
+              </div>
+            )}
+
+            {loadState === "ready" && candidates !== null && (
+              <>
+                {candidates.recipes.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-stone">
+                    {"Nessun'altra ricetta adatta a questo pasto"}
+                  </p>
+                ) : visible.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-stone">Nessuna ricetta trovata</p>
+                ) : (
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {visible.map((card) => (
+                      <RecipeCard
+                        key={card.id}
+                        recipe={card}
+                        onOpen={setDetailId}
+                        badge={inPlan.has(card.id) ? IN_PLAN_BADGE : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+                <RecipeRequestBox query={query} onRequest={setRequestText} />
+              </>
+            )}
+          </SheetBody>
         </SheetContent>
       </Sheet>
 

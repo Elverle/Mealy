@@ -2,6 +2,12 @@
 
 Append-only operation log per le modifiche alla documentazione tecnica di Mealy.
 
+## [2026-10-14] feat-9 | Revisione UI delle sheet (critica Impeccable dopo la prova da telefono)
+- Aggiornata [[sheet-primitive]]: portale su `document.body`, pannello che non scorre con `SheetHeader` fisso, `SheetBody` che scorre e `SheetFooter` ancorato, animazioni definite (`animate-sheet-in`, `animate-backdrop-in`, dissolvenza con reduced-motion), uno sfondo scuro solo con le sheet impilate, focus (entra, Tab confinato, ritorno alla chiusura) e `aria-labelledby`; i limiti su focus e portale sono chiusi.
+- Aggiornate [[recipe-sheet]] (altezza fissa `h-[92dvh]` in tutti gli stati, `subtitle`, footer in `SheetFooter`, titoli `h3`, «(qb)»), [[slot-recipe-picker]] (portale al posto della regola di montaggio, ricerca nell'intestazione fissa) e [[plan-screen]] (regola sugli antenati delle card e relativo commento tolti).
+- Aggiornata [[design-system-and-tokens]]: `stone` passa da `#8A8377` a `#726B5F` per il contrasto AA (anche `docs/DESIGN.md` §2).
+- Esito delle verifiche manuali: registrazione reale `google-richiesta-lasagne` fatta; annullamento verificato lato server (il segnale scatta alla disconnessione e la chiamata al modello si interrompe in pochi millisecondi), quindi la frase di `ARCHITECTURE §6` resta.
+
 ## [2026-10-14] feat-9 | Documentazione Feature 9 (Ricette su richiesta e scelta dalla libreria)
 - Documentato il topic aggregato [[f9-ricette-su-richiesta]] (la feature non appartiene a un epic del backlog, da cui il prefisso `f9-`): flusso Libreria e Piano → client → quattro rotte → `recipes` / `plans`, decisioni della spec (D2–D12) e dell'utente (U1–U3), regole di dominio, innesti R1–R7 della review architetturale e fix della code review (`9cf6948`), contratti per Feature 8, catalogo, segnale implicito e deploy, limiti noti e verifiche manuali ancora da fare, strategia di test con 94 file di test.
 - Create le entità [[recipe-proposal-service]] (`lib/recipes/{propose,store,errors,http}.ts`, `POST /api/recipes/propose` con `499` all'annullamento, `POST /api/recipes` con `SavedRecipeInputSchema`), [[recipe-proposal-sheet]] (`RecipeRequestBox`, `RecipeProposalSheet`: stati, sequenza di *Un'altra*, annullamento, chiusura ignorata durante `onAccept`), [[slot-recipe-picker]] (`SlotRecipePicker`: elenco, dettaglio con *Metti nel piano*, proposta, esiti per codice, regola di montaggio) e [[sheet-primitive]] (`components/ui/sheet.tsx`, prima senza pagina: pila delle sheet aperte, `dvh`, limiti su focus e portale).

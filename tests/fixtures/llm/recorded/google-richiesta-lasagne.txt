@@ -1,0 +1,99 @@
+{
+  "recipes": [
+    {
+      "title": "Lasagne al pesto e besciamella",
+      "description": "Una variante ricca e cremosa della classica lasagna, preparata con pesto alla genovese e una besciamella delicata.",
+      "meal_types": [
+        "pranzo",
+        "cena"
+      ],
+      "tags": [
+        "comfort-food"
+      ],
+      "diet_flags": [
+        "vegetariano"
+      ],
+      "appliances_required": [
+        "fornelli",
+        "forno"
+      ],
+      "servings_base": 2,
+      "prep_minutes": 50,
+      "kcal_est": 650,
+      "steps": [
+        "Prepara una besciamella facendo sciogliere il burro in un pentolino, aggiungendo la farina e poi versando il latte a filo mescolando con una frusta fino ad addensare.",
+        "Aggiungi un pizzico di noce moscata alla besciamella pronta.",
+        "In una pirofila, spalma un po' di besciamella sul fondo.",
+        "Crea degli strati alternando le sfoglie di pasta fresca, il pesto, la besciamella e una spolverata di parmigiano grattugiato.",
+        "Ripeti fino a esaurimento degli ingredienti, terminando con besciamella, pesto e abbondante parmigiano.",
+        "Inforna in forno preriscaldato a 200 gradi per circa 20-25 minuti finché la superficie non risulta dorata."
+      ],
+      "ingredients": [
+        {
+          "canonical_name": "pasta all'uovo",
+          "display_name": "sfoglie di pasta fresca per lasagne",
+          "qty": 150,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "pesto",
+          "display_name": "pesto alla genovese",
+          "qty": 120,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "latte",
+          "display_name": "latte intero",
+          "qty": 300,
+          "unit": "ml",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "farina",
+          "display_name": "farina 00",
+          "qty": 30,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "burro",
+          "display_name": "burro",
+          "qty": 30,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "parmigiano reggiano",
+          "display_name": "parmigiano reggiano grattugiato",
+          "qty": 60,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "noce moscata",
+          "display_name": "noce moscata",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    }
+  ]
+}

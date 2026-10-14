@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Sheet,
+  SheetBody,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -67,48 +68,50 @@ export function AddShoppingItemSheet({
         if (!next) onClose();
       }}
     >
-      <SheetContent side="bottom">
+      <SheetContent>
         <SheetHeader>
           <SheetTitle>Aggiungi alla lista</SheetTitle>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-          <label
-            htmlFor="shopping-add-input"
-            className="block text-xs font-bold uppercase tracking-wider text-stone"
-          >
-            Cosa manca?
-          </label>
-          <input
-            id="shopping-add-input"
-            ref={inputRef}
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-            autoComplete="off"
-            enterKeyHint="done"
-            maxLength={SHOPPING_ITEM_NAME_MAX}
-            placeholder="Es. latte, carta forno…"
-            className="min-h-[44px] w-full rounded-xl border border-stone/30 bg-white px-3 py-2 text-base text-ink placeholder:text-stone/60 focus:border-basil focus:outline-none focus:ring-1 focus:ring-basil"
-          />
-          <Button type="submit" disabled={saving || name.trim() === ""}>
-            Aggiungi
-          </Button>
-        </form>
+        <SheetBody>
+          <form onSubmit={handleSubmit} className="mt-1 space-y-3">
+            <label
+              htmlFor="shopping-add-input"
+              className="block text-xs font-bold uppercase tracking-wider text-stone"
+            >
+              Cosa manca?
+            </label>
+            <input
+              id="shopping-add-input"
+              ref={inputRef}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              autoComplete="off"
+              enterKeyHint="done"
+              maxLength={SHOPPING_ITEM_NAME_MAX}
+              placeholder="Es. latte, carta forno…"
+              className="min-h-[44px] w-full rounded-xl border border-stone/30 bg-white px-3 py-2 text-base text-ink placeholder:text-stone focus:border-basil focus:outline-none focus:ring-1 focus:ring-basil"
+            />
+            <Button type="submit" disabled={saving || name.trim() === ""}>
+              Aggiungi
+            </Button>
+          </form>
 
-        <p role="status" className="mt-3 min-h-5 text-sm text-basil">
-          {added !== null ? `Aggiunto: ${added}` : ""}
-        </p>
-
-        {error !== null && (
-          <p
-            role="alert"
-            className="mt-3 rounded-xl border border-tomato/30 bg-tomato/10 p-3 text-sm text-ink"
-          >
-            {error}
+          <p role="status" className="mt-3 min-h-5 text-sm text-basil">
+            {added !== null ? `Aggiunto: ${added}` : ""}
           </p>
-        )}
+
+          {error !== null && (
+            <p
+              role="alert"
+              className="mt-3 rounded-xl border border-tomato/30 bg-tomato/10 p-3 text-sm text-ink"
+            >
+              {error}
+            </p>
+          )}
+        </SheetBody>
       </SheetContent>
     </Sheet>
   );

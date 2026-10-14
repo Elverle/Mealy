@@ -68,7 +68,7 @@ Un ref impedisce il doppio invio; durante la richiesta il pulsante è disattivat
 
 ## Regola di Montaggio
 
-Il selettore è la prima sheet montata **dentro** l'elenco delle card. Le sheet sono `fixed` senza portale: funzionano solo se nessun antenato delle card ha `opacity`, `transform` o `filter` a riposo. Un commento sul contenitore delle card in `plan-screen.tsx` lo dice (innesto R4); durante una navigazione quel contenitore ha `opacity-60` e la sheet diventa semitrasparente, con la tab bar (`z-40`) sopra la striscia in basso ([[plan-screen]]).
+Il selettore è montato **dentro** l'elenco delle card, ma dalla revisione UI del 14 ottobre 2026 le sheet sono rese in un portale su `document.body` ([[sheet-primitive]]): nessun antenato con `opacity`, `transform` o `filter` le può più rendere semitrasparenti o farle finire sotto la tab bar. Il commento-regola su `plan-screen.tsx` (innesto R4) è stato tolto. Il campo di ricerca sta nell'intestazione fissa, sotto il titolo: resta visibile mentre si scorre l'elenco.
 
 ## Test
 

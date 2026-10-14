@@ -40,6 +40,8 @@ const SKELETON_ROWS = [0, 1, 2];
 const ANOTHER_LABEL = "Un'altra";
 const RETRY_LABEL = "Riprova";
 const DUPLICATE_NOTICE_PREFIX = "Questa ce l'hai già:";
+// Sotto il titolo della proposta: la richiesta resta visibile mentre si legge la ricetta.
+const REQUEST_PREFIX = "Hai chiesto";
 
 /**
  * Sheet di una proposta dell'LLM: la chiede, la mostra in sola lettura e offre l'azione primaria.
@@ -222,6 +224,7 @@ export function RecipeProposalSheet({
       isOpen={request !== null}
       onClose={handleClose}
       placeholder={placeholder}
+      subtitle={view ? `${REQUEST_PREFIX} «${request ?? ""}»` : undefined}
       notice={notice}
       footer={footer}
     />

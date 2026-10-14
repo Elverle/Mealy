@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 interface HarnessProps {
   onFirstChange: (open: boolean) => void;
@@ -109,6 +109,123 @@ describe("Sheet stack: Escape", () => {
     expect(replacedOnFirst).not.toHaveBeenCalled();
     expect(onFirst).not.toHaveBeenCalled();
     expect(screen.getByText("Prima sheet")).toBeInTheDocument();
+  });
+});
+
+/** Una sheet con titolo e un pulsante nel corpo, aperta da un pulsante della pagina. */
+function FocusHarness() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Apri
+      </button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Lasagne al pesto</SheetTitle>
+          </SheetHeader>
+          <SheetBody>
+            <button type="button">Un&apos;altra</button>
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+describe("Sheet focus and naming", () => {
+  it("renders the panel in a portal on document.body, named by its title", () => {
+    const { container } = render(<FocusHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Apri" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Lasagne al pesto" });
+    expect(container.contains(dialog)).toBe(false);
+    expect(document.body.contains(dialog)).toBe(true);
+  });
+
+  it("moves focus into the panel when it opens, away from the field that had it", () => {
+    render(<FocusHarness />);
+    const opener = screen.getByRole("button", { name: "Apri" });
+    opener.focus();
+    fireEvent.click(opener);
+
+    expect(screen.getByRole("dialog")).toHaveFocus();
+  });
+
+  it("returns focus to the element that had it when the sheet closes", () => {
+    render(<FocusHarness />);
+    const opener = screen.getByRole("button", { name: "Apri" });
+    opener.focus();
+    fireEvent.click(opener);
+
+    pressEscape();
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+
+  it("keeps Tab and Shift+Tab inside the panel", () => {
+    render(<FocusHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Apri" }));
+    const close = screen.getByRole("button", { name: "Chiudi" });
+    const another = screen.getByRole("button", { name: "Un'altra" });
+
+    another.focus();
+    fireEvent.keyDown(another, { key: "Tab" });
+    expect(close).toHaveFocus();
+
+    fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+    expect(another).toHaveFocus();
+  });
+});
+
+describe("Sheet and the phone keyboard", () => {
+  /** visualViewport finto: jsdom non lo implementa. innerHeight di jsdom è 768. */
+  function installViewport(height: number) {
+    const viewport = Object.assign(new EventTarget(), { height, offsetTop: 0, scale: 1 });
+    Object.defineProperty(window, "visualViewport", { value: viewport, configurable: true });
+    return viewport;
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, "visualViewport");
+  });
+
+  it("sits above the keyboard and fits the visible area while the keyboard is open", () => {
+    const viewport = installViewport(768);
+    render(<FocusHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Apri" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.style.bottom).toBe("");
+
+    act(() => {
+      viewport.height = 468;
+      viewport.dispatchEvent(new Event("resize"));
+    });
+    expect(dialog.style.bottom).toBe("300px");
+    expect(dialog.style.maxHeight).toBe(`${Math.round(468 * 0.92)}px`);
+
+    act(() => {
+      viewport.height = 768;
+      viewport.dispatchEvent(new Event("resize"));
+    });
+    expect(dialog.style.bottom).toBe("");
+    expect(dialog.style.maxHeight).toBe("");
+  });
+
+  it("ignores a small difference such as a browser toolbar, and pinch zoom", () => {
+    const viewport = installViewport(708);
+    render(<FocusHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Apri" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.style.bottom).toBe("");
+
+    act(() => {
+      Object.assign(viewport, { height: 384, scale: 2 });
+      viewport.dispatchEvent(new Event("resize"));
+    });
+    expect(dialog.style.bottom).toBe("");
   });
 });
 

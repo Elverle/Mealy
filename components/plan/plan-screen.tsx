@@ -661,9 +661,6 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
         />
       </nav>
 
-      {/* Regola: nessun antenato delle card va in opacity, transform o filter a riposo. Le sheet di
-          SlotRecipePicker sono fixed e stanno dentro le card: con opacity-60 (navigazione) diventano
-          semitrasparenti e la nav in basso (z-40) può coprirne il footer. */}
       <div
         aria-busy={isNavigating}
         className={cn("transition-opacity", isNavigating && "opacity-60")}

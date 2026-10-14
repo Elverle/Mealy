@@ -3,7 +3,7 @@ title: Primitiva Sheet — Pannello dal Basso e Pila delle Sheet Aperte (sheet-p
 type: entity
 created: 2026-10-14
 updated: 2026-10-14
-tags: [ui, components, sheet, drawer, modal, escape, scroll-lock, dvh, accessibility, feature-9]
+tags: [ui, components, sheet, drawer, modal, escape, scroll-lock, dvh, accessibility, focus, portal, feature-9]
 ---
 
 ## File e Responsabilità
@@ -14,12 +14,13 @@ tags: [ui, components, sheet, drawer, modal, escape, scroll-lock, dvh, accessibi
 
 ## Componenti
 
-- **`Sheet`**: fornisce `{ open, setOpen }` tramite contesto. Controllata (`open` + `onOpenChange`) o non controllata (`defaultOpen`); `setOpen` chiama sempre `onOpenChange`.
+- **`Sheet`**: fornisce `{ open, setOpen, titleId }` tramite contesto (`titleId` da `useId`). Controllata (`open` + `onOpenChange`) o non controllata (`defaultOpen`); `setOpen` chiama sempre `onOpenChange`.
 - **`SheetTrigger`** / **`SheetClose`**: pulsanti che aprono o chiudono la sheet del contesto.
-- **`SheetContent`** (`side`: `bottom` di default, `top`, `left`, `right`): con la sheet chiusa non rende nulla. Aperta, rende un contenitore `fixed inset-0 z-50` con lo sfondo `bg-black/40` (`data-testid="sheet-backdrop"`, il clic chiude) e il pannello `role="dialog" aria-modal="true"` (`bg-paper`, `overflow-y-auto`, `max-w-2xl`), con il pulsante ✕ (`aria-label="Chiudi"`, 44 × 44 px) in alto a destra.
-- **`SheetHeader`** (`pr-10` per non finire sotto la ✕), **`SheetFooter`**, **`SheetTitle`** (`h2` in `font-display`), **`SheetDescription`**.
+- **`SheetContent`**: solo dal basso (le varianti `top`/`left`/`right` e la prop `side`, mai usate, sono state tolte). Con la sheet chiusa, o lato server, non rende nulla. Aperta, rende **in un portale su `document.body`** un contenitore `fixed inset-0 z-50` (`data-sheet-root`) con lo sfondo `bg-ink/40` (`data-testid="sheet-backdrop"`, il clic chiude) e il pannello `role="dialog" aria-modal="true" aria-labelledby=<titolo>` (`bg-paper`, `max-w-2xl`, `max-h-[92dvh]`, `flex flex-col overflow-hidden`), con la ✕ (`aria-label="Chiudi"`, 44 × 44 px) in alto a destra.
+- **Il pannello non scorre**: dentro vanno **`SheetHeader`** (fisso, `pr-16` per la ✕), **`SheetBody`** (`data-sheet-body`, `flex-1 min-h-0 overflow-y-auto overscroll-contain`: l'unica parte che scorre) e, se servono azioni sempre visibili, **`SheetFooter`** (`data-sheet-footer`, `shrink-0`, bordo in alto, `pb-[max(1rem,env(safe-area-inset-bottom))]`). **`SheetTitle`** (`h2` in `font-display`, con l'id del contesto) e **`SheetDescription`** come prima.
+- **Movimento**: il pannello sale con `animate-sheet-in` (340 ms, ease-out esponenziale) e lo sfondo compare con `animate-backdrop-in`; con `prefers-reduced-motion` il pannello si limita a una dissolvenza. Le classi sono in `app/globals.css`. Con più sheet impilate (i portali stanno in `body` nell'ordine di apertura) lo sfondo scuro resta uno solo: quelli delle sheet successive sono trasparenti, ma chiudono comunque al clic.
 
-Altezze dei lati: `bottom` e `top` hanno `max-h-[90dvh]` (prima della Feature 9 `90vh`: innesto R3 della review architetturale della Feature 9, sulla scia della 0.6.1 che aveva portato le schermate a `dvh`); `left` e `right` sono a tutta altezza. Chi usa la sheet può sovrascrivere l'altezza con `className` (es. `RecipeSheet` usa `max-h-[92dvh]`, il selettore `h-[92dvh] max-h-[92dvh]`).
+**Dalla revisione UI del 14 ottobre 2026** (critica Impeccable dopo la prova da telefono): prima il pannello era esso stesso il contenitore che scorreva, con `p-6`; il footer `sticky bottom-0` di [[recipe-sheet]] si fermava allora 32 px sopra il bordo (il padding del contenitore), con il testo che scorreva sotto. In più `animate-in slide-in-from-bottom` non era definita (nessun plugin di animazioni installato) e `duration-300` lasciava sul pannello `transition: all 0.3s`, quindi ogni cambio di geometria (barra degli indirizzi del telefono, `dvh`) arrivava in ritardo. La struttura a tre parti e le animazioni definite chiudono entrambi i problemi.
 
 ## Pila delle Sheet Aperte (Feature 9)
 
@@ -30,15 +31,29 @@ Ora un array a livello di modulo, `openSheets: symbol[]`, tiene le sheet aperte 
 - **Registrazione**: un effetto che dipende **solo** da `open` (e dall'id) aggiunge la sheet in coda alla pila e imposta `overflow: hidden` sul `body`; la pulizia la toglie e ripristina lo scorrimento **solo** quando la pila è vuota. La dipendenza da `open` soltanto mantiene l'ordine di apertura anche quando chi usa la sheet passa un nuovo `onOpenChange` a ogni render.
 - **Esc**: un secondo effetto ascolta `keydown` su `window` e chiude la sheet solo se è **l'ultima della pila**. Con una sola sheet aperta il comportamento è quello di prima.
 
+## Focus e Accessibilità
+
+- **Apertura**: il focus entra nel pannello (`tabIndex=-1`). Così su telefono si chiude la tastiera del campo di ricerca che ha aperto la sheet, che prima restava aperta e copriva il fondo del pannello. Un campo con `autoFocus` dentro la sheet (es. `AddShoppingItemSheet`) tiene il suo focus.
+- **Tab**: Tab e Maiusc+Tab girano tra i controlli del pannello senza uscire sulla pagina sotto.
+- **Chiusura**: il focus torna all'elemento che lo aveva prima dell'apertura, **salvo** che chi chiude l'abbia già spostato altrove (es. la Libreria che porta il focus sul titolo dopo *Aggiungi alla libreria*, requirements P22): il ripristino scatta solo se il focus è finito sul `body` o era nel pannello.
+- **Nome**: `aria-labelledby` punta al `SheetTitle`.
+- **Portale**: nessun antenato con `opacity`, `transform` o `filter` può più intrappolare il pannello o farlo finire sotto la barra di navigazione; la regola fragile annotata in `plan-screen.tsx` non è più necessaria.
+
+## Tastiera del Telefono
+
+Chrome su Android (dalla 108) e Safari su iOS, quando si apre la tastiera, riducono solo l'area visibile (`window.visualViewport`), non quella su cui si ancora un elemento `fixed bottom-0`: il pannello resterebbe dietro la tastiera. Il browser a volte sposta la vista sul campo col focus, ma non sempre: nella prova da telefono del 14 ottobre 2026, in *Aggiungi alla lista*, dopo *Aggiungi* il focus tornava sul campo da codice e la sheet finiva sotto la tastiera.
+
+`useKeyboardInset` (un `useSyncExternalStore` sugli eventi `resize` e `scroll` di `visualViewport`) calcola lo spazio coperto in basso (`innerHeight − visualViewport.height − offsetTop`). Sopra gli 80 px (sotto è una barra del browser) e senza zoom, il pannello riceve `bottom` pari allo spazio coperto e `maxHeight` pari al 92% dell'area visibile; alla chiusura della tastiera gli stili inline spariscono. Vale per tutte le sheet, compresa la ricerca nel selettore del Piano.
+
 ## Limiti Noti
 
-- **Nessuna gestione del focus**: all'apertura il focus non entra nel pannello e non viene trattenuto; alla chiusura non torna al controllo che l'ha aperta. I componenti della Feature 9 riportano il focus da sé (requirements P22: *Scegli* nella card, pulsante di richiesta o titolo in Libreria); un ripristino generico nella primitiva avrebbe cambiato il comportamento di tutte le sheet esistenti.
-- **Nessun portale**: il contenitore `fixed` è reso dove la sheet è montata. Funziona finché nessun antenato crea uno stacking context (`opacity`, `transform`, `filter`). Il selettore del Piano è montato dentro la card e dipende da questa regola ([[slot-recipe-picker]]). La review architetturale della Feature 9 indicava come alternativa robusta `createPortal(…, document.body)` in `SheetContent`, non adottata.
+- Lo sfondo della pagina non è `inert`: con `aria-modal` e il Tab confinato basta, e un `inert` sulla radice dell'app avrebbe nascosto agli screen reader anche i toast ([[toast]]), che vivono lì.
+- Niente trascinamento per chiudere né maniglia: si chiude con ✕, Esc o lo sfondo.
 - La pila è globale al modulo: una sheet registrata e mai smontata in modo pulito (non accade nei componenti attuali) lascerebbe lo scorrimento bloccato.
 
 ## Test
 
-- `tests/ui/sheet-stack.test.tsx` (Feature 9): con due sheet aperte Esc chiude solo l'ultima; il tasto successivo chiude la precedente; una sola sheet si chiude con Esc come prima; ordine di apertura conservato con un nuovo `onOpenChange` a ogni render; scorrimento bloccato con una sheet aperta e sbloccato alla chiusura; scorrimento ancora bloccato finché resta un'altra sheet; sbloccato chiudendo l'ultima con la ✕.
+- `tests/ui/sheet-stack.test.tsx` (Feature 9): con due sheet aperte Esc chiude solo l'ultima; il tasto successivo chiude la precedente; una sola sheet si chiude con Esc come prima; ordine di apertura conservato con un nuovo `onOpenChange` a ogni render; scorrimento bloccato con una sheet aperta e sbloccato alla chiusura; scorrimento ancora bloccato finché resta un'altra sheet; sbloccato chiudendo l'ultima con la ✕. Dalla revisione UI: pannello in un portale su `body` e con il nome del titolo; focus nel pannello all'apertura; focus restituito alla chiusura; Tab e Maiusc+Tab confinati.
 - Le sheet esistenti sono coperte indirettamente da `tests/ui/{recipe-sheet,recipe-detail-sheet,add-item-sheet,shopping-screen,shell}.test.tsx`.
 
 ## Vedi anche

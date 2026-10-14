@@ -119,9 +119,12 @@ function renderScreen(recipes: Recipe[] = [PESTO, SALMONE, RISO], persons = 2) {
   return render(<LibraryScreen initialRecipes={recipes.map(cardOf)} persons={persons} />);
 }
 
-/** Titoli delle card nell'ordine mostrato. */
+/** Titoli delle card nell'ordine mostrato (le sezioni di una sheet aperta non contano). */
 function shownTitles(): string[] {
-  return screen.queryAllByRole("heading", { level: 3 }).map((h) => h.textContent ?? "");
+  return screen
+    .queryAllByRole("heading", { level: 3 })
+    .filter((h) => h.closest('[role="dialog"]') === null)
+    .map((h) => h.textContent ?? "");
 }
 
 /** Tocca il corpo della card (non la ★). */
