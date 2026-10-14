@@ -40,7 +40,7 @@ Spaziatura su griglia 4 px; raggio 12 px per le card, 999 px per chip/badge; omb
 
 ## 3. Elemento firma
 
-**La card-pasto con lo swap sempre a portata di pollice.** Ogni slot del piano è una card con: giorno/pasto in eyebrow, titolo Fraunces, chip dei tag (tempo, dieta), e due sole azioni — ★ (preferenza rapida) e ⟳ *Cambia* (in `tomato`). Cambiare idea su una cena deve costare un tap, non un menù. Durante lo swap la card fa un flip breve e mostra la nuova proposta con *Tieni / Cambia ancora*.
+**La card-pasto con lo swap sempre a portata di pollice.** Ogni slot del piano è una card con: giorno/pasto in eyebrow, titolo Fraunces, chip dei tag (tempo, dieta), e tre azioni — ⟳ *Cambia* (in `tomato`), *Scegli* (in colore neutro) e ★ (preferenza rapida), in quest'ordine. Cambiare idea su una cena deve costare un tap, non un menù: *Cambia* resta a un tap, *Scegli* è la strada per chi vuole una ricetta precisa. Durante lo swap la card fa un flip breve e mostra la nuova proposta con *Tieni / Cambia ancora* e, tra i due, il pulsante con la lente per scegliere dalla libreria.
 
 ## 4. Mappa delle schermate
 
@@ -50,6 +50,7 @@ Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Im
 - Header: navigatore ‹ settimana › (storico in sola lettura) + CTA *Genera piano* / *Rigenera* sulla settimana da pianificare
 - Lista verticale di card-pasto raggruppate per giorno (pranzo/cena secondo impostazioni)
 - Slot con lucchetto (long-press) → sopravvive alla rigenerazione
+- *Scegli* apre il selettore *Scegli per ‹giorno› · ‹pasto›*: le ricette della libreria adatte a quel pasto, con ricerca; il tap su una ricetta apre il dettaglio con *Metti nel piano*; le ricette già in un altro pasto della settimana hanno l'etichetta *Già nel piano* e restano selezionabili. Se la ricetta voluta non c'è, dal selettore si chiede all'LLM (vedi 4.4).
 - Footer sticky: *Crea lista della spesa* quando il piano è confermato
 
 ### 4.2 Dettaglio ricetta (sheet a tutta altezza)
@@ -70,6 +71,7 @@ Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Im
 ### 4.4 Libreria
 - Ricerca (per titolo o ingrediente) + filtri a chip combinabili: sempre visibili *Preferite*, *Pranzo*, *Cena* e il pulsante *Filtri* (con contatore), che apre il pannello con tipo di pasti, dieta e *Bloccate*
 - Card compatte con rating e ★, preferite in alto e poi le più recenti; le bloccate compaiono solo con il filtro *Bloccate*, da dove si sbloccano
+- Con almeno 3 caratteri nel campo di ricerca, sotto l'elenco compare *Chiedi una ricetta per «…»*: l'LLM propone una ricetta in una sheet di sola lettura, con *Aggiungi alla libreria* e *Un'altra*. In libreria entra solo ciò che viene aggiunto.
 
 ### 4.5 Impostazioni (wizard al primo avvio, poi form)
 - Persone · Pasti da pianificare · Tipo pasti · Esigenze alimentari · Elettrodomestici
@@ -81,6 +83,7 @@ Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Im
 - **Generazione LLM (10–30 s)**: skeleton delle card + rotazione di microcopy in tono ("Sto sfogliando il ricettario…", "Accendo i fornelli…"); mai spinner nudo
 - **Libreria vuota**: "Ancora nessuna ricetta. Genera il primo piano e la libreria si riempie da sola." + CTA
 - **Errore LLM**: cosa è successo e cosa fare — "La generazione non è andata a buon fine. Riprova." (niente scuse, niente gergo)
+- **Richiesta di una ricetta (10–30 s)**: sheet con "Cerco una ricetta…" e la stessa rotazione di microcopy; in caso di errore il messaggio e *Riprova*. Se la ricetta proposta è già in libreria: "Questa ce l'hai già: «…»"
 - Azioni con lo stesso nome per tutto il flusso: *Genera piano* → toast "Piano generato"
 
 ## 6. Qualità minima (non negoziabile)
