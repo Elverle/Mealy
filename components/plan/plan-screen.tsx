@@ -574,6 +574,8 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
                 onToggleLock={(slotId) => void handleToggleLock(slotId)}
                 onSelectRecipe={(selected) => setSheetSlotId(selected.id)}
                 onToggleFavorite={(recipeId) => void handleToggleFavorite(recipeId)}
+                onRecipePrefsChange={applyRecipePrefs}
+                onPlanStale={() => router.refresh()}
                 onError={setToast}
               />
             ))}
@@ -659,6 +661,9 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
         />
       </nav>
 
+      {/* Regola: nessun antenato delle card va in opacity, transform o filter a riposo. Le sheet di
+          SlotRecipePicker sono fixed e stanno dentro le card: con opacity-60 (navigazione) diventano
+          semitrasparenti e la nav in basso (z-40) può coprirne il footer. */}
       <div
         aria-busy={isNavigating}
         className={cn("transition-opacity", isNavigating && "opacity-60")}
