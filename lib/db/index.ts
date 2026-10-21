@@ -10,8 +10,9 @@ const globalForDb = globalThis as unknown as {
   conn: postgres.Sql | undefined;
 };
 
-export const client = globalForDb.conn ?? postgres(connectionString);
-if (process.env.NODE_ENV !== 'production') globalForDb.conn = client;
+// Un solo pool per processo, anche se Next carica il modulo da più grafi (l'hook di avvio e le rotte) o lo ricarica con l'HMR.
+globalForDb.conn ??= postgres(connectionString);
+export const client = globalForDb.conn;
 
 export const db = drizzle(client, { schema });
 export type Database = typeof db;
