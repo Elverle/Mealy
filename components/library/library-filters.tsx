@@ -5,6 +5,8 @@ import { Ban, ChevronDown, Search, Star } from "lucide-react";
 import { ChipFilter } from "@/components/filters/chip-filter";
 import {
   DIET_FLAG_LABELS,
+  COURSE_LABELS,
+  COURSE_VALUES,
   DIET_FLAG_VALUES,
   LIBRARY_QUERY_MAX,
   MEAL_STYLE_TAG_LABELS,
@@ -39,7 +41,8 @@ export function LibraryFilters({
   onFilterChange,
 }: LibraryFiltersProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
-  const panelCount = filter.tags.length + filter.diets.length + (filter.blocked ? 1 : 0);
+  const panelCount =
+    filter.courses.length + filter.tags.length + filter.diets.length + (filter.blocked ? 1 : 0);
 
   return (
     <div className="mt-4 space-y-3">
@@ -91,6 +94,19 @@ export function LibraryFilters({
 
       {open && (
         <div id={PANEL_ID} className="space-y-4 rounded-xl border border-stone/20 bg-white p-4">
+          <div className="space-y-2">
+            <p className={GROUP_TITLE_CLASS}>Portata</p>
+            <div className="flex flex-wrap gap-2">
+              {COURSE_VALUES.map((course) => (
+                <ChipFilter
+                  key={course}
+                  label={COURSE_LABELS[course]}
+                  isSelected={filter.courses.includes(course)}
+                  onClick={() => onFilterChange({ ...filter, courses: toggled(filter.courses, course) })}
+                />
+              ))}
+            </div>
+          </div>
           <div className="space-y-2">
             <p className={GROUP_TITLE_CLASS}>Tipo di pasti</p>
             <div className="flex flex-wrap gap-2">

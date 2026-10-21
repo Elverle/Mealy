@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { LibraryFilters } from "@/components/library/library-filters";
 import { EMPTY_LIBRARY_FILTER, type LibraryFilter } from "@/lib/domain/types";
@@ -90,6 +90,59 @@ describe("LibraryFilters", () => {
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "Bloccate" }));
     expect(onFilterChange).toHaveBeenLastCalledWith({ ...EMPTY_LIBRARY_FILTER, blocked: true });
+  });
+
+  it("shows the Portata group first, with the four courses", () => {
+    renderFilters();
+    fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
+
+    const title = screen.getByText("Portata");
+    const group = title.parentElement as HTMLElement;
+    expect(title.compareDocumentPosition(screen.getByText("Tipo di pasti"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(within(group).getAllByRole("checkbox").map((chip) => chip.textContent)).toEqual([
+      "Piatto unico",
+      "Primo",
+      "Secondo",
+      "Contorno",
+    ]);
+  });
+
+  it("toggles a course through onFilterChange, keeping the other filters", () => {
+    const { onFilterChange, rerender, onQueryChange } = renderFilters({
+      ...EMPTY_LIBRARY_FILTER,
+      courses: ["primo"],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Filtri · 1" }));
+    const group = screen.getByText("Portata").parentElement as HTMLElement;
+
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Contorno" }));
+    expect(onFilterChange).toHaveBeenLastCalledWith({
+      ...EMPTY_LIBRARY_FILTER,
+      courses: ["primo", "contorno"],
+    });
+
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Primo" }));
+    expect(onFilterChange).toHaveBeenLastCalledWith({ ...EMPTY_LIBRARY_FILTER, courses: [] });
+
+    rerender(
+      <LibraryFilters
+        query=""
+        onQueryChange={onQueryChange}
+        filter={{ ...EMPTY_LIBRARY_FILTER, courses: ["primo"] }}
+        onFilterChange={onFilterChange}
+      />
+    );
+    expect(within(group).getByRole("checkbox", { name: "Primo" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("counts the selected courses in the Filtri label", () => {
+    render(<StatefulFilters />);
+    fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
+    const group = screen.getByText("Portata").parentElement as HTMLElement;
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Contorno" }));
+    expect(screen.getByRole("button", { name: "Filtri · 1" })).toBeInTheDocument();
   });
 
   it("shows the active count in the Filtri label (one tag and one diet give 2)", () => {

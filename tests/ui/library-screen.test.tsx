@@ -176,6 +176,22 @@ describe("LibraryScreen", () => {
     expect(screen.queryByRole("button", { name: "Azzera filtri" })).not.toBeInTheDocument();
   });
 
+  it("treats an active course filter as active filters and restores everything with Azzera filtri", () => {
+    const salmoneSecondo: Recipe = { ...SALMONE, courses: ["secondo"] };
+    renderScreen([PESTO, salmoneSecondo]);
+    fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
+    const group = screen.getByText("Portata").parentElement as HTMLElement;
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Secondo" }));
+
+    expect(shownTitles()).toEqual(["Salmone al forno"]);
+    expect(screen.getByRole("button", { name: "Filtri · 1" })).toBeInTheDocument();
+
+    const resets = screen.getAllByRole("button", { name: "Azzera filtri" });
+    fireEvent.click(resets[resets.length - 1]);
+    expect(shownTitles()).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Azzera filtri" })).not.toBeInTheDocument();
+  });
+
   it("hides blocked cards and shows only them, labelled and without star, with Bloccate", () => {
     renderScreen([PESTO, SALMONE, RISO]);
     expect(shownTitles()).not.toContain("Risotto ai funghi");

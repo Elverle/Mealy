@@ -210,6 +210,67 @@ describe('PUT /api/settings', () => {
     expect(data).toEqual(mockResult);
   });
 
+  it('accepts the new style tags and forwards them to saveSettings', async () => {
+    const { saveSettings } = await import('@/lib/settings/service');
+    const mockResult: SaveSettingsResult = {
+      settings: {
+        persons: 2,
+        meals: ['pranzo', 'cena'],
+        meal_style_tags: ['tradizionale', 'piatto-freddo'],
+        diet_tags: [],
+        appliances: ['fornelli'],
+        onboarded: false,
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+      changed: true,
+    };
+    vi.mocked(saveSettings).mockResolvedValueOnce(mockResult);
+
+    const request = new Request('http://localhost/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        persons: 2,
+        meals: ['pranzo', 'cena'],
+        meal_style_tags: ['tradizionale', 'piatto-freddo'],
+        diet_tags: [],
+        appliances: ['fornelli'],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const response = await PUT(request);
+    expect(response.status).toBe(200);
+    expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ meal_style_tags: ['tradizionale', 'piatto-freddo'] })
+    );
+    expect(await response.json()).toEqual(mockResult);
+  });
+
+  it('returns 400 for a style tag outside the twelve and does not save', async () => {
+    const { saveSettings } = await import('@/lib/settings/service');
+
+    const request = new Request('http://localhost/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        persons: 2,
+        meals: ['pranzo'],
+        meal_style_tags: ['brunch'],
+        diet_tags: [],
+        appliances: [],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const response = await PUT(request);
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error.code).toBe('invalid_request');
+    expect(data.error.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: 'meal_style_tags.0' })])
+    );
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+
   it('maps a thrown error from saveSettings to 500 internal_error', async () => {
     const { saveSettings } = await import('@/lib/settings/service');
     vi.mocked(saveSettings).mockRejectedValueOnce(new Error('boom'));

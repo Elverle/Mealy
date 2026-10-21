@@ -17,9 +17,11 @@ import {
   SAVED_RECIPE_TEXT_MAX,
   type GeneratedRecipe,
 } from '@/lib/domain/types';
+import { filterLibraryCards } from '@/lib/domain/library';
 import { getRecipeDetail, listLibrary } from '@/lib/library/service';
 import { RecipeError } from '@/lib/recipes/errors';
 import { saveProposedRecipe } from '@/lib/recipes/propose';
+import { makeLibraryCard } from '@/tests/helpers/recipes';
 
 vi.mock('@/lib/library/service', () => ({
   listLibrary: vi.fn(),
@@ -94,6 +96,44 @@ describe('GET /api/recipes', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ recipes: [], total: 0 });
     expect(listLibrary).toHaveBeenCalledWith({ ...EMPTY_LIBRARY_FILTER, tags: ['veloce'], favorites: true });
+  });
+
+  it('passes the portata parameter to the service, deduped', async () => {
+    vi.mocked(listLibrary).mockResolvedValueOnce({ recipes: [], total: 0 });
+
+    const response = await listGET(new Request('http://localhost/api/recipes?portata=primo&portata=primo'));
+
+    expect(response.status).toBe(200);
+    expect(listLibrary).toHaveBeenCalledWith({ ...EMPTY_LIBRARY_FILTER, courses: ['primo'] });
+  });
+
+  it('returns only the cards of the requested course, each with its courses', async () => {
+    // Servizio con le card in memoria (il filtro reale di libreria): la colonna `courses` in DB arriva con WP1b.
+    const primo = makeLibraryCard({ title: 'Lasagne', courses: ['primo'] });
+    const secondo = makeLibraryCard({ title: 'Pollo', courses: ['secondo', 'contorno'] });
+    const nonClassificata = makeLibraryCard({ title: 'Vecchia ricetta', courses: [] });
+    const cards = [primo, secondo, nonClassificata];
+    vi.mocked(listLibrary).mockImplementationOnce(async (filter) => ({
+      recipes: filterLibraryCards(cards, filter),
+      total: cards.length,
+    }));
+
+    const response = await listGET(new Request('http://localhost/api/recipes?portata=primo'));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.total).toBe(3);
+    expect(body.recipes.map((card: { id: string }) => card.id)).toEqual([primo.id]);
+    expect(body.recipes[0].courses).toEqual(['primo']);
+  });
+
+  it('returns 400 invalid_request for an unknown course', async () => {
+    const response = await listGET(new Request('http://localhost/api/recipes?portata=xyz'));
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error.code).toBe('invalid_request');
+    expect(listLibrary).not.toHaveBeenCalled();
   });
 
   it('returns 400 invalid_request with details for an invalid meal', async () => {
