@@ -43,6 +43,7 @@ export interface RecipeDetail {
   description?: string;
   prepTimeMinutes: number;
   servings: number;
+  course?: string; // portate, già formattate (courseLabel)
   tags?: string[];
   ingredients: RecipeIngredient[];
   steps: string[];
@@ -215,6 +216,11 @@ export function RecipeSheet({
               <Clock className="h-3 w-3 text-stone" />
               <span className="tabular-nums">{recipe.prepTimeMinutes} min</span>
             </Badge>
+            {recipe.course && (
+              <Badge variant="basil-subtle" className="text-xs">
+                {recipe.course}
+              </Badge>
+            )}
             {recipe.tags?.map((tag) => (
               <Badge key={tag} variant="outline" className="text-xs">
                 {tag}

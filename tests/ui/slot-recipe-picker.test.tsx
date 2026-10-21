@@ -152,8 +152,9 @@ function escapeRegExp(value: string): string {
 }
 
 /** Nome accessibile di una card: `^\d+ min <titolo>`. */
+// Tra il tempo e il titolo può esserci il badge di portata (Feature 8, WP4).
 function cardRegex(title: string): RegExp {
-  return new RegExp(`^\\d+ min ${escapeRegExp(title)}`);
+  return new RegExp(`^\\d+ min (?:.* )?${escapeRegExp(title)}`);
 }
 
 function queryCard(title: string): HTMLElement | null {

@@ -5,6 +5,7 @@ import { Ban, Clock, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { recipeChips } from "@/components/sheets/recipe-detail";
+import { courseLabel } from "@/lib/domain/courses";
 import type { LibraryRecipeCard } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
@@ -29,12 +30,15 @@ export function RecipeCard({
   badge,
 }: RecipeCardProps): React.JSX.Element {
   const chips = recipeChips(recipe);
+  const course = courseLabel(recipe.courses);
   const baseId = React.useId();
+  const courseId = `${baseId}-course`;
   const metaId = `${baseId}-meta`;
   const badgeId = `${baseId}-badge`;
   const hasMeta = chips.length > 0 || recipe.rating !== null;
   const labelledBy = [
     `${baseId}-time`,
+    course !== null ? courseId : null,
     `${baseId}-title`,
     badge !== undefined ? badgeId : null,
     hasMeta ? metaId : null,
@@ -48,6 +52,11 @@ export function RecipeCard({
           <Clock className="h-3 w-3 text-stone" aria-hidden="true" />
           <span className="tabular-nums">{recipe.prep_minutes} min</span>
         </Badge>
+        {course !== null && (
+          <Badge id={courseId} variant="basil-subtle" className="mb-1.5 ml-1.5 text-[11px]">
+            {course}
+          </Badge>
+        )}
         {badge !== undefined && (
           <Badge id={badgeId} variant="saffron-subtle" className="mb-1.5 ml-1.5 text-[11px]">
             {badge}
