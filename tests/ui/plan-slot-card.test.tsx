@@ -569,6 +569,7 @@ describe("PlanSlotCard — course badge", () => {
     render(<Harness initial={makeSlot(makeRecipe({ courses: [] }))} />);
 
     expect(screen.queryByText(/Primo|Secondo|Contorno|Piatto unico/)).toBeNull();
+    expect(screen.getByText("Ricetta di prova")).toBeInTheDocument();
   });
 
   it("shows Piatto unico once, as the course, and not again among the style chips", () => {

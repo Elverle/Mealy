@@ -327,7 +327,7 @@ export type GenerateRecipesOutput = z.infer<typeof GenerateRecipesOutputSchema>;
 export const RecipeConstraintsSchema = z.object({
   persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
   meal_type: MealTypeSchema.nullable(),
-  courses: z.array(CourseSchema).nullable(), // null = qualsiasi portata
+  courses: z.array(CourseSchema).min(1).nullable(), // null = qualsiasi portata; mai vuoto
   diet_tags: z.array(DietFlagSchema),
   meal_style_tags: z.array(MealStyleTagSchema),
   appliances: z.array(ApplianceSchema),

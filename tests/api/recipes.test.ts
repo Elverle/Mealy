@@ -108,7 +108,7 @@ describe('GET /api/recipes', () => {
   });
 
   it('returns only the cards of the requested course, each with its courses', async () => {
-    // Servizio con le card in memoria (il filtro reale di libreria): la colonna `courses` in DB arriva con WP1b.
+    // Servizio con le card in memoria, filtrate dal filtro reale di libreria (nessun DB).
     const primo = makeLibraryCard({ title: 'Lasagne', courses: ['primo'] });
     const secondo = makeLibraryCard({ title: 'Pollo', courses: ['secondo', 'contorno'] });
     const nonClassificata = makeLibraryCard({ title: 'Vecchia ricetta', courses: [] });

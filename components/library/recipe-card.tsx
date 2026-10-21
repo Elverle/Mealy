@@ -48,20 +48,23 @@ export function RecipeCard({
   return (
     <Card className="relative p-4 transition-all hover:border-stone/40 hover:shadow-sm">
       <div className="min-h-[44px] pr-12">
-        <Badge id={`${baseId}-time`} variant="secondary" className="mb-1.5 gap-1 text-[11px]">
-          <Clock className="h-3 w-3 text-stone" aria-hidden="true" />
-          <span className="tabular-nums">{recipe.prep_minutes} min</span>
-        </Badge>
-        {course !== null && (
-          <Badge id={courseId} variant="basil-subtle" className="mb-1.5 ml-1.5 text-[11px]">
-            {course}
+        <div className="mb-1.5 flex flex-wrap gap-1.5">
+          <Badge id={`${baseId}-time`} variant="secondary" className="gap-1 text-[11px]">
+            <Clock className="h-3 w-3 text-stone" aria-hidden="true" />
+            <span className="tabular-nums">{recipe.prep_minutes} min</span>
           </Badge>
-        )}
-        {badge !== undefined && (
-          <Badge id={badgeId} variant="saffron-subtle" className="mb-1.5 ml-1.5 text-[11px]">
-            {badge}
-          </Badge>
-        )}
+          {course !== null && (
+            <Badge id={courseId} variant="basil-subtle" className="text-[11px]">
+              {course}
+            </Badge>
+          )}
+          {badge !== undefined && (
+            <Badge id={badgeId} variant="saffron-subtle" className="text-[11px]">
+              {badge}
+            </Badge>
+          )}
+        </div>
+
         <h3
           id={`${baseId}-title`}
           className="font-display text-base font-bold text-ink line-clamp-2"

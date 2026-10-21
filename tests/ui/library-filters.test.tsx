@@ -152,4 +152,17 @@ describe("LibraryFilters", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Vegetariano" }));
     expect(screen.getByRole("button", { name: "Filtri · 2" })).toBeInTheDocument();
   });
+
+  it("labels each chip group by its title, so the two «Piatto unico» chips are told apart", () => {
+    renderFilters();
+    fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
+
+    const courses = screen.getByRole("group", { name: "Portata" });
+    expect(within(courses).getByRole("checkbox", { name: "Piatto unico" })).toBeInTheDocument();
+    expect(within(courses).queryByRole("checkbox", { name: "Veloce" })).toBeNull();
+
+    const tags = screen.getByRole("group", { name: "Tipo di pasti" });
+    expect(within(tags).getByRole("checkbox", { name: "Piatto unico" })).toBeInTheDocument();
+    expect(within(tags).getByRole("checkbox", { name: "Veloce" })).toBeInTheDocument();
+  });
 });

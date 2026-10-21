@@ -41,6 +41,7 @@ export function LibraryFilters({
   onFilterChange,
 }: LibraryFiltersProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
+  const baseId = React.useId();
   const panelCount =
     filter.courses.length + filter.tags.length + filter.diets.length + (filter.blocked ? 1 : 0);
 
@@ -95,8 +96,8 @@ export function LibraryFilters({
       {open && (
         <div id={PANEL_ID} className="space-y-4 rounded-xl border border-stone/20 bg-white p-4">
           <div className="space-y-2">
-            <p className={GROUP_TITLE_CLASS}>Portata</p>
-            <div className="flex flex-wrap gap-2">
+            <p id={`${baseId}-courses`} className={GROUP_TITLE_CLASS}>Portata</p>
+            <div role="group" aria-labelledby={`${baseId}-courses`} className="flex flex-wrap gap-2">
               {COURSE_VALUES.map((course) => (
                 <ChipFilter
                   key={course}
@@ -108,8 +109,8 @@ export function LibraryFilters({
             </div>
           </div>
           <div className="space-y-2">
-            <p className={GROUP_TITLE_CLASS}>Tipo di pasti</p>
-            <div className="flex flex-wrap gap-2">
+            <p id={`${baseId}-tags`} className={GROUP_TITLE_CLASS}>Tipo di pasti</p>
+            <div role="group" aria-labelledby={`${baseId}-tags`} className="flex flex-wrap gap-2">
               {MEAL_STYLE_TAG_VALUES.map((tag) => (
                 <ChipFilter
                   key={tag}
@@ -121,8 +122,8 @@ export function LibraryFilters({
             </div>
           </div>
           <div className="space-y-2">
-            <p className={GROUP_TITLE_CLASS}>Dieta</p>
-            <div className="flex flex-wrap gap-2">
+            <p id={`${baseId}-diets`} className={GROUP_TITLE_CLASS}>Dieta</p>
+            <div role="group" aria-labelledby={`${baseId}-diets`} className="flex flex-wrap gap-2">
               {DIET_FLAG_VALUES.map((diet) => (
                 <ChipFilter
                   key={diet}
@@ -134,8 +135,8 @@ export function LibraryFilters({
             </div>
           </div>
           <div className="space-y-2">
-            <p className={GROUP_TITLE_CLASS}>Altro</p>
-            <div className="flex flex-wrap gap-2">
+            <p id={`${baseId}-other`} className={GROUP_TITLE_CLASS}>Altro</p>
+            <div role="group" aria-labelledby={`${baseId}-other`} className="flex flex-wrap gap-2">
               <ChipFilter
                 label="Bloccate"
                 icon={<Ban className="h-3.5 w-3.5" aria-hidden="true" />}
