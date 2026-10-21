@@ -6,7 +6,7 @@
       "meal_types": [
         "pranzo",
         "cena"
-      ],
+      ],"courses": ["primo"],
       "tags": [
         "comfort-food"
       ],

@@ -38,6 +38,7 @@ function validRecipe(): GeneratedRecipe {
     title: 'Lasagne al pesto',
     description: 'Lasagne con pesto di basilico.',
     meal_types: ['pranzo', 'cena'],
+    courses: ['primo'],
     tags: ['comfort-food'],
     diet_flags: ['vegetariano'],
     appliances_required: ['fornelli', 'forno'],

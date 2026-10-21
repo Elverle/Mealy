@@ -33,6 +33,7 @@ export function toLibraryCard(recipe: Recipe): LibraryRecipeCard {
     title: recipe.title,
     prep_minutes: recipe.prep_minutes,
     meal_types: recipe.meal_types,
+    courses: recipe.courses,
     tags: recipe.tags,
     diet_flags: recipe.diet_flags,
     ingredient_names: recipeIngredientNames(recipe),

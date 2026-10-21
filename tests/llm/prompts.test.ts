@@ -25,6 +25,7 @@ describe('lib/llm/prompts', () => {
     const baseConstraints: RecipeConstraints = {
       persons: 4,
       meal_type: 'cena',
+      courses: null,
       diet_tags: ['vegetariano', 'senza-glutine'],
       meal_style_tags: ['veloce', 'salutare'],
       appliances: ['fornelli', 'forno'],
@@ -51,6 +52,7 @@ describe('lib/llm/prompts', () => {
       const emptyConstraints: RecipeConstraints = {
         persons: 2,
         meal_type: null,
+        courses: null,
         diet_tags: [],
         meal_style_tags: [],
         appliances: [],
@@ -97,6 +99,7 @@ describe('lib/llm/prompts', () => {
     const requestConstraints: RecipeConstraints = {
       persons: 2,
       meal_type: null,
+      courses: null,
       diet_tags: [],
       meal_style_tags: [],
       appliances: ['fornelli', 'forno'],

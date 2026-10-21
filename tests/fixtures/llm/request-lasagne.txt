@@ -1,5 +1,5 @@
 {"recipes":[
- {"title":"Lasagne al pesto","description":"Lasagne con pesto di basilico, patate e besciamella.","meal_types":["pranzo","cena"],"tags":["comfort-food"],"diet_flags":["vegetariano"],"appliances_required":["fornelli","forno"],"servings_base":2,"prep_minutes":60,"kcal_est":640,
+ {"title":"Lasagne al pesto","description":"Lasagne con pesto di basilico, patate e besciamella.","meal_types":["pranzo","cena"],"courses":["primo"],"tags":["comfort-food"],"diet_flags":["vegetariano"],"appliances_required":["fornelli","forno"],"servings_base":2,"prep_minutes":60,"kcal_est":640,
   "steps":["Lessa le patate a fette sottili.","Mescola il pesto con la besciamella.","Alterna sfoglie, crema al pesto, patate e parmigiano.","Inforna a 180 °C per 30 minuti."],
   "ingredients":[
    {"canonical_name":"sfoglia per lasagne","display_name":"sfoglie per lasagne fresche","qty":250,"unit":"g","category":"banco-frigo","note":null},

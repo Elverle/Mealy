@@ -31,6 +31,7 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
     title: 'Pasta al pomodoro fresco',
     description: 'Ricetta semplice e veloce',
     meal_types: ['pranzo'],
+    courses: ['primo'],
     tags: ['veloce', 'economico'],
     diet_flags: ['vegetariano'],
     appliances_required: [], // valid with empty appliances
@@ -191,6 +192,7 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
       const constraints = {
         persons: 2,
         meal_type: null,
+        courses: null,
         diet_tags: [],
         meal_style_tags: [],
         appliances: [],
@@ -208,6 +210,7 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
         RecipeConstraintsSchema.safeParse({
           persons: 0,
           meal_type: null,
+          courses: null,
           diet_tags: [],
           meal_style_tags: [],
           appliances: [],
@@ -220,6 +223,7 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
         RecipeConstraintsSchema.safeParse({
           persons: 13,
           meal_type: null,
+          courses: null,
           diet_tags: [],
           meal_style_tags: [],
           appliances: [],

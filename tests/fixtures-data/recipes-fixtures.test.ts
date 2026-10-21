@@ -22,6 +22,7 @@ import {
   slugify,
   normalizeGeneratedRecipe,
 } from '@/lib/domain/recipe-text';
+import { deriveStyleTags, isMainDish, normalizeCourses } from '@/lib/domain/courses';
 
 function stripIdSlug(r: FixtureRecipe): GeneratedRecipe {
   const { id: _id, slug: _slug, ...rest } = r;
@@ -62,6 +63,19 @@ describe('Fixtures Data & Validation', () => {
       const normalized = normalizeGeneratedRecipe(stripped);
       expect(normalized).toEqual(stripped);
     }
+  });
+
+  it('every recipe is classified and its tags follow the derived rules', () => {
+    for (const r of FIXTURE_RECIPES) {
+      expect(r.courses.length).toBeGreaterThanOrEqual(1);
+      expect(normalizeCourses(r.courses)).toEqual(r.courses);
+      expect(new Set(deriveStyleTags(r.tags, r.courses, r.ingredients))).toEqual(new Set(r.tags));
+    }
+  });
+
+  it('exactly one recipe is only a side dish', () => {
+    const sideOnly = FIXTURE_RECIPES.filter((r) => !isMainDish(r.courses));
+    expect(sideOnly).toHaveLength(1);
   });
 
   it('satisfies meal_type distribution constraints (solo-pranzo >= 5, solo-cena >= 5, both >= 3)', () => {

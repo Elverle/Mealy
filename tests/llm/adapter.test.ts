@@ -10,6 +10,7 @@ describe('lib/llm/adapter', () => {
   const baseConstraints: RecipeConstraints = {
     persons: 2,
     meal_type: 'cena',
+    courses: null,
     diet_tags: [],
     meal_style_tags: [],
     appliances: ['fornelli', 'forno'],

@@ -69,6 +69,7 @@ function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
     description: '',
     steps: ['Cuoci.'],
     meal_types: ['pranzo', 'cena'],
+    courses: [],
     tags: [],
     diet_flags: [],
     appliances_required: [],

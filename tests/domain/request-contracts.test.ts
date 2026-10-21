@@ -23,6 +23,7 @@ const GENERATED_RECIPE = {
   title: 'Pasta al pomodoro',
   description: 'Un classico veloce.',
   meal_types: ['pranzo', 'cena'],
+  courses: ['primo'],
   tags: ['veloce'],
   diet_flags: [],
   appliances_required: ['fornelli'],

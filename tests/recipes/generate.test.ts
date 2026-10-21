@@ -247,6 +247,7 @@ describe.skipIf(!dbUp)('generateAndStoreRecipes', () => {
     expect(calledConstraints).toEqual({
       persons: 4,
       meal_type: 'pranzo',
+      courses: null,
       diet_tags: ['vegetariano'],
       meal_style_tags: expect.any(Array),
       appliances: ['friggitrice-ad-aria'],

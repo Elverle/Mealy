@@ -29,6 +29,7 @@ export function buildConstraints(
   return RecipeConstraintsSchema.parse({
     persons: overrides?.persons ?? household.persons,
     meal_type: mealType,
+    courses: null,
     diet_tags: overrides?.diet_tags ?? household.diet_tags,
     meal_style_tags: overrides?.meal_style_tags ?? household.meal_style_tags,
     appliances: overrides?.appliances ?? household.appliances,

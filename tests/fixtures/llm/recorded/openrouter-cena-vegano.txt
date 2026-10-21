@@ -3,7 +3,7 @@
     {
       "title": "Couscous di verdure speziato con ceci croccanti",
       "description": "",
-      "meal_types": ["cena"],
+      "meal_types": ["cena"],"courses": ["piatto-unico"],
       "tags": ["salutare", "proteico", "economico", "piatto-unico", "veloce"],
       "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
       "appliances_required": ["fornelli", "friggitrice-ad-aria"],
@@ -105,7 +105,7 @@
     {
       "title": "Spiedini di tofu e verdure alla piastra con salsa di soia e zenzero",
       "description": "",
-      "meal_types": ["cena"],
+      "meal_types": ["cena"],"courses": ["secondo"],
       "tags": ["salutare", "proteico", "economico", "piatto-unico", "veloce"],
       "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
       "appliances_required": ["fornelli", "friggitrice-ad-aria"],
@@ -222,7 +222,7 @@
     {
       "title": "Hamburger di lenticchie rosse con patate dolci friggitrice ad aria",
       "description": "",
-      "meal_types": ["cena"],
+      "meal_types": ["cena"],"courses": ["secondo"],
       "tags": ["salutare", "proteico", "comfort-food", "economico", "piatto-unico"],
       "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
       "appliances_required": ["fornelli", "friggitrice-ad-aria"],

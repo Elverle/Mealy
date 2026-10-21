@@ -80,6 +80,7 @@ const LASAGNE: GeneratedRecipe = {
   title: "Lasagne al pesto",
   description: "Verdi e cremose",
   meal_types: ["pranzo", "cena"],
+  courses: ["primo"],
   tags: [],
   diet_flags: [],
   appliances_required: [],

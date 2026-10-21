@@ -57,6 +57,7 @@ function makeCard(overrides: Partial<LibraryRecipeCard> = {}): LibraryRecipeCard
     title: 'Pollo al limone',
     prep_minutes: 20,
     meal_types: ['pranzo', 'cena'],
+    courses: [],
     tags: ['veloce', 'salutare'],
     diet_flags: [],
     ingredient_names: ['pollo', 'limone'],
@@ -235,7 +236,15 @@ describe('parseLibraryQuery', () => {
     );
     expect(parseLibraryQuery(params)).toEqual({
       ok: true,
-      filter: { q: 'pollo', meals: ['cena'], tags: ['veloce'], diets: ['vegano'], favorites: true, blocked: true },
+      filter: {
+        q: 'pollo',
+        meals: ['cena'],
+        courses: [],
+        tags: ['veloce'],
+        diets: ['vegano'],
+        favorites: true,
+        blocked: true,
+      },
     });
   });
 

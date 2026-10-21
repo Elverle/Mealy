@@ -70,6 +70,11 @@ describe('WP2 Domain Types & Zod Schemas', () => {
       'comfort-food',
       'economico',
       'piatto-unico',
+      'tradizionale',
+      'dal-mondo',
+      'pochi-ingredienti',
+      'in-anticipo',
+      'piatto-freddo',
     ]);
     expect(APPLIANCE_VALUES).toEqual([
       'fornelli',

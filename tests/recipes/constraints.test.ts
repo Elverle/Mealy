@@ -29,6 +29,7 @@ describe('buildConstraints', () => {
     expect(constraints).toEqual({
       persons: 3,
       meal_type: 'cena',
+      courses: null,
       diet_tags: ['vegetariano'],
       meal_style_tags: ['veloce'],
       appliances: ['fornelli', 'forno'],
@@ -51,6 +52,7 @@ describe('buildConstraints', () => {
     expect(constraints).toEqual({
       persons: 4,
       meal_type: 'pranzo',
+      courses: null,
       diet_tags: ['vegetariano'],
       meal_style_tags: ['veloce'],
       appliances: ['microonde'],
@@ -123,6 +125,7 @@ describe('findConstraintViolations', () => {
   const baseConstraints: RecipeConstraints = {
     persons: 2,
     meal_type: 'cena',
+    courses: null,
     diet_tags: ['vegetariano'],
     meal_style_tags: ['veloce'],
     appliances: ['fornelli', 'forno'],
@@ -134,6 +137,7 @@ describe('findConstraintViolations', () => {
     title: 'Frittata di verdure',
     description: 'Frittata semplice con zucchine',
     meal_types: ['cena'],
+    courses: ['secondo'],
     tags: ['veloce'],
     diet_flags: ['vegetariano'],
     appliances_required: ['fornelli'],
@@ -263,6 +267,7 @@ describe('findConstraintViolations', () => {
       title: 'Piatto scorretto',
       description: 'Test con violazioni multiple',
       meal_types: ['pranzo'],
+      courses: ['secondo'],
       tags: [],
       diet_flags: [],
       appliances_required: ['friggitrice-ad-aria'],
@@ -285,6 +290,7 @@ describe('findConstraintViolations', () => {
     const constraints: RecipeConstraints = {
       persons: 2,
       meal_type: 'cena',
+      courses: null,
       diet_tags: ['vegano'],
       meal_style_tags: [],
       appliances: ['fornelli'],
