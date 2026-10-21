@@ -1,6 +1,11 @@
-import type { RecipeConstraints } from '@/lib/domain/types';
+import {
+  MEAL_STYLE_TAG_VALUES,
+  type ClassifyRecipeItem,
+  type RecipeConstraints,
+} from '@/lib/domain/types';
 
 export const MAX_EXCLUDED_TITLES = 150;
+export const CLASSIFY_DESCRIPTION_MAX = 300;
 
 /**
  * Builds the system instructions for generating Italian home cooking recipes.
@@ -21,7 +26,9 @@ export function buildRecipeInstructions(): string {
     'Regole per la ricetta:',
     '- title: nome breve e specifico in italiano, con l\'iniziale maiuscola.',
     '- meal_types: sottoinsieme di "pranzo" e "cena".',
-    '- tags: solo tra veloce, salutare, proteico, leggero, comfort-food, economico, piatto-unico ("veloce" solo se prep_minutes è al massimo 30).',
+    '- courses: le portate in cui il piatto si serve davvero, di solito una e al massimo due, tra piatto-unico (basta da solo come pasto), primo (pasta, riso, zuppe), secondo (carne, pesce, uova, formaggi o legumi come portata principale) e contorno (verdure o patate che accompagnano un secondo).',
+    `- tags: solo tra ${MEAL_STYLE_TAG_VALUES.join(', ')} ("veloce" solo se prep_minutes è al massimo 30; "pochi-ingredienti" e "piatto-unico" li calcola l'app, puoi ometterli).`,
+    '  Significati: tradizionale = classico della cucina italiana; dal-mondo = di una cucina non italiana; in-anticipo = si prepara prima e si conserva bene, adatto alla schiscetta; piatto-freddo = si mangia freddo o è estivo.',
     '- diet_flags: tutte le diete che la ricetta rispetta, tra vegetariano, vegano, senza-glutine, senza-lattosio, pescetariano. Una ricetta vegana è anche vegetariana, pescetariana e senza lattosio; una ricetta vegetariana è anche pescetariana.',
     '- appliances_required: tutti e soli gli elettrodomestici necessari, tra fornelli, forno, microonde, friggitrice-ad-aria, frullatore. Lista vuota se non serve cuocere.',
     '- servings_base: uguale al numero di persone indicato.',
@@ -29,6 +36,16 @@ export function buildRecipeInstructions(): string {
     '- kcal_est: kcal stimate per porzione (numero intero) oppure null.',
     '- steps: passi brevi, senza numerazione nel testo.',
   ].join('\n');
+}
+
+/**
+ * Riga dei vincoli sulla portata; null se qualsiasi portata va bene.
+ */
+function courseLine(courses: RecipeConstraints['courses'], subject: 'ogni ricetta' | 'la ricetta'): string | null {
+  if (courses === null) {
+    return null;
+  }
+  return `- Portata: in courses ${subject} deve avere almeno una tra ${courses.join(', ')}.`;
 }
 
 /**
@@ -91,12 +108,15 @@ export function buildRecipePrompt(
     ].join('\n');
   }
 
+  const coursesLine = courseLine(constraints.courses, 'ogni ricetta');
+
   return [
     `Genera ${n} ricette diverse tra loro.`,
     '',
     'Vincoli:',
     `- Persone: ${constraints.persons} (servings_base = ${constraints.persons}).`,
     `- Pasto: ${mealTypeLine}`,
+    ...(coursesLine !== null ? [coursesLine] : []),
     `- Diete da rispettare: ${dietsLine}`,
     `- Elettrodomestici disponibili: ${appliancesLine}`,
     styleLine,
@@ -152,6 +172,8 @@ export function buildRecipeRequestPrompt(
   }
   const titles = cleanedTitles.slice(0, MAX_EXCLUDED_TITLES);
 
+  const coursesLine = courseLine(constraints.courses, 'la ricetta');
+
   const lines = [
     "Proponi 1 ricetta che corrisponda alla richiesta dell'utente.",
     '',
@@ -163,6 +185,7 @@ export function buildRecipeRequestPrompt(
     'Vincoli:',
     `- Persone: ${constraints.persons} (servings_base = ${constraints.persons}).`,
     `- Pasto: ${mealLine}`,
+    ...(coursesLine !== null ? [coursesLine] : []),
     `- Diete da rispettare: ${dietsLine}`,
     `- Elettrodomestici disponibili: ${appliancesLine}`,
     '',
@@ -191,4 +214,48 @@ export function buildRepairPrompt(validationErrors: string): string {
     validationErrors,
     "Restituisci di nuovo l'oggetto JSON completo e corretto, con le stesse ricette, correggendo solo gli errori indicati.",
   ].join('\n');
+}
+
+/**
+ * Istruzioni di sistema per classificare ricette già salvate: portate ed etichette di stile.
+ */
+export function buildClassifyInstructions(): string {
+  return [
+    'Sei il ricettario di casa di una famiglia italiana. Classifichi ricette già esistenti: non le modifichi e non ne inventi di nuove.',
+    'Rispondi solo con un oggetto JSON conforme allo schema richiesto, senza testo prima o dopo.',
+    '',
+    'Per ogni ricetta ricevuta restituisci una voce in "recipes" con:',
+    '- ref: il riferimento della ricetta, copiato identico (es. "r1").',
+    '- courses: le portate in cui il piatto si serve davvero, di solito una e al massimo due, tra:',
+    '  - piatto-unico: un piatto completo che basta da solo come pasto;',
+    '  - primo: pasta, riso, gnocchi, zuppe e minestre;',
+    '  - secondo: carne, pesce, uova, formaggi o legumi serviti come portata principale;',
+    '  - contorno: verdure o patate che accompagnano un secondo.',
+    '- style_tags: zero o più tra:',
+    '  - tradizionale: piatto classico della cucina italiana;',
+    '  - dal-mondo: piatto di una cucina non italiana;',
+    '  - in-anticipo: si prepara prima e si conserva bene, adatto alla schiscetta;',
+    '  - piatto-freddo: si mangia freddo o è un piatto estivo.',
+    'Una voce per ogni ricetta ricevuta, nello stesso ordine, senza aggiungerne altre.',
+  ].join('\n');
+}
+
+/**
+ * Prompt utente per un lotto di ricette da classificare: un blocco per ricetta, con il riferimento
+ * che il modello deve copiare nella risposta. Titolo e descrizione stanno su una riga sola.
+ */
+export function buildClassifyPrompt(items: readonly ClassifyRecipeItem[]): string {
+  const blocks = items.flatMap((item) => {
+    const description = toSingleLine(item.description).slice(0, CLASSIFY_DESCRIPTION_MAX);
+    return [
+      '',
+      `[${item.ref}] ${toSingleLine(item.title)}`,
+      `Descrizione: ${description.length > 0 ? description : 'nessuna'}`,
+      `Pasti: ${item.meal_types.join(', ')}`,
+      `Etichette attuali: ${item.tags.length > 0 ? item.tags.join(', ') : 'nessuna'}`,
+      `Ingredienti: ${item.ingredient_names.length > 0 ? item.ingredient_names.join(', ') : 'nessuno'}`,
+    ];
+  });
+
+  return [`Classifica queste ${items.length} ricette.`, ...blocks].join('\n');
 }

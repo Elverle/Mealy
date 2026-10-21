@@ -9,6 +9,7 @@ import {
   GenerateRecipesOutputSchema,
   RecipeConstraintsSchema,
   DEFAULT_HOUSEHOLD,
+  MAIN_COURSE_VALUES,
   type RecipeConstraints,
 } from '@/lib/domain/types';
 import { getModel, readLlmConfig, getLlmTimeoutMs } from '@/lib/llm/model';
@@ -76,9 +77,13 @@ async function main(): Promise<void> {
       ? values.appliance
       : [...DEFAULT_HOUSEHOLD.appliances];
 
+  // Richiesta libera senza pasto: nessuna portata imposta (come in produzione).
+  const courses = values.request !== undefined && !meal ? null : [...MAIN_COURSE_VALUES];
+
   const rawConstraints = {
     persons,
     meal_type: meal ? meal : null,
+    courses,
     diet_tags: values.diet ?? [],
     meal_style_tags: values.style ?? [],
     appliances,

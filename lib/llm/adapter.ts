@@ -6,9 +6,14 @@ import {
   RetryError,
   type LanguageModel,
 } from 'ai';
+import type { z } from 'zod';
 import {
   GenerateRecipesOutputSchema,
   RecipeConstraintsSchema,
+  ClassifyRecipesOutputSchema,
+  CLASSIFY_BATCH_SIZE,
+  type ClassifyRecipeItem,
+  type RecipeClassification,
   type RecipeConstraints,
   type GeneratedRecipe,
   GENERATE_COUNT_MIN,
@@ -17,6 +22,8 @@ import {
 import { normalizeGeneratedRecipe } from '@/lib/domain/recipe-text';
 import { getModel, getLlmTimeoutMs } from './model';
 import {
+  buildClassifyInstructions,
+  buildClassifyPrompt,
   buildRecipeInstructions,
   buildRecipePrompt,
   buildRecipeRequestPrompt,
@@ -128,20 +135,30 @@ interface RecipeCall {
   abortSignal?: AbortSignal;
 }
 
-/**
- * Chiamata al modello più un tentativo di riparazione; restituisce le ricette normalizzate.
- */
-async function runRecipeGeneration(call: RecipeCall): Promise<GeneratedRecipe[]> {
-  const instructions = buildRecipeInstructions();
+interface StructuredCall<T> {
+  model: LanguageModel;
+  instructions: string;
+  prompt: string;
+  schema: z.ZodType<T>;
+  temperature: number;
+  repairTemperature: number;
+  timeoutMs: number;
+  abortSignal?: AbortSignal;
+  invalidOutputMessage: string;
+}
 
+/**
+ * Chiamata al modello con output strutturato più un tentativo di riparazione sullo schema.
+ */
+async function runStructuredCall<T>(call: StructuredCall<T>): Promise<T> {
   let result;
   try {
     result = await generateText({
       model: call.model,
-      instructions,
+      instructions: call.instructions,
       prompt: call.prompt,
-      output: Output.object({ schema: GenerateRecipesOutputSchema }),
-      temperature: 0.8,
+      output: Output.object({ schema: call.schema }),
+      temperature: call.temperature,
       maxRetries: 1,
       timeout: call.timeoutMs,
       abortSignal: call.abortSignal,
@@ -160,21 +177,17 @@ async function runRecipeGeneration(call: RecipeCall): Promise<GeneratedRecipe[]>
       try {
         result = await generateText({
           model: call.model,
-          instructions,
+          instructions: call.instructions,
           messages,
-          output: Output.object({ schema: GenerateRecipesOutputSchema }),
-          temperature: 0.2,
+          output: Output.object({ schema: call.schema }),
+          temperature: call.repairTemperature,
           maxRetries: 1,
           timeout: call.timeoutMs,
           abortSignal: call.abortSignal,
         });
       } catch (err2) {
         if (NoObjectGeneratedError.isInstance(err2)) {
-          throw new LlmError(
-            'invalid_output',
-            'Il modello non ha prodotto ricette valide dopo il tentativo di correzione.',
-            { cause: err2 },
-          );
+          throw new LlmError('invalid_output', call.invalidOutputMessage, { cause: err2 });
         }
         throw toLlmError(err2);
       }
@@ -183,7 +196,26 @@ async function runRecipeGeneration(call: RecipeCall): Promise<GeneratedRecipe[]>
     }
   }
 
-  return result.output.recipes.map(normalizeGeneratedRecipe);
+  return result.output;
+}
+
+/**
+ * Chiamata per le ricette: restituisce le ricette normalizzate.
+ */
+async function runRecipeGeneration(call: RecipeCall): Promise<GeneratedRecipe[]> {
+  const output = await runStructuredCall({
+    model: call.model,
+    instructions: buildRecipeInstructions(),
+    prompt: call.prompt,
+    schema: GenerateRecipesOutputSchema,
+    temperature: 0.8,
+    repairTemperature: 0.2,
+    timeoutMs: call.timeoutMs,
+    abortSignal: call.abortSignal,
+    invalidOutputMessage: 'Il modello non ha prodotto ricette valide dopo il tentativo di correzione.',
+  });
+
+  return output.recipes.map(normalizeGeneratedRecipe);
 }
 
 /**
@@ -241,4 +273,34 @@ export async function generateRecipeFromRequest(
   });
 
   return recipe;
+}
+
+/**
+ * Classifica un lotto di ricette esistenti: portate e le 4 etichette di stile del modello.
+ * Restituisce le righe così come le dà il modello (validate dallo schema): riferimenti
+ * sconosciuti, ripetuti o con portate vuote li scarta il chiamante.
+ */
+export async function classifyRecipes(
+  items: readonly ClassifyRecipeItem[],
+  options?: GenerateRecipesOptions,
+): Promise<RecipeClassification[]> {
+  if (items.length < 1 || items.length > CLASSIFY_BATCH_SIZE) {
+    throw new RangeError(`items must contain between 1 and ${CLASSIFY_BATCH_SIZE} recipes`);
+  }
+
+  const model = options?.model ?? getModel();
+
+  const output = await runStructuredCall({
+    model,
+    instructions: buildClassifyInstructions(),
+    prompt: buildClassifyPrompt(items),
+    schema: ClassifyRecipesOutputSchema,
+    temperature: 0.2,
+    repairTemperature: 0.2,
+    timeoutMs: options?.timeoutMs ?? getLlmTimeoutMs(),
+    abortSignal: options?.abortSignal,
+    invalidOutputMessage: 'Il modello non ha prodotto una classificazione valida dopo il tentativo di correzione.',
+  });
+
+  return output.recipes;
 }

@@ -1,9 +1,13 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { APICallError } from 'ai';
-import { generateRecipes, generateRecipeFromRequest } from '@/lib/llm/adapter';
+import { generateRecipes, generateRecipeFromRequest, classifyRecipes } from '@/lib/llm/adapter';
 import { isLlmError } from '@/lib/llm/errors';
-import type { RecipeConstraints } from '@/lib/domain/types';
+import {
+  CLASSIFY_BATCH_SIZE,
+  type ClassifyRecipeItem,
+  type RecipeConstraints,
+} from '@/lib/domain/types';
 import { createRecordedModel, loadLlmRecording } from '@/tests/helpers/mock-llm';
 
 describe('lib/llm/adapter', () => {
@@ -266,6 +270,129 @@ describe('lib/llm/adapter', () => {
       );
 
       expect(calls).toHaveLength(0);
+    });
+  });
+
+  describe('classifyRecipes', () => {
+    const classifyItem = (ref: string): ClassifyRecipeItem => ({
+      ref,
+      title: `Ricetta ${ref}`,
+      description: '',
+      meal_types: ['cena'],
+      tags: [],
+      ingredient_names: ['pasta'],
+    });
+    const validClassification =
+      '{"recipes":[{"ref":"r1","courses":["primo"],"style_tags":["tradizionale"]},{"ref":"r2","courses":[],"style_tags":[]}]}';
+    const invalidCourse = '{"recipes":[{"ref":"r1","courses":["antipasto"],"style_tags":[]}]}';
+    const twoItems = [classifyItem('r1'), classifyItem('r2')];
+
+    it('returns the rows the model gives, without filtering them', async () => {
+      const { model, calls } = createRecordedModel([validClassification]);
+
+      const rows = await classifyRecipes(twoItems, { model });
+
+      expect(rows).toEqual([
+        { ref: 'r1', courses: ['primo'], style_tags: ['tradizionale'] },
+        { ref: 'r2', courses: [], style_tags: [] },
+      ]);
+      expect(calls).toHaveLength(1);
+    });
+
+    it('sends the classification instructions and the numbered recipes in the prompt', async () => {
+      const { model, calls } = createRecordedModel([validClassification]);
+
+      await classifyRecipes(twoItems, { model });
+
+      const callJson = JSON.stringify(calls[0]);
+      expect(callJson).toContain('Classifichi ricette già esistenti');
+      expect(callJson).toContain('[r1] Ricetta r1');
+      expect(callJson).toContain('[r2] Ricetta r2');
+    });
+
+    it('repairs an unknown course with a second call', async () => {
+      const { model, calls } = createRecordedModel([invalidCourse, validClassification]);
+
+      const rows = await classifyRecipes(twoItems, { model });
+
+      expect(rows).toHaveLength(2);
+      expect(calls).toHaveLength(2);
+      expect(JSON.stringify(calls[1])).toContain('courses.0');
+    });
+
+    it('throws LlmError invalid_output after two invalid answers', async () => {
+      const { model, calls } = createRecordedModel([invalidCourse, invalidCourse]);
+
+      const error = await classifyRecipes(twoItems, { model }).then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+      expect(isLlmError(error)).toBe(true);
+      if (isLlmError(error)) {
+        expect(error.code).toBe('invalid_output');
+        expect(error.message).toContain('non ha prodotto una classificazione valida');
+      }
+      expect(calls).toHaveLength(2);
+    });
+
+    it('wraps an HTTP error of the provider into LlmError provider', async () => {
+      const apiError = new APICallError({
+        message: 'Service Unavailable',
+        url: 'https://example.test',
+        requestBodyValues: {},
+        statusCode: 503,
+        isRetryable: false,
+      });
+      const { model } = createRecordedModel([apiError]);
+
+      const error = await classifyRecipes(twoItems, { model }).then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+      expect(isLlmError(error)).toBe(true);
+      if (isLlmError(error)) {
+        expect(error.code).toBe('provider');
+        expect(error.message).toContain('503');
+      }
+    });
+
+    it('rejects an empty batch and a batch above CLASSIFY_BATCH_SIZE with RangeError without invoking the model', async () => {
+      const { model, calls } = createRecordedModel([]);
+      const tooMany = Array.from({ length: CLASSIFY_BATCH_SIZE + 1 }, (_, i) => classifyItem(`r${i + 1}`));
+
+      await expect(classifyRecipes([], { model })).rejects.toThrow(RangeError);
+      await expect(classifyRecipes(tooMany, { model })).rejects.toThrow(RangeError);
+
+      expect(calls).toHaveLength(0);
+    });
+
+    it('accepts a batch of exactly CLASSIFY_BATCH_SIZE recipes', async () => {
+      const items = Array.from({ length: CLASSIFY_BATCH_SIZE }, (_, i) => classifyItem(`r${i + 1}`));
+      const response = JSON.stringify({
+        recipes: items.map((item) => ({ ref: item.ref, courses: ['secondo'], style_tags: [] })),
+      });
+      const { model, calls } = createRecordedModel([response]);
+
+      const rows = await classifyRecipes(items, { model });
+
+      expect(rows).toHaveLength(CLASSIFY_BATCH_SIZE);
+      expect(calls).toHaveLength(1);
+    });
+
+    it('throws LlmError config when no model is injected and LLM_MODEL is missing', async () => {
+      vi.stubEnv('LLM_MODEL', '');
+
+      const error = await classifyRecipes([classifyItem('r1')]).then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+      expect(isLlmError(error)).toBe(true);
+      if (isLlmError(error)) {
+        expect(error.code).toBe('config');
+      }
     });
   });
 });
