@@ -110,7 +110,8 @@ recipes
   title text, slug text unique,
   description text, steps jsonb (string[]),
   meal_types text[] ('pranzo','cena'),
-  tags text[] (veloce, salutare, proteico, ...),
+  courses text[] ('piatto-unico','primo','secondo','contorno'; vuoto = non classificata),
+  tags text[] (12 etichette di stile, vedi sotto),
   diet_flags text[] (vegetariano, vegano, senza-glutine, ...),
   appliances_required text[],
   servings_base int, prep_minutes int,
@@ -162,6 +163,14 @@ ingredient_prefs           -- popolata lazy: solo gli ingredienti su cui si è e
 
 Indici principali: `recipes(household_id)`, GIN su `recipes.tags/diet_flags`, `pg_trgm` su `recipes.title` per il dedup, `shopping_items(list_id, category)`.
 
+**Portate ed etichette di stile.** `recipes.courses` è un elenco chiuso e multiplo: `piatto-unico | primo | secondo | contorno` (`COURSE_VALUES`, `COURSE_LABELS` in `lib/domain/types.ts`). Vuoto = **non classificata**: sono tali le ricette salvate prima della portata, che la migrazione `0005` lascia senza portate. Le portate **principali** sono `piatto-unico`, `primo`, `secondo` (`MAIN_COURSE_VALUES`). Una ricetta è **da pasto** (`isMainDish`) se non è classificata o se ha almeno una portata principale: una ricetta solo contorno non lo è.
+
+Le etichette di stile (`tags`) sono dodici: `veloce`, `salutare`, `proteico`, `leggero`, `comfort-food`, `economico`, `piatto-unico`, `tradizionale`, `dal-mondo`, `pochi-ingredienti`, `in-anticipo`, `piatto-freddo`. Due regole derivate valgono sul modello (`deriveStyleTags` in `lib/domain/courses.ts`; la migrazione `0005` applica la prima anche alle ricette esistenti):
+- `pochi-ingredienti` c'è se e solo se la ricetta ha al massimo 6 ingredienti con unità diversa da `qb`;
+- su una ricetta classificata, `piatto-unico` c'è se e solo se la portata include `piatto-unico`.
+
+Le regole pure di portata (`normalizeCourses`, `coursesAllowed`, `isMainDish`, `courseLabel`) stanno in `lib/domain/courses.ts`: le altre parti del codice le riusano senza ripeterle.
+
 ---
 
 ## 5. Logiche core
@@ -178,6 +187,7 @@ Contratto di output (Zod, schema JSON stretto):
     "title": "…",
     "description": "…",
     "meal_types": ["cena"],
+    "courses": ["secondo"],
     "tags": ["veloce", "proteico"],
     "diet_flags": ["vegetariano"],
     "appliances_required": ["fornelli"],
@@ -195,6 +205,8 @@ Contratto di output (Zod, schema JSON stretto):
 
 Pipeline: prompt → parse Zod → **se fallisce, 1 retry di "repair"** (si rimanda l'errore di validazione al modello) → dedup contro la libreria (titolo normalizzato + similarità `pg_trgm` > 0.6 ⇒ scarta) → insert transazionale ricetta+ingredienti+pref di default.
 
+**Portate nella generazione.** Ogni ricetta generata ha almeno una portata (`courses`), nello schema di output. I vincoli di generazione portano `courses`, dove `null` vuol dire qualsiasi portata: il Piano e lo swap chiedono portate principali; la richiesta dal Piano le chiede principali, quella dalla Libreria qualsiasi. Una ricetta che non rispetta la portata richiesta è scartata come le altre violazioni di vincolo (`findConstraintViolations`, con la violazione «portata non adatta al pasto»). Le regole derivate di §4.2 (`pochi-ingredienti`, `piatto-unico`) si applicano in `insertGeneratedRecipe` e alla proposta salvata, così che l'etichetta segua sempre la portata e gli ingredienti.
+
 Costi: un batch da 5 ricette ≈ pochi migliaia di token ⇒ centesimi. A regime la libreria copre quasi tutto e l'LLM si chiama di rado.
 
 **Richiesta libera.** L'utente può chiedere una ricetta con un testo (da 3 a 100 caratteri), dalla Libreria o dal selettore del Piano. `recipes` chiama l'adapter per **una** ricetta: il prompt riporta la richiesta come dato tra due delimitatori, più persone, tipo di pasto (solo se imposto dal Piano), diete ed elettrodomestici e, nella sequenza di *Un'altra*, i titoli già proposti; **non** contiene stile preferito, ingredienti graditi o scartati, né i titoli della libreria. La proposta che viola diete, elettrodomestici o il tipo di pasto non viene restituita (`422 proposal_unsuitable`, senza secondo tentativo). La proposta **non si salva**: vive nel browser finché l'utente non la accetta. Il salvataggio (`POST /api/recipes`) rivalida la ricetta per intero, ricontrolla diete ed elettrodomestici sulle impostazioni rilette e rifiuta il titolo identico (titolo normalizzato): il controllo di somiglianza `pg_trgm` non si applica, perché chi chiede "lasagne al pesto" avendo già "Lasagne al ragù" vuole proprio una variante.
@@ -206,6 +218,7 @@ Per ogni slot da riempire, il pool di candidate è filtrato per vincoli **duri**
 Esclusioni (hard):
 - `blocked = true`
 - `meal_type` non compatibile con lo slot
+- `course`: la ricetta è solo contorno, cioè non è da pasto (`isMainDish`; le ricette non classificate restano ammesse). Fino alla Feature 11 la portata ammessa per ogni pasto è quella principale
 - `diet_flags` che non soddisfano le esigenze household
 - `appliances_required` ⊄ elettrodomestici disponibili
 - contiene almeno un ingrediente con pref `dislike`
@@ -230,7 +243,7 @@ ingredientAffinity = 1 + 0.15 × min(2, n° ingredienti con pref like)   → 1 �
 
 Ogni candidata idonea ha quindi peso > 0: una ricetta usata da poco resta sorteggiabile, ma molto meno probabile. `last_used_at` è il **giorno del pasto** (mezzogiorno UTC dello slot più recente in cui la ricetta è stata confermata), non l'istante della conferma; una ricetta pianificata nel futuro pesa `recencyFloor`.
 
-**Quando serve la generazione (`needMore`).** Per ogni tipo di pasto si contano le candidate idonee e **fresche** (mai usate, usate da almeno 10 giorni, oppure preferite): se sono meno di `slot + soglia − 1` (soglia di default 3), o se resta uno slot senza candidata, il planner segnala la carenza e `plans` chiede a `recipes` nuove ricette per quel `meal_type` con i vincoli correnti, poi riprova (al più `maxGenerationRoundsPlan` giri). Il numero richiesto è il deficit più 2 (min 3, max 10) e viene **suddiviso in lotti da 3** (`generationBatchSize`, es. 10 → 3+3+3+1): tutti i lotti di tutti i tipi di pasto partono in parallelo in un solo giro, così la durata di un giro resta quella di una chiamata da 3 ricette. Alla conferma del piano si aggiornano `times_used` e `last_used_at`.
+**Quando serve la generazione (`needMore`).** Per ogni tipo di pasto si contano le candidate idonee e **fresche** (mai usate, usate da almeno 10 giorni, oppure preferite; tra le fresche contano solo le ricette da pasto, quindi una ricetta solo contorno non conta): se sono meno di `slot + soglia − 1` (soglia di default 3), o se resta uno slot senza candidata, il planner segnala la carenza e `plans` chiede a `recipes` nuove ricette per quel `meal_type` con i vincoli correnti, poi riprova (al più `maxGenerationRoundsPlan` giri). Il numero richiesto è il deficit più 2 (min 3, max 10) e viene **suddiviso in lotti da 3** (`generationBatchSize`, es. 10 → 3+3+3+1): tutti i lotti di tutti i tipi di pasto partono in parallelo in un solo giro, così la durata di un giro resta quella di una chiamata da 3 ricette. Alla conferma del piano si aggiornano `times_used` e `last_used_at`.
 
 **Concorrenza.** La chiamata LLM sta sempre fuori dalle transazioni; la selezione che decide cosa scrivere gira invece **dentro** la transazione, dopo l'advisory lock del piano, sullo stato riletto (piano e libreria). La selezione fuori dalla transazione serve solo a decidere se generare. La conferma è una transizione condizionata `draft → active`: `times_used` si incrementa una volta sola anche con richieste sovrapposte.
 
@@ -240,7 +253,7 @@ I parametri (10/28 giorni, `recencyFloor`, boost, soglia, lotti) sono costanti i
 
 Stesso algoritmo di 5.2 applicato al singolo slot, con exclude-list = ricetta attuale + tutte le altre del piano + le ricette già scartate nella stessa sequenza di *Cambia* (inviate dal client in `exclude_recipe_ids`, al più `SWAP_EXCLUDE_MAX`). I pasti dei giorni già passati non si cambiano (`409 slot_past`). Lo swap invalida la lista della spesa se già generata (flag "lista da rigenerare" sulla UI, rigenerazione esplicita che preserva le spunte dove possibile, con la chiave e le regole di §5.5).
 
-**Scelta a mano.** Accanto allo swap, l'utente può mettere in uno slot una ricetta precisa della libreria. È adatta a un pasto una ricetta non bloccata, di quel tipo di pasto, che rispetta le diete dell'household e richiede solo elettrodomestici disponibili (`manualChoiceExclusionReason` in `lib/domain/planner.ts`): gli ingredienti «non mi piace» e la presenza in un altro pasto della settimana **non** la escludono. L'assegnazione gira in una transazione sotto il lock dei piani, sullo stato riletto, e ha gli stessi effetti dello swap: aggiorna `times_used` e `last_used_at` se il piano è confermato e segna la lista della spesa da aggiornare. Nessuna chiamata LLM: se la ricetta voluta non c'è, il client la chiede a `recipes`, la salva e poi la assegna.
+**Scelta a mano.** Accanto allo swap, l'utente può mettere in uno slot una ricetta precisa della libreria. È adatta a un pasto una ricetta non bloccata, di quel tipo di pasto, da pasto (non solo contorno), che rispetta le diete dell'household e richiede solo elettrodomestici disponibili (`manualChoiceExclusionReason` in `lib/domain/planner.ts`): gli ingredienti «non mi piace» e la presenza in un altro pasto della settimana **non** la escludono. L'assegnazione gira in una transazione sotto il lock dei piani, sullo stato riletto, e ha gli stessi effetti dello swap: aggiorna `times_used` e `last_used_at` se il piano è confermato e segna la lista della spesa da aggiornare. Nessuna chiamata LLM: se la ricetta voluta non c'è, il client la chiede a `recipes`, la salva e poi la assegna.
 
 ### 5.4 Preferenze
 
@@ -314,6 +327,7 @@ Tutte le request/response validate con gli stessi schemi Zod del dominio. Gli er
 - **Timeout**: la generazione può richiedere 10–30 s → la UI mostra stato di progresso (vedi `DESIGN.md`); su Vercel usare route con `maxDuration` adeguata
 - **Dedup**: titolo normalizzato + `pg_trgm`; l'exclude-list dei titoli è nel prompt
 - **Chiavi API**: una variabile server-side per provider (`OPENROUTER_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `ANTHROPIC_API_KEY`), mai esposte al client; serve solo quella del provider attivo
+- **Classificazione delle ricette esistenti**: le ricette con portate vuote (salvate prima della portata) si classificano in background all'avvio dell'app in produzione, dopo il bootstrap (`instrumentation.ts` → `lib/recipes/classify.ts`, `classifyPendingRecipes`). Il modello assegna portate ed etichette di stile a lotti di `CLASSIFY_BATCH_SIZE` (10) ricette, in sequenza; le regole derivate di §4.2 si applicano comunque. La partenza dell'app non aspetta la classificazione. Un lotto che fallisce (rete, timeout, risposta non valida) si salta: le sue ricette restano senza portata e si riprovano al riavvio successivo. Senza modello configurato le ricette restano senza portata e sono ammesse nel piano. Stesso procedimento a mano: `pnpm recipes:classify`, sul database di `DATABASE_URL`.
 
 ---
 
