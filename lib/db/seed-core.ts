@@ -1,7 +1,13 @@
 import { sql } from 'drizzle-orm';
 import { db, type DbExecutor, ingredient_aliases } from '@/lib/db';
 import { getHouseholdById, ensureDefaultHousehold } from '@/lib/db/repositories/household-repo';
-import { insertRecipe, getRecipeById, getRecipeBySlug } from '@/lib/db/repositories/recipe-repo';
+import {
+  insertRecipe,
+  getRecipeById,
+  getRecipeBySlug,
+  setRecipeClassification,
+} from '@/lib/db/repositories/recipe-repo';
+import { deriveStyleTags, normalizeCourses } from '@/lib/domain/courses';
 import { DEFAULT_HOUSEHOLD_ID } from '@/lib/domain/types';
 import { FIXTURE_RECIPES, FIXTURE_INGREDIENT_ALIASES, FIXTURE_CREATED_AT } from '@/fixtures';
 
@@ -9,6 +15,8 @@ export interface SeedReport {
   household: 'created' | 'existing';
   recipesInserted: number;
   recipesSkipped: number;
+  /** Ricette d'esempio già presenti completate con portate ed etichette (v. `setRecipeClassification`). */
+  recipesClassified: number;
   /** Alias inseriti o corretti (v. `seedIngredientAliases`). */
   aliasesInserted: number;
 }
@@ -38,11 +46,23 @@ export async function seedDatabase(): Promise<SeedReport> {
 
   let recipesInserted = 0;
   let recipesSkipped = 0;
+  let recipesClassified = 0;
 
   for (const r of FIXTURE_RECIPES) {
+    const courses = normalizeCourses(r.courses);
+    const tags = deriveStyleTags(r.tags, r.courses, r.ingredients);
     const existingById = await getRecipeById(r.id);
     const existingBySlug = await getRecipeBySlug(r.slug);
-    if (existingById || existingBySlug) {
+    if (existingById) {
+      recipesSkipped++;
+      // Ricetta salvata prima delle portate: la completiamo, il resto della ricetta non si tocca.
+      if (existingById.courses.length === 0) {
+        const written = await setRecipeClassification(db, r.id, courses, tags);
+        if (written) recipesClassified++;
+      }
+      continue;
+    }
+    if (existingBySlug) {
       recipesSkipped++;
       continue;
     }
@@ -56,7 +76,8 @@ export async function seedDatabase(): Promise<SeedReport> {
         description: r.description,
         steps: r.steps,
         meal_types: r.meal_types,
-        tags: r.tags,
+        courses,
+        tags,
         diet_flags: r.diet_flags,
         appliances_required: r.appliances_required,
         servings_base: r.servings_base,
@@ -84,6 +105,7 @@ export async function seedDatabase(): Promise<SeedReport> {
     household: householdStatus,
     recipesInserted,
     recipesSkipped,
+    recipesClassified,
     aliasesInserted,
   };
 }

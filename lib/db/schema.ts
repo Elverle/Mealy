@@ -49,6 +49,7 @@ export const recipes = pgTable(
     description: text('description').notNull().default(''),
     steps: jsonb('steps').$type<string[]>().notNull(),
     meal_types: text('meal_types').array().notNull(),
+    courses: text('courses').array().notNull().default(sql`ARRAY[]::text[]`),
     tags: text('tags').array().notNull().default(sql`ARRAY[]::text[]`),
     diet_flags: text('diet_flags').array().notNull().default(sql`ARRAY[]::text[]`),
     appliances_required: text('appliances_required').array().notNull().default(sql`ARRAY[]::text[]`),
