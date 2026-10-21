@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { upsertIngredientPref } from '@/lib/db/repositories/ingredient-pref-repo';
 import { insertRecipe, listRecipeTitles } from '@/lib/db/repositories/recipe-repo';
-import { APPLIANCE_VALUES } from '@/lib/domain/types';
+import { APPLIANCE_VALUES, type GeneratedIngredient } from '@/lib/domain/types';
 import { generateRecipes } from '@/lib/llm';
 import { LlmError } from '@/lib/llm/errors';
 import { generateAndStoreRecipes } from '@/lib/recipes/generate';
@@ -15,6 +15,7 @@ import {
   deleteTestHousehold,
 } from '@/tests/helpers/db';
 import { createRecordedModel, loadLlmRecording } from '@/tests/helpers/mock-llm';
+import { makeGeneratedRecipe } from '@/tests/helpers/recipes';
 
 const dbUp = await isDbAvailable();
 
@@ -247,7 +248,7 @@ describe.skipIf(!dbUp)('generateAndStoreRecipes', () => {
     expect(calledConstraints).toEqual({
       persons: 4,
       meal_type: 'pranzo',
-      courses: null,
+      courses: ['piatto-unico', 'primo', 'secondo'],
       diet_tags: ['vegetariano'],
       meal_style_tags: expect.any(Array),
       appliances: ['friggitrice-ad-aria'],
@@ -318,5 +319,85 @@ describe.skipIf(!dbUp)('generateAndStoreRecipes', () => {
     expect(JSON.stringify(calls[0])).toContain(
       'Ingredienti graditi: patata (privilegiali quando sensato).'
     );
+  });
+
+  it('skips a side dish where the meal needs a main course and saves the main course', async () => {
+    const householdId = await createHousehold();
+    const main = makeGeneratedRecipe({ title: 'Frittata di zucchine', courses: ['secondo'] });
+    const sideDish = makeGeneratedRecipe({ title: 'Zucchine croccanti', courses: ['contorno'] });
+
+    const result = await generateAndStoreRecipes(
+      { householdId, count: 2, mealType: 'cena' },
+      { generate: vi.fn().mockResolvedValue([main, sideDish]) }
+    );
+
+    expect(result.created.map((r) => r.title)).toEqual(['Frittata di zucchine']);
+    expect(result.created[0].courses).toEqual(['secondo']);
+    expect(result.skipped).toEqual([
+      {
+        title: 'Zucchine croccanti',
+        reason: 'constraint_violation',
+        detail: 'portata non adatta al pasto',
+      },
+    ]);
+    expect(await listRecipeTitles(db, householdId)).toEqual(['Frittata di zucchine']);
+  });
+
+  it('saves courses in canonical order without duplicates', async () => {
+    const householdId = await createHousehold();
+    const recipe = makeGeneratedRecipe({
+      title: 'Pasta e fagioli',
+      courses: ['secondo', 'primo', 'secondo'],
+    });
+
+    const result = await generateAndStoreRecipes(
+      { householdId, count: 1, mealType: 'cena' },
+      { generate: vi.fn().mockResolvedValue([recipe]) }
+    );
+
+    expect(result.created[0].courses).toEqual(['primo', 'secondo']);
+  });
+
+  it('saves the style tags derived from the rules: pochi-ingredienti added, piatto-unico dropped without that course', async () => {
+    const householdId = await createHousehold();
+    // Tre ingredienti misurati (default): pochi-ingredienti; portata secondo: niente piatto-unico.
+    const recipe = makeGeneratedRecipe({
+      title: 'Pollo al limone',
+      courses: ['secondo'],
+      tags: ['piatto-unico'],
+    });
+
+    const result = await generateAndStoreRecipes(
+      { householdId, count: 1, mealType: 'cena' },
+      { generate: vi.fn().mockResolvedValue([recipe]) }
+    );
+
+    expect(result.created[0].tags).toEqual(['pochi-ingredienti']);
+  });
+
+  it('drops pochi-ingredienti above six measured ingredients and keeps piatto-unico for that course', async () => {
+    const householdId = await createHousehold();
+    const ingredients: GeneratedIngredient[] = Array.from({ length: 7 }, (_, i) => ({
+      canonical_name: `ingrediente ${i}`,
+      display_name: `Ingrediente ${i}`,
+      qty: 10,
+      unit: 'g',
+      category: 'dispensa',
+      note: null,
+    }));
+    const recipe = makeGeneratedRecipe({
+      title: 'Piatto ricco',
+      courses: ['piatto-unico'],
+      tags: ['pochi-ingredienti'],
+      ingredients,
+    });
+
+    const result = await generateAndStoreRecipes(
+      { householdId, count: 1, mealType: 'cena' },
+      { generate: vi.fn().mockResolvedValue([recipe]) }
+    );
+
+    expect(result.created[0].tags).toEqual(['piatto-unico']);
+    expect(result.created[0].courses).toEqual(['piatto-unico']);
   });
 });

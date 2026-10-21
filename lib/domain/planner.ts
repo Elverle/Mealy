@@ -1,5 +1,6 @@
 import type { Household, MealType, Recipe } from './types';
 import { MEAL_TYPE_VALUES } from './types';
+import { isMainDish } from './courses';
 import { expandDietFlags, normalizeCanonicalName } from './recipe-text';
 import { PLANNER_CONFIG, type PlannerConfig } from './planner-config';
 import type { Rng } from './rng';
@@ -33,6 +34,7 @@ export function toIngredientPreferenceSets(
 export type ExclusionReason =
   | 'blocked'
   | 'meal_type'
+  | 'course'
   | 'diet'
   | 'appliance'
   | 'disliked_ingredient'
@@ -50,6 +52,7 @@ export interface PlannerContext {
  *
  * Stesse regole di `findConstraintViolations` in `lib/recipes/constraints.ts`
  * (applicate alle ricette in libreria): se cambi una, controlla l'altra.
+ * La portata passa da `coursesAllowed` in entrambe: la Feature 11 cambia solo l'elenco ammesso.
  */
 export function exclusionReason(
   recipe: Recipe,
@@ -58,6 +61,8 @@ export function exclusionReason(
 ): ExclusionReason | null {
   if (recipe.prefs?.blocked === true) return 'blocked';
   if (!recipe.meal_types.includes(meal)) return 'meal_type';
+  // Fino alla Feature 11 un pasto è una ricetta sola: mai un contorno da solo.
+  if (!isMainDish(recipe.courses)) return 'course';
 
   const recipeDiets = new Set(expandDietFlags(recipe.diet_flags));
   if (ctx.household.diet_tags.some((diet) => !recipeDiets.has(diet))) return 'diet';

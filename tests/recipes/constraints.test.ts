@@ -3,6 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_HOUSEHOLD,
+  MAIN_COURSE_VALUES,
+  type Course,
   type GeneratedRecipe,
   type Household,
   type RecipeConstraints,
@@ -24,7 +26,7 @@ describe('buildConstraints', () => {
   };
 
   it('builds constraints using household defaults when no overrides are given', () => {
-    const constraints = buildConstraints(testHousehold, 'cena');
+    const constraints = buildConstraints(testHousehold, 'cena', undefined, undefined, null);
 
     expect(constraints).toEqual({
       persons: 3,
@@ -39,15 +41,18 @@ describe('buildConstraints', () => {
   });
 
   it('supports null meal_type', () => {
-    const constraints = buildConstraints(testHousehold, null);
+    const constraints = buildConstraints(testHousehold, null, undefined, undefined, null);
     expect(constraints.meal_type).toBeNull();
   });
 
   it('applies overrides to specific fields while keeping others from household', () => {
-    const constraints = buildConstraints(testHousehold, 'pranzo', {
-      persons: 4,
-      appliances: ['microonde'],
-    });
+    const constraints = buildConstraints(
+      testHousehold,
+      'pranzo',
+      { persons: 4, appliances: ['microonde'] },
+      undefined,
+      null
+    );
 
     expect(constraints).toEqual({
       persons: 4,
@@ -65,7 +70,7 @@ describe('buildConstraints', () => {
     const constraints = buildConstraints(testHousehold, null, {
       diet_tags: ['vegano', 'senza-glutine'],
       meal_style_tags: ['economico', 'salutare'],
-    });
+    }, undefined, null);
 
     expect(constraints.diet_tags).toEqual(['vegano', 'senza-glutine']);
     expect(constraints.meal_style_tags).toEqual(['economico', 'salutare']);
@@ -74,13 +79,13 @@ describe('buildConstraints', () => {
   });
 
   it('initializes ingredient_likes and ingredient_dislikes to empty arrays', () => {
-    const constraints = buildConstraints(testHousehold, 'cena');
+    const constraints = buildConstraints(testHousehold, 'cena', undefined, undefined, null);
     expect(constraints.ingredient_likes).toEqual([]);
     expect(constraints.ingredient_dislikes).toEqual([]);
   });
 
   it('keeps both lists empty when ingredientPrefs is omitted', () => {
-    const constraints = buildConstraints(testHousehold, 'cena', {}, undefined);
+    const constraints = buildConstraints(testHousehold, 'cena', {}, undefined, null);
     expect(constraints.ingredient_likes).toEqual([]);
     expect(constraints.ingredient_dislikes).toEqual([]);
   });
@@ -90,7 +95,8 @@ describe('buildConstraints', () => {
       testHousehold,
       'cena',
       undefined,
-      toIngredientPreferenceSets(['zucchina', 'basilico'], ['cipolla', 'aglio'])
+      toIngredientPreferenceSets(['zucchina', 'basilico'], ['cipolla', 'aglio']),
+      null
     );
     expect(constraints.ingredient_likes).toEqual(['basilico', 'zucchina']);
     expect(constraints.ingredient_dislikes).toEqual(['aglio', 'cipolla']);
@@ -102,7 +108,8 @@ describe('buildConstraints', () => {
       testHousehold,
       'cena',
       undefined,
-      toIngredientPreferenceSets(likes, [])
+      toIngredientPreferenceSets(likes, []),
+      null
     );
     expect(PROMPT_INGREDIENT_LIKES_MAX).toBe(30);
     expect(constraints.ingredient_likes).toHaveLength(30);
@@ -115,9 +122,25 @@ describe('buildConstraints', () => {
       testHousehold,
       'cena',
       undefined,
-      toIngredientPreferenceSets([], dislikes)
+      toIngredientPreferenceSets([], dislikes),
+      null
     );
     expect(constraints.ingredient_dislikes).toHaveLength(35);
+  });
+
+  it('copies the given courses, while null means any course', () => {
+    expect(
+      buildConstraints(testHousehold, 'cena', undefined, undefined, MAIN_COURSE_VALUES).courses
+    ).toEqual(['piatto-unico', 'primo', 'secondo']);
+    expect(buildConstraints(testHousehold, 'cena', undefined, undefined, null).courses).toBeNull();
+  });
+
+  it('does not share the courses array with the caller', () => {
+    const courses: Course[] = ['primo'];
+    const constraints = buildConstraints(testHousehold, 'cena', undefined, undefined, courses);
+
+    expect(constraints.courses).toEqual(['primo']);
+    expect(constraints.courses).not.toBe(courses);
   });
 });
 
@@ -190,6 +213,40 @@ describe('findConstraintViolations', () => {
     };
     const violations = findConstraintViolations(recipe, constraints);
     expect(violations).toEqual([]);
+  });
+
+  it('detects a side dish where the meal needs a main course', () => {
+    const constraints: RecipeConstraints = {
+      ...baseConstraints,
+      courses: [...MAIN_COURSE_VALUES],
+    };
+    const sideDish: GeneratedRecipe = {
+      ...validRecipe,
+      courses: ['contorno'],
+    };
+    expect(findConstraintViolations(sideDish, constraints)).toEqual([
+      'portata non adatta al pasto',
+    ]);
+  });
+
+  it('accepts a recipe with a main course among its courses, even with a side dish too', () => {
+    const constraints: RecipeConstraints = {
+      ...baseConstraints,
+      courses: [...MAIN_COURSE_VALUES],
+    };
+    const recipe: GeneratedRecipe = {
+      ...validRecipe,
+      courses: ['contorno', 'primo'],
+    };
+    expect(findConstraintViolations(recipe, constraints)).toEqual([]);
+  });
+
+  it('does not check the course when constraints.courses is null', () => {
+    const sideDish: GeneratedRecipe = {
+      ...validRecipe,
+      courses: ['contorno'],
+    };
+    expect(findConstraintViolations(sideDish, baseConstraints)).toEqual([]);
   });
 
   it('detects missing diet tags', () => {
@@ -304,6 +361,26 @@ describe('findConstraintViolations', () => {
       'dieta "vegano" non rispettata',
       'richiede "friggitrice-ad-aria" non disponibile',
       'contiene "aglio" (ingrediente escluso)',
+    ]);
+  });
+
+  it('checks the course right after the meal, before the diet', () => {
+    const recipe: GeneratedRecipe = {
+      ...validRecipe,
+      meal_types: ['pranzo'],
+      courses: ['contorno'],
+      diet_flags: [],
+    };
+    const constraints: RecipeConstraints = {
+      ...baseConstraints,
+      courses: [...MAIN_COURSE_VALUES],
+      diet_tags: ['vegano'],
+    };
+
+    expect(findConstraintViolations(recipe, constraints)).toEqual([
+      'pasto "cena" mancante',
+      'portata non adatta al pasto',
+      'dieta "vegano" non rispettata',
     ]);
   });
 });

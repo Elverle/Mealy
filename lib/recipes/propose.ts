@@ -14,7 +14,9 @@ import {
   type MealType,
   type RecipeConstraints,
   type RecipeProposal,
+  MAIN_COURSE_VALUES,
 } from '@/lib/domain/types';
+import { deriveStyleTags } from '@/lib/domain/courses';
 import { normalizeGeneratedRecipe, normalizeTitle } from '@/lib/domain/recipe-text';
 import { generateRecipeFromRequest, type GenerateRecipesOptions } from '@/lib/llm';
 import { buildConstraints, findConstraintViolations } from './constraints';
@@ -46,9 +48,17 @@ export interface SaveProposedRecipeInput {
 /**
  * Vincoli di una richiesta esplicita: persone, tipo di pasto, diete ed elettrodomestici.
  * Niente stile preferito né preferenze sugli ingredienti: guida il testo della richiesta.
+ * Dal Piano (`mealType` indicato) la ricetta deve fare da pasto; dalla Libreria qualsiasi
+ * portata, contorno compreso.
  */
 function requestConstraints(household: Household, mealType: MealType | null): RecipeConstraints {
-  return buildConstraints(household, mealType, { meal_style_tags: [] });
+  return buildConstraints(
+    household,
+    mealType,
+    { meal_style_tags: [] },
+    undefined,
+    mealType === null ? null : MAIN_COURSE_VALUES
+  );
 }
 
 /**
@@ -75,13 +85,19 @@ export async function proposeRecipe(
     throw new RecipeError('proposal_unsuitable');
   }
 
-  const key = normalizeTitle(recipe.title);
+  // Le etichette derivate sono quelle che la ricetta avrà salvata (stessa regola di store).
+  const proposed: GeneratedRecipe = {
+    ...recipe,
+    tags: deriveStyleTags(recipe.tags, recipe.courses, recipe.ingredients),
+  };
+
+  const key = normalizeTitle(proposed.title);
   const match = (await listRecipeTitleRefs(db, household.id)).find(
     (ref) => normalizeTitle(ref.title) === key
   );
 
   return {
-    recipe,
+    recipe: proposed,
     duplicate_of: match ? { id: match.id, title: match.title } : null,
   };
 }

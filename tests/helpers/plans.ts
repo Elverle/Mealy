@@ -5,11 +5,12 @@ import {
   type RecipeWithDetails,
 } from '@/lib/db/repositories/recipe-repo';
 import { slugify } from '@/lib/domain/recipe-text';
-import type { Appliance, DietFlag, MealType } from '@/lib/domain/types';
+import type { Appliance, Course, DietFlag, MealType } from '@/lib/domain/types';
 
 export interface TestRecipeSpec {
   title?: string; // default `Ricetta test ${uuid.slice(0, 8)}`
   meal_types: MealType[];
+  courses?: Course[]; // default: non classificata (nessuna portata)
   diet_flags?: DietFlag[];
   appliances_required?: Appliance[];
   ingredients?: InsertIngredientInput[];
@@ -36,6 +37,7 @@ async function insertWithTitle(
       slug: `${slugify(title)}-${suffix}`,
       steps: ['Passo unico.'],
       meal_types: spec.meal_types,
+      courses: spec.courses,
       diet_flags: spec.diet_flags ?? [],
       appliances_required: spec.appliances_required ?? [],
       servings_base: 2,

@@ -169,6 +169,77 @@ describe('lib/domain/planner', () => {
       const ctx = makeCtx({ ingredientPrefs: toIngredientPreferenceSets([], ['aglio']) });
       expect(exclusionReason(makeRecipe({ ingredients: undefined }), 'pranzo', ctx)).toBeNull();
     });
+
+    it('excludes a side-dish-only recipe with reason course, for both meals', () => {
+      const sideDish = makeRecipe({ courses: ['contorno'], meal_types: ['pranzo', 'cena'] });
+      expect(exclusionReason(sideDish, 'pranzo', makeCtx())).toBe('course');
+      expect(exclusionReason(sideDish, 'cena', makeCtx())).toBe('course');
+    });
+
+    it('admits recipes with a main course, even together with a side dish, and unclassified ones', () => {
+      const ctx = makeCtx();
+      expect(exclusionReason(makeRecipe({ courses: ['secondo'] }), 'pranzo', ctx)).toBeNull();
+      expect(exclusionReason(makeRecipe({ courses: ['secondo', 'contorno'] }), 'pranzo', ctx)).toBeNull();
+      expect(exclusionReason(makeRecipe({ courses: ['piatto-unico'] }), 'pranzo', ctx)).toBeNull();
+      expect(exclusionReason(makeRecipe({ courses: [] }), 'pranzo', ctx)).toBeNull();
+    });
+
+    it('reports "blocked" before "course" for a blocked side dish', () => {
+      const recipe = makeUsedRecipe({ blocked: true }, { courses: ['contorno'] });
+      expect(exclusionReason(recipe, 'pranzo', makeCtx())).toBe('blocked');
+    });
+
+    it('reports "meal_type" before "course" for a side dish of another meal', () => {
+      const recipe = makeRecipe({ courses: ['contorno'], meal_types: ['cena'] });
+      expect(exclusionReason(recipe, 'pranzo', makeCtx())).toBe('meal_type');
+    });
+
+    it('keeps the side dish out of manual choices too', () => {
+      const household: Pick<Household, 'diet_tags' | 'appliances'> = {
+        diet_tags: [],
+        appliances: ['fornelli', 'forno'],
+      };
+      const sideDish = makeRecipe({ courses: ['contorno'], meal_types: ['cena'] });
+      expect(manualChoiceExclusionReason(sideDish, 'cena', household)).toBe('course');
+    });
+  });
+
+  describe('1b. side dishes never make a meal', () => {
+    it('leaves the slot empty and asks for more when the library holds only side dishes', () => {
+      const candidates = Array.from({ length: 3 }, () => makeRecipe({ courses: ['contorno'] }));
+      const result = selectRecipes(makeInput(slotsFor('cena', 1), candidates));
+
+      expect(result.assignments).toEqual([{ key: slotsFor('cena', 1)[0].key, recipeId: null }]);
+      expect(result.needMore).toEqual([
+        {
+          meal_type: 'cena',
+          slots: 1,
+          available: 0,
+          required: 1 + PLANNER_CONFIG.minPoolSize - 1,
+          unfilled: 1,
+        },
+      ]);
+    });
+
+    it('counts only main-course recipes as available (3 main courses, 20 side dishes => available 3)', () => {
+      const mains = Array.from({ length: 3 }, () => makeRecipe({ courses: ['secondo'], meal_types: ['pranzo'] }));
+      const sides = Array.from({ length: 20 }, () => makeRecipe({ courses: ['contorno'], meal_types: ['pranzo'] }));
+      const sideIds = new Set(sides.map((r) => r.id));
+      const result = selectRecipes(makeInput(slotsFor('pranzo', 5), [...mains, ...sides]));
+
+      const filled = result.assignments.filter((a) => a.recipeId !== null);
+      expect(filled).toHaveLength(3);
+      expect(filled.some((a) => sideIds.has(a.recipeId!))).toBe(false);
+      expect(result.needMore).toEqual([
+        {
+          meal_type: 'pranzo',
+          slots: 5,
+          available: 3,
+          required: 5 + PLANNER_CONFIG.minPoolSize - 1,
+          unfilled: 2,
+        },
+      ]);
+    });
   });
 
   describe('2. recipeWeight', () => {
@@ -371,9 +442,11 @@ describe('lib/domain/planner', () => {
       expect(selectRecipes(makeInput(pranzoSlots, candidates)).needMore).toEqual([]);
     });
 
-    it('fills 14 slots with the fixture library and no needMore, for 20 seeds', () => {
+    it('fills 12 slots with the fixture library and no needMore, for 20 seeds', () => {
+      // Con la regola dei contorni la libreria di esempio ha 6 ricette solo pranzo, 6 solo cena
+      // e 3 per entrambi: 6 + 6 slot si riempiono sempre (con 7 + 7 un seme può lasciare uno slot vuoto).
       const library = fixtureRecipesAsDomain();
-      const slots: PlannerSlot[] = [...slotsFor('pranzo', 7), ...slotsFor('cena', 7)];
+      const slots: PlannerSlot[] = [...slotsFor('pranzo', 6), ...slotsFor('cena', 6)];
       for (let seed = 1; seed <= 20; seed++) {
         const result = selectRecipes({
           ...makeCtx({
@@ -388,7 +461,7 @@ describe('lib/domain/planner', () => {
           rng: createRng(seed),
         });
         expect(result.needMore).toEqual([]);
-        expect(result.assignments.filter((a) => a.recipeId !== null)).toHaveLength(14);
+        expect(result.assignments.filter((a) => a.recipeId !== null)).toHaveLength(12);
       }
     });
   });

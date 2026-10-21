@@ -9,6 +9,7 @@ import {
   insertPlan,
   insertSlots,
   setSlotLocked,
+  updateSlotRecipe,
 } from '@/lib/db/repositories/plan-repo';
 import { getRecipeById } from '@/lib/db/repositories/recipe-repo';
 import { updateHousehold } from '@/lib/db/repositories/household-repo';
@@ -32,7 +33,7 @@ import {
   createTestHousehold,
   deleteTestHousehold,
 } from '@/tests/helpers/db';
-import { insertTestRecipes } from '@/tests/helpers/plans';
+import { insertTestRecipe, insertTestRecipes } from '@/tests/helpers/plans';
 
 // Questo file fa più generazioni di piano per test sul database: nella suite completa, con i
 // file in parallelo, i 5 s di default di Vitest non bastano sempre.
@@ -124,6 +125,33 @@ describe.skipIf(!dbUp)('plan service', () => {
 
   const recipeIds = (plan: { slots: { recipe: { id: string } | null }[] }): string[] =>
     plan.slots.map((slot) => slot.recipe!.id);
+
+  it('never fills a slot with a side dish: a library of side dishes only is insufficient', async () => {
+    const householdId = await newHousehold(['cena']);
+    await insertTestRecipes(householdId, 5, { meal_types: ['cena'], courses: ['contorno'] });
+
+    await expect(
+      generatePlan(opts(householdId, WED, fakeGenerate(() => 0)))
+    ).rejects.toMatchObject({ code: 'insufficient_recipes' });
+    expect(await findPlanByWeek(db, householdId, '2026-09-28')).toBeNull();
+  });
+
+  it('reads a plan that already holds a side dish assigned before the rule, without errors', async () => {
+    const householdId = await newHousehold(['cena']);
+    await insertTestRecipes(householdId, 5, { meal_types: ['cena'], courses: ['secondo'] });
+    const sideDish = await insertTestRecipe(householdId, { meal_types: ['cena'], courses: ['contorno'] });
+    const { screen } = await generatePlan(opts(householdId, WED, fakeGenerate(() => 0)));
+    const planned = shownPlan(screen);
+    const slot = planned.slots[0];
+
+    // Dati storici: la scrittura del piano non passa più dalle regole di ammissione.
+    await updateSlotRecipe(db, slot.id, sideDish.id);
+
+    const reread = await getPlanScreen(opts(householdId, WED));
+    const rereadSlot = shownPlan(reread).slots.find((s) => s.id === slot.id);
+    expect(rereadSlot?.recipe?.id).toBe(sideDish.id);
+    expect(rereadSlot?.recipe?.courses).toEqual(['contorno']);
+  });
 
   it('builds a full plan from a rich library with zero LLM calls', async () => {
     const householdId = await richHousehold();
