@@ -2,7 +2,7 @@
 title: E2 Libreria e Preferenze — Libreria Reale, Giudizi su Ricette e Ingredienti
 type: topic
 created: 2026-10-05
-updated: 2026-10-14
+updated: 2026-10-21
 tags: [library, preferences, recipe-prefs, ingredient-prefs, filters, search, api, ui, e2, feature-5]
 ---
 
@@ -132,6 +132,7 @@ Le preferenze di una ricetta si possono cambiare da due punti contemporaneamente
   - **Esito nella Feature 7** ([[e6-deploy]]): in produzione `pnpm db:migrate` non gira. La `0004` la applica l'app all'avvio, insieme alle altre, con il migratore di `drizzle-orm` ([[db-bootstrap]]). In sviluppo e nel gate CI resta `pnpm db:migrate`.
 - **v2 (uso condiviso)**: `ingredient_prefs` è già partizionata per household.
 - **Sviluppi nella Feature 9** ([[f9-ricette-su-richiesta]]): la Libreria offre *Chiedi una ricetta per «…»* sotto i risultati della ricerca; `RecipeCard` accetta un `badge` e una ★ non interattiva; `RecipeDetailSheet` accetta un'azione primaria; il filtro e l'ordine di `lib/domain/library.ts` servono anche il selettore del Piano. La regola "uno scarto è un'esclusione dura" vale ora per il **sorteggio**: una ricetta chiesta apposta o scelta a mano si può salvare e mettere nel piano anche se contiene un ingrediente scartato, e il sorteggio continua a non proporla (`ARCHITECTURE §5.4`, spec D7–D8 della Feature 9).
+- **Sviluppi nella Feature 8** ([[f8-portate-etichette]]): il pannello *Filtri* ha per primo il gruppo *Portata* (in OR al suo interno, in AND con gli altri gruppi, che restano in AND anche al loro interno); il gruppo *Tipo di pasti* ha dodici chip; ogni gruppo è etichettato dal suo titolo. Le card mostrano la portata in un badge `basil-subtle` e, su una ricetta classificata, non ripetono *Piatto unico* tra i chip. `GET /api/recipes` accetta il parametro `portata` ([[library-service]], [[library-screen]]).
 - **Documenti di progetto allineati dalla feature**: `ARCHITECTURE §4.2` (chiave `(household_id, canonical_name)`) e `§5.4` (bloccare toglie dalle preferite, il giudizio vale dalla selezione successiva, impatto sulle ricette non bloccate, nome canonico esatto), `BACKLOG` S2.3 (chiave della tabella), `DESIGN §4.4` (ricerca per titolo o ingrediente, riga rapida e pannello *Filtri*, ordine delle card, bloccate solo con il filtro dedicato).
 - **Punti aperti delle feature precedenti chiusi qui**: U4 della Feature 4 (★, voto e blocco nascosti) attivato passando gli handler; P17 della Feature 4 (nessun `GET /api/recipes/:id`) con la nuova rotta, mentre il Piano continua a mostrare subito la ricetta che ha già; R1 della Feature 3 (le preferenze ingrediente non toccano `households.updated_at`) **confermato** dall'utente con U2 ([[settings-service]]); R4 della review della Feature 4 (un solo punto di lettura delle preferenze ingrediente) con `lib/prefs/ingredient-prefs.ts`, usato da `lib/plans/service.ts` e `lib/recipes/generate.ts`.
 
@@ -175,3 +176,4 @@ Adeguati: `tests/db/schema.test.ts` (10 tabelle, colonne di `ingredient_prefs`, 
 - [[e4-lista-spesa]] — Feature 6: alias risolti solo nella lista della spesa
 - [[e6-deploy]] — Feature 7: migrazioni applicate all'avvio in produzione
 - [[f9-ricette-su-richiesta]] — Feature 9: richiesta di una ricetta dalla Libreria e scelta a mano nel Piano
+- [[f8-portate-etichette]] — Feature 8: filtro *Portata* e badge sulle card

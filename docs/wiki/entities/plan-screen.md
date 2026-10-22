@@ -2,8 +2,8 @@
 title: Pagina Piano — PlanScreen, PlanSlotCard e Avanzamento (plan-screen)
 type: entity
 created: 2026-09-29
-updated: 2026-10-14
-tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, preferences, shopping-list, manual-choice, accessibility, feature-4, feature-9]
+updated: 2026-10-21
+tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, preferences, shopping-list, manual-choice, accessibility, courses, feature-4, feature-8, feature-9]
 ---
 
 ## File e Responsabilità
@@ -97,7 +97,7 @@ export interface PlanSlotCardProps {
 }
 ```
 
-- Props passate a [[meal-card]]: solo il nome del giorno come eyebrow, `MEAL_TYPE_LABELS`, titolo (o `Ricetta non disponibile` se la ricetta è stata eliminata), tempo e chip (`recipeChips`); `onSwap` solo se `editable && swappable`; lucchetto e long-press solo se `editable`. Dalla Feature 5 passa anche `isFavorite` (`slot.recipe.prefs.favorite`) e `onToggleFavorite`, quest'ultimo solo se il genitore ha fornito l'handler, lo slot ha una ricetta e la ricetta **non è bloccata**; l'handler riceve l'**id della ricetta**, non dello slot. La ★ compare anche sulle card non modificabili (settimane passate): il giudizio riguarda la ricetta, non il piano. Fino alla Feature 4 `onToggleFavorite` non veniva mai passato.
+- Props passate a [[meal-card]]: solo il nome del giorno come eyebrow, `MEAL_TYPE_LABELS`, titolo (o `Ricetta non disponibile` se la ricetta è stata eliminata), tempo e chip (`recipeChips`); `onSwap` solo se `editable && swappable`; lucchetto e long-press solo se `editable`. Dalla Feature 5 passa anche `isFavorite` (`slot.recipe.prefs.favorite`) e `onToggleFavorite`, quest'ultimo solo se il genitore ha fornito l'handler, lo slot ha una ricetta e la ricetta **non è bloccata**; l'handler riceve l'**id della ricetta**, non dello slot. La ★ compare anche sulle card non modificabili (settimane passate): il giudizio riguarda la ricetta, non il piano. Fino alla Feature 4 `onToggleFavorite` non veniva mai passato. **Dalla Feature 8** passa anche `course = courseLabel(slot.recipe.courses) ?? undefined` ([[courses]]): badge di portata sulla card, assente se la ricetta non è classificata o manca. I chip vengono da `recipeChips`, che su una ricetta classificata non ripete *Piatto unico* ([[recipe-sheet]]).
 - Modalità `idle → swapping → review`. Lo swap invia come esclusioni le ricette scartate nella sequenza più quella corrente, senza duplicati e al massimo `SWAP_EXCLUDE_MAX` (50). In attesa, al posto del footer un `role="status"` con `Cerco un'alternativa…` seguito dai messaggi di generazione. In revisione la card si rimonta dentro `animate-meal-flip` e mostra `Tieni` (azzera la sequenza) e `Cambia ancora`. Un errore torna alla modalità precedente e passa il messaggio al genitore; se lo slot viene bloccato durante la revisione la sequenza termina.
 - **Focus** (fix m8): all'arrivo della proposta va su `Tieni`, dopo `Tieni` o un errore di nuovo su `Cambia` (su `Cambia ancora` se l'errore arriva in revisione), solo se l'utente non l'ha spostato altrove nel frattempo.
 
@@ -128,6 +128,7 @@ Classe `animate-meal-flip`: flip `rotateY` da 80° a 0° in 320 ms; con `prefers
 - `tests/ui/plan-slot-card.test.tsx`: swap, *Cambia ancora*, *Tieni*, errori, limite delle esclusioni, card di sola lettura, giorni passati, focus; dalla Feature 5 la ★ (assente senza handler, con ricetta bloccata o senza ricetta; id della ricetta passato all'handler; `aria-pressed`; presente sulle card di sola lettura).
 - `tests/ui/generation-progress.test.tsx`; `tests/ui/shell.test.tsx` rende ora `PlanScreen` con un fixture al posto della vecchia home.
 - Dalla Feature 9: blocco `PlanSlotCard — Scegli` in `tests/ui/plan-slot-card.test.tsx` (presente su una card modificabile e cambiabile, assente in sola lettura o su un giorno passato, disabilitato su slot bloccato, selettore montato per lo slot, assegnazione dallo stato normale con focus su *Scegli*, chiusura senza assegnazione, ordine `Tieni` · icona · `Cambia ancora`, assegnazione dalla revisione che azzera la sequenza, chiusura in revisione con focus sull'icona, piano non più modificabile notificato una volta, avvisi inoltrati a `onError`, nessun *Scegli* durante uno swap, *Scegli* su uno slot senza ricetta) e blocco `scelta a mano` in `tests/ui/plan-screen.test.tsx` (ricetta scelta che compare sulla card, nessun *Scegli* sui giorni passati o su una settimana in sola lettura, rifiuto per piano non più modificabile con toast, selettore chiuso e una sola rilettura). I test esistenti su *Cambia* restano verdi senza modificarne le attese.
+- Dalla Feature 8: blocco `PlanSlotCard — course badge` in `tests/ui/plan-slot-card.test.tsx` (portate in ordine canonico, nessun badge su una ricetta non classificata, *Piatto unico* una volta sola, come portata e non tra i chip). Che un contorno non entri mai nel piano lo verificano i test del servizio e del planner, non quelli della pagina ([[planner]], [[plan-service]]).
 
 ## Vedi anche
 
@@ -146,3 +147,4 @@ Classe `animate-meal-flip`: flip `rotateY` da 80° a 0° in 320 ms; con `prefers
 - [[e4-lista-spesa]] — Panoramica della Feature 6
 - [[slot-recipe-picker]] — Selettore aperto da *Scegli* (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[f8-portate-etichette]] — Feature 8: badge di portata sulle card

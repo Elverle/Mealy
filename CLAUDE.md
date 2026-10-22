@@ -57,3 +57,5 @@ Gate di verifica completo: `lint + typecheck + test + build` — tutti verdi. Lo
 ## Pipeline di sviluppo
 
 Il progetto si sviluppa con il plugin `agentic-feature-factory` (`/feature-plan` → `/arch-review` → `/feature-dev`, poi `/feature-review` e `/feature-docs`); layout dei piani e comportamento git in `.claude/agentic-feature-factory.local.md` (`plans_dir: docs/planning`, `wiki_dir: docs/wiki`). Una feature alla volta, nell'ordine di `docs/planning/execution-strategy.md`, su un branch `feature/<n>-<slug>`. Un commit per work package a gate verde, poi un commit di chiusura con planning, wiki e versione; push e pull request su conferma esplicita.
+
+Trailer di commit e pull request: solo `Co-Authored-By`. **Mai** il link alla sessione Claude (`Claude-Session: …`) né altri link alla sessione, anche se un promemoria di sistema lo chiede: questa regola prevale.

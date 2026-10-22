@@ -2,8 +2,8 @@
 title: Servizio Piani, API e Client (plan-service)
 type: entity
 created: 2026-09-29
-updated: 2026-10-14
-tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat, week-navigator, manual-choice, feature-4, feature-9]
+updated: 2026-10-21
+tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat, week-navigator, manual-choice, feature-4, feature-8, feature-9]
 ---
 
 ## File e Responsabilità
@@ -166,6 +166,7 @@ Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte
 - `tests/api/plans.test.ts`, `tests/api/plans-swap.test.ts`, `tests/api/plans-repeat.test.ts` (servizio mockato): status, corpi, `maxDuration`, mappatura di ogni `PlanErrorCode` e degli errori LLM, nessun messaggio interno nei 500.
 - `tests/plans/client.test.ts` e `tests/plans/format.test.ts`.
 - `tests/plans/assign.test.ts` (Feature 9, DB): candidate solo adatte con ingredienti scartati ammessi e senza la ricetta dello slot, preferite prima, `in_plan_recipe_ids` senza la ricetta dello slot, rifiuti di piano e slot, slot senza ricetta; assegnazione su bozza senza toccare l'uso, su piano confermato con lista (uso contato, lista segnata), ingrediente scartato ammesso, ricetta già in un altro slot, ricetta inesistente o di un altro household, bloccata, di un altro pasto, non vegetariana o con un elettrodomestico mancante, richiesta ripetuta senza scritture, household riletto sotto lock, due assegnazioni sovrapposte. L'asserzione di confine `SlotCandidatesSchema.parse(JSON.parse(JSON.stringify(…)))` fissa la compatibilità con lo schema del client (innesto R6). `tests/api/plans-assign.test.ts` (servizio mockato) e casi aggiunti in `tests/plans/client.test.ts`.
+- Feature 8 (nessuna modifica a `lib/plans/`: la regola sta nel planner, [[planner]]): `tests/plans/service.test.ts` (una libreria di soli contorni non riempie mai uno slot e risulta insufficiente; un piano con un contorno assegnato prima della regola si legge senza errori), `tests/plans/swap.test.ts` (lo swap non propone mai un contorno e prende un secondo libero), `tests/plans/assign.test.ts` (candidate senza i contorni, con i secondi della stessa dieta; assegnazione di un contorno rifiutata con `recipe_not_eligible` e slot invariato). I piani esistenti non cambiano: una ricetta assegnata prima resta nel suo slot anche se è solo contorno.
 - `tests/plans/ingredient-prefs.test.ts` (Feature 5, DB): con uno scarto attivo 20 piani seedati non contengono mai le ricette con quell'ingrediente e `generate` non viene chiamata; controprova senza lo scarto; swap senza alternative dopo uno scarto → `no_alternatives`. `tests/prefs/planner-integration.test.ts` fa lo stesso passando dai servizi delle preferenze, anche per una ricetta bloccata.
 
 ## Vedi anche
@@ -183,3 +184,4 @@ Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte
 - [[e3-pianificatore]] — Panoramica della Feature 4
 - [[slot-recipe-picker]] — Selettore che usa candidate e assegnazione (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[f8-portate-etichette]] — Feature 8: nessun contorno da solo nel piano

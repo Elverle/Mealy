@@ -2,8 +2,8 @@
 title: Selettore di una Ricetta per lo Slot — SlotRecipePicker (slot-recipe-picker)
 type: entity
 created: 2026-10-14
-updated: 2026-10-14
-tags: [ui, components, plan, manual-choice, picker, sheet, search, llm, accessibility, feature-9]
+updated: 2026-10-21
+tags: [ui, components, plan, manual-choice, picker, sheet, search, llm, accessibility, courses, feature-8, feature-9]
 ---
 
 ## File e Responsabilità
@@ -40,6 +40,8 @@ Tre sheet impilate, gestite dalla pila della primitiva ([[sheet-primitive]]): l'
    - sotto l'elenco, con i dati arrivati, `RecipeRequestBox` sul testo cercato: compare anche con *Nessuna ricetta trovata* e con *Nessun'altra ricetta adatta*.
 2. **Dettaglio**: [[recipe-detail-sheet]] con `servings = slot.servings` e `primaryAction = { label: 'Metti nel piano', onAction: assign, busy: assigning }`. È il dettaglio completo della Libreria, giudizi compresi.
 3. **Proposta**: [[recipe-proposal-sheet]] con `mealType = slot.meal`, `servings = slot.servings`, `acceptLabel = 'Metti nel piano'`, `onAccept = acceptProposal`, `onClose` che porta `requestText` a `null` (nessun ritorno del focus qui).
+
+**Dalla Feature 8** (senza modifiche al componente): le ricette solo contorno non arrivano tra le candidate, perché `manualChoiceExclusionReason` le esclude ([[planner]]); le card mostrano il badge di portata di `RecipeCard` ([[library-screen]]) e la proposta chiesta da qui deve avere una portata principale, altrimenti `proposal_unsuitable` ([[recipe-proposal-service]]). Nei test il nome accessibile atteso di una card ammette il badge di portata tra il tempo e il titolo.
 
 ### Caricamento e filtro
 - `load()` chiama `fetchSlotCandidates(planId, slotId)`; un contatore (`loadIdRef`) scarta le risposte di una richiesta superata (*Riprova* rapido, ricarica dopo un errore) e `mountedRef` quelle arrivate dopo lo smontaggio.
@@ -84,3 +86,4 @@ Il selettore è montato **dentro** l'elenco delle card, ma dalla revisione UI de
 - [[sheet-primitive]] — Pila delle sheet aperte
 - [[toast]] — Dove finiscono i messaggi di `onNotify`
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[f8-portate-etichette]] — Feature 8: contorni fuori dalle candidate, badge di portata

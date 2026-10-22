@@ -2,8 +2,8 @@
 title: Riquadro di Richiesta e Sheet di Proposta — RecipeRequestBox e RecipeProposalSheet (recipe-proposal-sheet)
 type: entity
 created: 2026-10-14
-updated: 2026-10-14
-tags: [ui, components, recipes, llm, proposal, sheet, abort-controller, accessibility, feature-9]
+updated: 2026-10-21
+tags: [ui, components, recipes, llm, proposal, sheet, abort-controller, accessibility, courses, feature-8, feature-9]
 ---
 
 ## File e Responsabilità
@@ -41,6 +41,8 @@ export interface RecipeProposalSheetProps {
   onClose: () => void;
 }
 ```
+
+**Dalla Feature 8** (senza modifiche al componente): la proposta mostra il badge di portata, perché `proposalToRecipeDetail` valorizza `course` ([[recipe-sheet]]), e le etichette sono già quelle derivate dal servizio ([[recipe-proposal-service]]). Con `mealType` indicato (dal Piano) un contorno non arriva mai: il server risponde `proposal_unsuitable` e la sheet mostra l'errore come per le altre proposte non adatte.
 
 ### Stati
 `status`: `pending` → `proposal` oppure `error`. Tutti e tre stanno nello **stesso** `RecipeSheet` (requirements P15): attesa ed errore passano come `placeholder`, la proposta come `recipe`, così il pannello non si rimonta e l'animazione d'ingresso non riparte.
@@ -84,3 +86,4 @@ Con una proposta il `footer` contiene `Un'altra` (`outline`) e, se non è un dop
 - [[slot-recipe-picker]] — Uso dal selettore del Piano
 - [[sheet-primitive]] — Pila delle sheet: la proposta si apre sopra il selettore
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[f8-portate-etichette]] — Feature 8: portata nella proposta

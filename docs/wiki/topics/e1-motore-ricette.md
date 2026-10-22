@@ -2,7 +2,7 @@
 title: E1 Motore Ricette — Generazione, Adapter LLM e Libreria Persistente
 type: topic
 created: 2026-09-17
-updated: 2026-10-14
+updated: 2026-10-21
 tags: [recipes, llm, generation, fixtures, seed, architecture, e1, feature-2]
 ---
 
@@ -21,6 +21,8 @@ L'intervento copre tre user story fondamentali del backlog di Mealy:
 In Mealy l'LLM non viene invocato a ogni calcolo del piano settimanale; interviene esclusivamente come strumento di arricchimento ed espansione del catalogo quando la libreria non contiene un numero sufficiente di alternative valide per i vincoli dell'utente.
 
 **Dalla Feature 9** ([[f9-ricette-su-richiesta]]) "esclusivamente" non vale più: l'LLM interviene anche su un gesto esplicito dell'utente, che chiede **una** ricetta con un testo libero dalla Libreria o dal selettore del Piano. La pipeline riusa adapter, riparazione, controllo dei vincoli e scrittura di questa feature (`generateRecipeFromRequest`, `findConstraintViolations`, `insertGeneratedRecipe`), ma la proposta entra in libreria solo se l'utente la accetta e non passa dal controllo di somiglianza trigram ([[recipe-proposal-service]]). Il piano resta una selezione dalla libreria: la scelta a mano di una ricetta non chiama mai l'LLM.
+
+**Dalla Feature 8** ([[f8-portate-etichette]]) l'LLM ha un terzo compito, che non aggiunge ricette: all'avvio in produzione **classifica** una volta le ricette salvate prima della portata, a lotti di 10 ([[recipe-classification]]). Nella generazione ogni ricetta arriva con almeno una portata; piano e swap chiedono portate principali e scartano un contorno come violazione di vincolo. La scrittura (`insertGeneratedRecipe`) applica le etichette derivate `pochi-ingredienti` e `piatto-unico` ([[courses]]).
 
 ## Architettura della Pipeline di Generazione
 
@@ -125,3 +127,4 @@ In piena osservanza delle regole architetturali di progetto (`CLAUDE.md § Regol
 - [[e2-libreria-preferenze]] — Feature 5: scarti e gradimenti nei vincoli di generazione
 - [[e6-deploy]] — Feature 7: alias in upsert, caricati all'avvio in produzione
 - [[f9-ricette-su-richiesta]] — Feature 9: ricette chieste dall'utente con un testo libero
+- [[f8-portate-etichette]] — Feature 8: portate nella generazione, etichette derivate, classificazione delle ricette esistenti

@@ -4,7 +4,7 @@ App web personale di meal planning: genera il piano settimanale con una selezion
 
 ## Stato
 
-Versione **0.7.1**. Feature completate:
+Versione **0.8.0**. Feature completate:
 
 - **E0 Fondamenta** — scaffold Next.js, schema DB, shell UI a 4 tab
 - **E1 Motore ricette** — adapter LLM multi-provider, generazione e persistenza delle ricette, fixtures e seed
@@ -14,6 +14,7 @@ Versione **0.7.1**. Feature completate:
 - **E4 Lista della spesa** — lista consolidata dal piano confermato e ordinata per reparto, spunte che reggono la rete assente, articoli aggiunti a mano e *Aggiorna lista* quando il piano cambia (`/lista`, `/api/plans/:id/shopping-list`, `/api/shopping-items`)
 - **E6 Deploy** — produzione su Raspberry Pi con Docker Compose, raggiungibile via LAN e Tailscale: immagine arm64 costruita da GitHub Actions, migrazioni e alias applicati all'avvio dell'app, backup notturno e aggiornamento con un solo comando (`docs/DEPLOY.md`, `scripts/deploy.sh`, `GET /api/health`)
 - **Ricette su richiesta (Feature 9)** — dalla ricerca della Libreria si chiede una ricetta all'LLM, che entra in libreria solo con *Aggiungi alla libreria*; sulla card del Piano *Scegli* apre le ricette adatte a quel pasto, con *Metti nel piano* e la richiesta all'LLM se la ricetta non c'è (`POST /api/recipes/propose`, `POST /api/recipes`, `/api/plans/:id/slots/:slotId/candidates`, `/api/plans/:id/slots/:slotId/recipe`). Nessuna migrazione né variabile nuova
+- **Portate ed etichette (Feature 8)** — ogni ricetta ha una o più portate (piatto unico, primo, secondo, contorno), mostrate con un badge su card e dettaglio e filtrabili dal gruppo *Portata* della Libreria; le etichette di stile passano da 7 a 12; un contorno da solo non entra mai nel piano. Le ricette salvate prima le classifica l'LLM all'avvio dell'app in produzione (in sviluppo con `pnpm recipes:classify`). Una migrazione (`0005`), nessuna variabile nuova
 
 Avanzamento completo in [`docs/planning/feature-index.md`](docs/planning/feature-index.md).
 
@@ -79,6 +80,7 @@ Note:
 | `pnpm db:seed:aliases` | Inserisce o corregge gli alias degli ingredienti usati dalla lista della spesa (idempotente). In produzione lo stesso caricamento avviene da solo all'avvio dell'app |
 | `pnpm db:generate` | Genera una nuova migrazione dallo schema (`lib/db/schema.ts`) |
 | `pnpm llm:record` | Registra una risposta LLM reale in `tests/fixtures/llm/recorded/` (richiede una chiave API); con `--request "testo"` registra una richiesta libera |
+| `pnpm recipes:classify` | Assegna portate ed etichette di stile alle ricette senza portata sul database di `DATABASE_URL` (richiede una chiave API). In produzione lo stesso procedimento parte da solo all'avvio dell'app |
 
 Gate di verifica: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`, tutti verdi. I test non usano la rete: l'LLM è simulato con risposte registrate.
 
@@ -88,6 +90,8 @@ La v1 gira su Raspberry Pi con Docker Compose (app Next.js standalone, PostgreSQ
 
 - L'immagine dell'app la costruisce GitHub Actions a ogni push su `main` (workflow `Image`, `ghcr.io/elverle/mealy:sha-<commit>`); il Raspberry la scarica con `bash scripts/deploy.sh`.
 - All'avvio in produzione l'app applica le migrazioni e carica gli alias degli ingredienti (`DB_BOOTSTRAP_ON_START=true`, `lib/db/bootstrap.ts`): sul Raspberry non si lancia nessun comando `pnpm`. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione.
+- Dopo migrazioni e alias l'app classifica in background, a lotti di 10, le ricette ancora senza portata: l'avvio non la aspetta e i log dell'app mostrano righe `[classify]`. Senza modello configurato le ricette restano senza portata e l'app funziona lo stesso; le rimaste si riprovano al riavvio.
+- Dalla 0.8 si torna a una versione precedente solo ripristinando il dump `predeploy` (`docs/DEPLOY.md §6`).
 - Prova locale dello stack di produzione: `docker build -t mealy-app:smoke . && bash scripts/smoke-prod.sh mealy-app:smoke`.
 
 ## Documentazione

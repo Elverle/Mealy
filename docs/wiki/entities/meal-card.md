@@ -2,8 +2,8 @@
 title: Scheda Pasto (meal-card)
 type: entity
 created: 2026-09-15
-updated: 2026-10-14
-tags: [ui, components, meal-card, cards, planner, long-press, accessibility, manual-choice]
+updated: 2026-10-21
+tags: [ui, components, meal-card, cards, planner, long-press, accessibility, manual-choice, courses]
 ---
 
 ## File e Responsabilità
@@ -21,6 +21,7 @@ export interface MealCardProps {
   mealType: string;               // es. "Pranzo" | "Cena"
   title: string;                  // Nome della ricetta
   prepTimeMinutes?: number;       // Minuti stimati
+  course?: string;                // Feature 8: portate già formattate, badge accanto al tempo
   tags?: string[];                // Tag stile o dieta (es. "Veloce", "Vegetariano")
   isFavorite?: boolean;           // Stato stella preferita
   isLocked?: boolean;             // Stato lucchetto slot
@@ -49,6 +50,7 @@ Il `Card` radice espone `data-testid="meal-card-<id>"`. La card è suddivisa in 
    - Area interamente cliccabile con supporto tastiera (`Enter` / `Space`) per aprire il pannello di dettaglio della ricetta ([[recipe-sheet]]).
    - Titolo renderizzato con font display `Fraunces` (`font-display text-lg font-bold text-ink`) con transizione hover verso `text-basil`.
    - Badge compatti: badge tempo di preparazione con icona `Clock` e badge outline per ciascun tag.
+   - **Dalla Feature 8**, tra il tempo e i tag, il badge di portata: `course` in un `Badge` `basil-subtle` (`text-[11px] font-medium`), solo se la prop è valorizzata. La riga dei badge compare se c'è almeno uno tra tempo, portata e tag. Il componente riceve il testo già pronto e non conosce il dominio: lo calcola `PlanSlotCard` con `courseLabel` ([[plan-screen]], [[courses]]).
 3. **Footer Azioni** (`mt-3 flex items-center justify-between border-t border-stone/15 pt-2`), renderizzato **solo** se c'è almeno uno tra `actions`, `onSwap`, `onToggleFavorite`:
    - con `actions` il footer contiene solo quel nodo (usato da `PlanSlotCard` per il messaggio di attesa dello swap e per i pulsanti *Tieni* / *Cambia ancora*);
    - altrimenti:
@@ -85,7 +87,7 @@ Attivo solo se `onLongPress` è definito; la pagina Piano lo usa per bloccare/sb
 ## Test
 
 - Blocchi "MealCard" di `tests/ui/shell.test.tsx` (Feature 1), invariati.
-- `tests/ui/meal-card-plan.test.tsx` (Feature 4, fake timers): `data-testid`, nessuna ★ senza `onToggleFavorite`, nessun *Cambia* senza `onSwap`, nessun footer senza handler né `actions`, `actions` che sostituiscono il footer, long-press con soppressione del click, pressione breve, tolleranza di movimento, tasti non primari, `pointerdown` sul lucchetto, pulizia allo smontaggio. Dalla Feature 9 il blocco `MealCard (pick action "Scegli")`: `aria-label` e `onPick` con l'id senza `onSelect`, nessun *Scegli* senza `onPick`, disabilitato sul pasto bloccato, footer con il solo `onPick`, ordine *Cambia* · *Scegli* · ★, classe dei 44 px, `actions` che nascondono *Scegli*.
+- `tests/ui/meal-card-plan.test.tsx` (Feature 4, fake timers): `data-testid`, nessuna ★ senza `onToggleFavorite`, nessun *Cambia* senza `onSwap`, nessun footer senza handler né `actions`, `actions` che sostituiscono il footer, long-press con soppressione del click, pressione breve, tolleranza di movimento, tasti non primari, `pointerdown` sul lucchetto, pulizia allo smontaggio. Dalla Feature 9 il blocco `MealCard (pick action "Scegli")`: `aria-label` e `onPick` con l'id senza `onSelect`, nessun *Scegli* senza `onPick`, disabilitato sul pasto bloccato, footer con il solo `onPick`, ordine *Cambia* · *Scegli* · ★, classe dei 44 px, `actions` che nascondono *Scegli*. Dalla Feature 8 il blocco `MealCard (course badge)`: portata subito dopo il tempo e prima dei tag, portata da sola senza tempo né tag, nessun testo di portata senza la prop.
 
 ## Vedi anche
 
@@ -97,3 +99,4 @@ Attivo solo se `onLongPress` è definito; la pagina Piano lo usa per bloccare/sb
 - [[e2-libreria-preferenze]] — Feature 5: ★ attiva sulle card del piano
 - [[slot-recipe-picker]] — Selettore aperto da *Scegli* (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[f8-portate-etichette]] — Feature 8: badge di portata

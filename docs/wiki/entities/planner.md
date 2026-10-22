@@ -2,8 +2,8 @@
 title: Planner Puro — Selezione Pesata, Settimane e RNG (planner)
 type: entity
 created: 2026-09-29
-updated: 2026-10-14
-tags: [planner, domain, pure-functions, weighted-selection, rng, week, recency, manual-choice, feature-4, feature-9]
+updated: 2026-10-21
+tags: [planner, domain, pure-functions, weighted-selection, rng, week, recency, manual-choice, courses, feature-4, feature-8, feature-9]
 ---
 
 ## File e Responsabilità
@@ -61,8 +61,10 @@ Il fuso `Europe/Rome` (`APP_TIME_ZONE`) protegge dal container del Raspberry che
 ### `exclusionReason(recipe, meal, ctx): ExclusionReason | null`
 Filtri duri, in quest'ordine (vince il primo che scatta): `'blocked'` (`prefs.blocked`), `'meal_type'`, `'diet'` (ogni dieta dell'household deve stare in `expandDietFlags(recipe.diet_flags)`), `'appliance'`, `'disliked_ingredient'`, `'excluded'` (id in `ctx.excludeRecipeIds`). Un commento incrociato ricorda che le stesse regole vivono in `findConstraintViolations` ([[recipe-generation]]), applicate all'output dell'LLM: chi modifica una deve controllare l'altra (proposta P3 della review architetturale).
 
+**Dalla Feature 8** c'è un motivo in più, `'course'`, controllato subito dopo `'meal_type'`: scatta se `!isMainDish(recipe.courses)`, cioè per una ricetta *solo contorno* ([[courses]]). Le ricette non classificate (`courses` vuoto) e quelle con almeno una portata principale, anche insieme a `contorno`, restano ammesse. L'ordine completo è quindi `'blocked'`, `'meal_type'`, `'course'`, `'diet'`, `'appliance'`, `'disliked_ingredient'`, `'excluded'`. Con una riga il motivo copre tutti i percorsi che passano da qui: `selectRecipes` (generazione del piano, *Rigenera*, swap), la pre-assegnazione di *Ripeti*, il conteggio delle fresche di `needMore` (calcolato sulle idonee) e `manualChoiceExclusionReason` (candidate di *Scegli* e assegnazione a mano). Fino alla Feature 11 un pasto è una ricetta sola: mai un contorno da solo (spec D7). Il commento incrociato ora dice anche che la portata passa da `coursesAllowed` in entrambe le funzioni, così la Feature 11 dovrà cambiare solo l'elenco ammesso (innesto R2 della review architetturale della Feature 8).
+
 ### `manualChoiceExclusionReason(recipe, meal, household): ExclusionReason | null` (Feature 9)
-Motivo per cui una ricetta non si può mettere **a mano** in un pasto, oppure `null`. Chiama `exclusionReason` con `ingredientPrefs = EMPTY_INGREDIENT_PREFERENCES` e un insieme vuoto di id esclusi, quindi i motivi possibili sono solo `'blocked'`, `'meal_type'`, `'diet'` e `'appliance'`: gli ingredienti «non mi piace» e la presenza in un altro pasto **non** escludono (spec D8, D10). È l'**unica** definizione di "adatta a questo pasto" per la scelta a mano, usata sia per l'elenco delle candidate sia per l'assegnazione ([[plan-service]]); servizi e componenti non ne hanno copie (requirements P9 della Feature 9). Il sorteggio (`selectRecipes`, swap, generazione, *Ripeti*) continua a usare `exclusionReason` con gli scarti: una ricetta chiesta apposta con un ingrediente scartato si può mettere nel piano a mano ma non viene mai sorteggiata (`ARCHITECTURE §5.4`).
+Motivo per cui una ricetta non si può mettere **a mano** in un pasto, oppure `null`. Chiama `exclusionReason` con `ingredientPrefs = EMPTY_INGREDIENT_PREFERENCES` e un insieme vuoto di id esclusi, quindi i motivi possibili sono solo `'blocked'`, `'meal_type'`, `'diet'` e `'appliance'` (dalla Feature 8 anche `'course'`): gli ingredienti «non mi piace» e la presenza in un altro pasto **non** escludono (spec D8, D10). È l'**unica** definizione di "adatta a questo pasto" per la scelta a mano, usata sia per l'elenco delle candidate sia per l'assegnazione ([[plan-service]]); servizi e componenti non ne hanno copie (requirements P9 della Feature 9). Il sorteggio (`selectRecipes`, swap, generazione, *Ripeti*) continua a usare `exclusionReason` con gli scarti: una ricetta chiesta apposta con un ingrediente scartato si può mettere nel piano a mano ma non viene mai sorteggiata (`ARCHITECTURE §5.4`).
 
 ### `recipeWeight(recipe, ingredientLikes, now, config?)`
 Prodotto di `ratingFactor × favoriteBoost × recencyDecay × noveltyBonus × ingredientAffinity`. Il `recencyDecay` è misurato in giorni (virgola mobile, mai negativi) da `prefs.last_used_at`:
@@ -101,6 +103,8 @@ Tutti puri, senza DB (`tests/domain/`):
 
 Dalla Feature 9 `planner.test.ts` ha un blocco `manualChoiceExclusionReason`: `null` per una ricetta adatta, `blocked`, `meal_type`, `diet`, `appliance`, e un ingrediente scartato ignorato a differenza di `exclusionReason`.
 
+Dalla Feature 8 `planner.test.ts` copre il motivo `course` (contorno escluso a pranzo e a cena; ammesse le ricette con una portata principale, anche insieme a `contorno`, e quelle non classificate; `blocked` e `meal_type` prima di `course`; contorno escluso anche dalla scelta a mano) e un blocco "side dishes never make a meal": una libreria di soli contorni lascia lo slot vuoto e chiede generazione; con 3 secondi e 20 contorni `available` vale 3. Il caso sulle 18 ricette d'esempio senza `needMore` riempie ora **6 + 6** slot invece di 7 + 7: la ricetta d'esempio solo contorno esce dalle candidate di cena (scostamento accettato dal piano della Feature 8).
+
 Dalla Feature 5 il cablaggio con i dati reali è verificato su DB, senza toccare i test puri: `tests/prefs/ingredient-prefs.test.ts` (4000 estrazioni con due gradimenti letti dal DB, rapporto atteso 1.3), `tests/plans/ingredient-prefs.test.ts` e `tests/prefs/planner-integration.test.ts` (scarti e blocchi mai presenti in 20 piani seedati).
 
 ## Vedi anche
@@ -112,3 +116,5 @@ Dalla Feature 5 il cablaggio con i dati reali è verificato su DB, senza toccare
 - [[prefs-service]] — `loadIngredientPreferences`, origine di scarti e gradimenti (Feature 5)
 - [[e3-pianificatore]] — Panoramica della Feature 4
 - [[f9-ricette-su-richiesta]] — Feature 9: scelta a mano con `manualChoiceExclusionReason`
+- [[courses]] — `isMainDish` e `coursesAllowed`, origine del motivo `course` (Feature 8)
+- [[f8-portate-etichette]] — Panoramica della Feature 8
