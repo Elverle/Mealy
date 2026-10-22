@@ -7,6 +7,7 @@ import * as recipeRepo from '@/lib/db/repositories/recipe-repo';
 import { getRecipeById } from '@/lib/db/repositories/recipe-repo';
 import { FIXTURE_RECIPES, FIXTURE_INGREDIENT_ALIASES } from '@/fixtures';
 import { client, db, ingredient_aliases, recipes } from '@/lib/db';
+import { normalizeCourses, deriveStyleTags } from '@/lib/domain/courses';
 import { count, eq, inArray } from 'drizzle-orm';
 
 const dbUp = await isDbAvailable();
@@ -25,6 +26,7 @@ describe.skipIf(!dbUp)('Database Seeding', () => {
     expect(secondReport.household).toBe('existing');
     expect(secondReport.recipesInserted).toBe(0);
     expect(secondReport.recipesSkipped).toBe(18);
+    expect(secondReport.recipesClassified).toBe(0);
     expect(secondReport.aliasesInserted).toBe(0);
   });
 
@@ -39,6 +41,33 @@ describe.skipIf(!dbUp)('Database Seeding', () => {
       expect(dbRecipe!.prefs).not.toBeNull();
       expect(dbRecipe!.prefs!.favorite).toBe(false);
       expect(dbRecipe!.prefs!.times_used).toBe(0);
+    }
+  });
+
+  it('after seeding every fixture recipe has at least one course', async () => {
+    for (const fixture of FIXTURE_RECIPES) {
+      const dbRecipe = await getRecipeById(fixture.id);
+      expect(dbRecipe!.courses.length).toBeGreaterThan(0);
+      expect(dbRecipe!.courses).toEqual(normalizeCourses(fixture.courses));
+    }
+  });
+
+  it('completes an existing fixture recipe without courses', async () => {
+    const fixture = FIXTURE_RECIPES[0];
+    const expectedCourses = normalizeCourses(fixture.courses);
+    const expectedTags = deriveStyleTags(fixture.tags, fixture.courses, fixture.ingredients);
+    try {
+      // Si azzera solo `courses`: `tags` resta com'è nel DB e il seed lo allinea da sé.
+      await db.update(recipes).set({ courses: [] }).where(eq(recipes.id, fixture.id));
+
+      const report = await seedDatabase();
+
+      expect(report.recipesClassified).toBeGreaterThanOrEqual(1);
+      const dbRecipe = await getRecipeById(fixture.id);
+      expect(dbRecipe!.courses).toEqual(expectedCourses);
+      expect(new Set(dbRecipe!.tags)).toEqual(new Set(expectedTags));
+    } finally {
+      await db.update(recipes).set({ courses: expectedCourses }).where(eq(recipes.id, fixture.id));
     }
   });
 

@@ -70,6 +70,11 @@ export const MEAL_STYLE_TAG_VALUES = [
   'comfort-food',
   'economico',
   'piatto-unico',
+  'tradizionale',
+  'dal-mondo',
+  'pochi-ingredienti',
+  'in-anticipo',
+  'piatto-freddo',
 ] as const;
 export const MEAL_STYLE_TAG_ENUM = MEAL_STYLE_TAG_VALUES;
 export const MealStyleTagSchema = z.enum(MEAL_STYLE_TAG_VALUES);
@@ -83,7 +88,28 @@ export const MEAL_STYLE_TAG_LABELS: Record<MealStyleTag, string> = {
   'comfort-food': 'Comfort food',
   economico: 'Economico',
   'piatto-unico': 'Piatto unico',
+  tradizionale: 'Tradizionale',
+  'dal-mondo': 'Dal mondo',
+  'pochi-ingredienti': 'Pochi ingredienti',
+  'in-anticipo': 'Si prepara in anticipo',
+  'piatto-freddo': 'Piatto freddo',
 };
+
+// Portata del piatto: una ricetta può averne più d'una. Vuoto = non classificata.
+export const COURSE_VALUES = ['piatto-unico', 'primo', 'secondo', 'contorno'] as const;
+export const COURSE_ENUM = COURSE_VALUES;
+export const CourseSchema = z.enum(COURSE_VALUES);
+export type Course = z.infer<typeof CourseSchema>;
+
+export const COURSE_LABELS: Record<Course, string> = {
+  'piatto-unico': 'Piatto unico',
+  primo: 'Primo',
+  secondo: 'Secondo',
+  contorno: 'Contorno',
+};
+
+// Portate che da sole fanno un pasto (fino alla Feature 11: le sole ammesse nel piano).
+export const MAIN_COURSE_VALUES: readonly Course[] = ['piatto-unico', 'primo', 'secondo'];
 
 export const APPLIANCE_VALUES = [
   'fornelli',
@@ -162,6 +188,7 @@ export const RecipeSchema = z.object({
   description: z.string().default(''),
   steps: z.array(z.string()).min(1),
   meal_types: z.array(MealTypeSchema).min(1),
+  courses: z.array(CourseSchema).default([]),
   tags: z.array(MealStyleTagSchema).default([]),
   diet_flags: z.array(DietFlagSchema).default([]),
   appliances_required: z.array(ApplianceSchema).default([]),
@@ -278,6 +305,7 @@ export const GeneratedRecipeSchema = z.object({
   title: z.string().min(3).max(120),
   description: z.string(),
   meal_types: z.array(MealTypeSchema).min(1),
+  courses: z.array(CourseSchema).min(1),
   tags: z.array(MealStyleTagSchema),
   diet_flags: z.array(DietFlagSchema),
   appliances_required: z.array(ApplianceSchema),
@@ -299,6 +327,7 @@ export type GenerateRecipesOutput = z.infer<typeof GenerateRecipesOutputSchema>;
 export const RecipeConstraintsSchema = z.object({
   persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
   meal_type: MealTypeSchema.nullable(),
+  courses: z.array(CourseSchema).min(1).nullable(), // null = qualsiasi portata; mai vuoto
   diet_tags: z.array(DietFlagSchema),
   meal_style_tags: z.array(MealStyleTagSchema),
   appliances: z.array(ApplianceSchema),
@@ -515,12 +544,14 @@ export type UpdateSlotRequest = z.infer<typeof UpdateSlotRequestSchema>;
 // ============================================================================
 
 // Filtri della Libreria (GET /api/recipes e filtro in memoria della pagina).
-// Tutti i criteri sono in AND. `blocked: true` mostra solo le bloccate, `false` le nasconde.
+// Tutti i criteri sono in AND; dentro `courses` basta una portata (OR).
+// `blocked: true` mostra solo le bloccate, `false` le nasconde.
 export const LIBRARY_QUERY_MAX = 100;
 export const LibraryFilterSchema = z
   .object({
     q: z.string().max(LIBRARY_QUERY_MAX).default(''),
     meals: z.array(MealTypeSchema).default([]),
+    courses: z.array(CourseSchema).default([]),
     tags: z.array(MealStyleTagSchema).default([]),
     diets: z.array(DietFlagSchema).default([]),
     favorites: z.boolean().default(false),
@@ -532,6 +563,7 @@ export type LibraryFilter = z.infer<typeof LibraryFilterSchema>;
 export const EMPTY_LIBRARY_FILTER: LibraryFilter = {
   q: '',
   meals: [],
+  courses: [],
   tags: [],
   diets: [],
   favorites: false,
@@ -544,6 +576,7 @@ export const LibraryRecipeCardSchema = z.object({
   title: z.string().min(1),
   prep_minutes: z.number().int().min(1),
   meal_types: z.array(MealTypeSchema),
+  courses: z.array(CourseSchema),
   tags: z.array(MealStyleTagSchema),
   diet_flags: z.array(DietFlagSchema),
   ingredient_names: z.array(z.string().min(1)), // nomi canonici normalizzati, distinti, nell'ordine della ricetta
@@ -746,10 +779,12 @@ export const SAVED_RECIPE_TEXT_MAX = 1000; // descrizione e singolo passo
 export const SAVED_RECIPE_STEPS_MAX = 40;
 export const SAVED_RECIPE_INGREDIENTS_MAX = 60;
 export const SAVED_RECIPE_TAGS_MAX = 20; // tags, diet_flags, appliances_required
+export const SAVED_RECIPE_COURSES_MAX = 4; // una per portata di COURSE_VALUES
 const SAVED_INGREDIENT_NAME_MAX = 120;
 const SAVED_INGREDIENT_NOTE_MAX = 300;
 
 export const SavedRecipeInputSchema = GeneratedRecipeSchema.extend({
+  courses: z.array(CourseSchema).min(1).max(SAVED_RECIPE_COURSES_MAX),
   description: z.string().max(SAVED_RECIPE_TEXT_MAX),
   tags: z.array(MealStyleTagSchema).max(SAVED_RECIPE_TAGS_MAX),
   diet_flags: z.array(DietFlagSchema).max(SAVED_RECIPE_TAGS_MAX),
@@ -787,3 +822,43 @@ export const SlotCandidatesSchema = z
   })
   .strict();
 export type SlotCandidates = z.infer<typeof SlotCandidatesSchema>;
+
+// ============================================================================
+// Recipe Classification (Feature 8)
+// ============================================================================
+
+// Ricette per chiamata di classificazione.
+export const CLASSIFY_BATCH_SIZE = 10;
+
+// Etichette di stile che assegna il modello nella classificazione delle ricette esistenti.
+export const CLASSIFIED_STYLE_TAG_VALUES = [
+  'tradizionale',
+  'dal-mondo',
+  'in-anticipo',
+  'piatto-freddo',
+] as const satisfies readonly MealStyleTag[];
+export const ClassifiedStyleTagSchema = z.enum(CLASSIFIED_STYLE_TAG_VALUES);
+export type ClassifiedStyleTag = z.infer<typeof ClassifiedStyleTagSchema>;
+
+// Una ricetta da classificare, come la riceve il modello. `ref`: "r1"…"r10".
+export const ClassifyRecipeItemSchema = z.object({
+  ref: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string(),
+  meal_types: z.array(MealTypeSchema),
+  tags: z.array(MealStyleTagSchema),
+  ingredient_names: z.array(z.string().min(1)),
+});
+export type ClassifyRecipeItem = z.infer<typeof ClassifyRecipeItemSchema>;
+
+// Output LLM. `courses` senza .min(1): una riga vuota si scarta senza invalidare il lotto.
+export const RecipeClassificationSchema = z.object({
+  ref: z.string(),
+  courses: z.array(CourseSchema),
+  style_tags: z.array(ClassifiedStyleTagSchema),
+});
+export type RecipeClassification = z.infer<typeof RecipeClassificationSchema>;
+export const ClassifyRecipesOutputSchema = z.object({
+  recipes: z.array(RecipeClassificationSchema),
+});
+export type ClassifyRecipesOutput = z.infer<typeof ClassifyRecipesOutputSchema>;

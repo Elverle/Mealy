@@ -35,6 +35,7 @@ function makeRecipe(id = ID_A, title = "Pasta al pomodoro", prefs: RecipePref | 
     description: "Semplice",
     steps: ["Cuoci"],
     meal_types: ["pranzo"],
+    courses: [],
     tags: [],
     diet_flags: [],
     appliances_required: [],

@@ -102,6 +102,7 @@ describe('lib/domain/recipe-text', () => {
       title: '  Spaghetti   alla Carbonara  ',
       description: '  Un primo piatto ricco e saporito.  ',
       meal_types: ['pranzo', 'pranzo', 'cena'],
+      courses: ['primo'],
       tags: ['comfort-food', 'comfort-food', 'veloce'],
       diet_flags: ['vegano'],
       appliances_required: ['fornelli', 'fornelli'],

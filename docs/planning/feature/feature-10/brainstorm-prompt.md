@@ -1,8 +1,8 @@
-# Feature 8 — Pacchetto iniziale di ricette: spunto per il brainstorming
+# Feature 10 — Pacchetto iniziale di ricette: spunto per il brainstorming
 
-Punto di partenza per `/feature-brainstorm`, scritto il 12 ottobre 2026 dopo i primi test sul Raspberry. Non è una specifica: raccoglie il problema, l'idea, i vincoli e le domande ancora aperte.
+Punto di partenza per `/feature-brainstorm`, scritto il 12 ottobre 2026 dopo i primi test sul Raspberry come Feature 8. Il 14 ottobre 2026 è diventato la Feature 10: viene dopo la Feature 8 (portate delle ricette e nuove etichette di stile, `../feature-8/spec.md`) e prima della Feature 11 (composizione del pasto, `../feature-11/brainstorm-prompt.md`). Non è una specifica: raccoglie il problema, l'idea, i vincoli e le domande ancora aperte.
 
-Uso: `/agentic-feature-factory:feature-brainstorm 8 docs/planning/feature/feature-8/brainstorm-prompt.md`
+Uso: `/agentic-feature-factory:feature-brainstorm 10 docs/planning/feature/feature-10/brainstorm-prompt.md`
 
 ---
 
@@ -23,25 +23,25 @@ Portare in libreria 100–200 ricette reali già pronte, così che i piani siano
 
 ## Idea
 
-1. **Selezione**: dal CSV scegliere le ricette adatte a pranzo e cena (primi, secondi, piatti unici, torte salate, insalate), con quantità pulite e pochi ingredienti, bilanciate per ingrediente principale, con una quota vegetariana e di pesce.
+1. **Selezione**: dal CSV scegliere le ricette adatte a pranzo e cena (primi, secondi, piatti unici, contorni, torte salate, insalate; **niente dolci**), con quantità pulite e pochi ingredienti, bilanciate per portata e per ingrediente principale, con una quota vegetariana e di pesce. I contorni servono alla Feature 11.
 2. **Revisione**: prima della conversione l'utente rivede l'elenco dei titoli e toglie quelli che non vuole.
-3. **Conversione**: una volta sola, sul PC, fuori dall'app. Un modello converte ogni ricetta nel formato dell'app (`GeneratedRecipeSchema` in `lib/domain/types.ts`) aggiungendo i campi mancanti: passi separati, tempo di preparazione, pranzo/cena, etichette di stile, elettrodomestici, nome canonico e reparto degli ingredienti. Le ricette vanno riscritte nello stile dell'app, non copiate.
+3. **Conversione**: una volta sola, sul PC, fuori dall'app. Un modello converte ogni ricetta nel formato dell'app (`GeneratedRecipeSchema` in `lib/domain/types.ts`) aggiungendo i campi mancanti: passi separati, tempo di preparazione, pranzo/cena, portate (Feature 8), etichette di stile, elettrodomestici, nome canonico e reparto degli ingredienti. Le ricette vanno riscritte nello stile dell'app, non copiate.
 4. **Controlli**: validazione con lo schema; esigenze alimentari ricavate per regola dagli ingredienti normalizzati (sono filtri vincolanti); quantità sospette segnalate.
 5. **Caricamento**: il pacchetto risultante viene caricato all'avvio dell'app, senza duplicare le ricette già presenti.
 
-## Etichette "Tipo di pasti": decisione presa
+## Portate ed etichette "Tipo di pasti": le porta la Feature 8
 
-Le sette voci attuali (veloce, salutare, proteico, leggero, comfort-food, economico, piatto-unico) sono poche. Prima della conversione se ne aggiungono cinque:
+Portate (`piatto-unico`, `primo`, `secondo`, `contorno`) ed etichette nuove arrivano con la Feature 8 (`../feature-8/spec.md`), che fissa anche le regole derivate: `pochi-ingredienti` per al massimo 6 ingredienti esclusi i q.b., `piatto-unico` come etichetta se e solo se è anche la portata. La conversione deve produrre `courses` e può lasciare le due etichette derivate a `insertGeneratedRecipe`. Le sette voci di partenza (veloce, salutare, proteico, leggero, comfort-food, economico, piatto-unico) diventano dodici:
 
 | Etichetta | Significato |
 |---|---|
 | tradizionale | I classici italiani |
 | dal mondo | Cucine non italiane |
 | pochi ingredienti | Ricavabile per regola dal numero di ingredienti |
-| si prepara in anticipo | Si conserva, adatta alla schiscetta |
+| si prepara in anticipo (`in-anticipo`) | Si conserva, adatta alla schiscetta |
 | piatto freddo | Piatto freddo o estivo |
 
-Vanno decise prima perché la pulizia le assegna a ogni ricetta. Sono un elenco chiuso in `lib/domain/types.ts` (`MEAL_STYLE_TAG_VALUES`): aggiungerle tocca lo schema, le impostazioni, il prompt di generazione e le ricette già in libreria.
+Le ricette già in libreria (le 26 sul Raspberry) le classifica la Feature 8 all'avvio dell'app, con il modello.
 
 ## Il dataset
 
@@ -57,7 +57,7 @@ Analisi completa in `docs/rework-catalogo.md` §2.
 ## Vincoli
 
 - `lib/domain/types.ts` resta l'unica fonte dei tipi di dominio.
-- Solo il modulo `recipes` parla con `lib/llm/` (adattatore unico); il planner non cambia.
+- Solo il modulo `recipes` parla con `lib/llm/` (adattatore unico); il planner non cambia (le ricette solo contorno le esclude già la Feature 8, finché la Feature 11 non introduce lo slot del contorno).
 - Ingredienti normalizzati alla fonte: i nomi canonici devono allinearsi a quelli già in uso e agli alias, altrimenti la lista della spesa non li accorpa.
 - Test senza rete: risposte LLM registrate.
 - In produzione non si lancia mai `db:seed` (inserisce le ricette di esempio); all'avvio l'app applica già migrazioni e alias (`instrumentation.ts` → `lib/db/bootstrap.ts`).
@@ -71,7 +71,7 @@ Catalogo separato dalla libreria, modifiche ai pesi del planner, quota di scoper
 
 - Quante ricette: 100, 150 o 200, e con quale ripartizione tra pranzo e cena.
 - Criteri di selezione precisi e come presentare l'elenco da rivedere.
-- Etichette nuove: nomi esatti nel codice e nell'interfaccia; soglia di "pochi ingredienti"; cosa succede alle ricette già generate, che non le hanno.
+- Ripartizione per portata: quanti piatti unici, primi, secondi e contorni (il planner evita di riproporre una ricetta per circa 4 settimane).
 - Dove vive il pacchetto convertito: nel repository (sono ricette riscritte, non i testi originali) o solo sul Raspberry.
 - Se conservare il link all'originale, che richiederebbe un campo nuovo.
 - Come caricare il pacchetto in produzione: all'avvio come gli alias, o con un comando a parte; e cosa succede sul Raspberry che ha già 26 ricette generate.

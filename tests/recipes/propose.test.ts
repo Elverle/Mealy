@@ -27,12 +27,18 @@ import {
   deleteTestHousehold,
 } from '@/tests/helpers/db';
 import { createRecordedModel, loadLlmRecording } from '@/tests/helpers/mock-llm';
+import { makeGeneratedRecipe } from '@/tests/helpers/recipes';
 
 const dbUp = await isDbAvailable();
 
 /** La ricetta della fixture `request-lasagne`, normalizzata come la produce il servizio. */
 function lasagne(): GeneratedRecipe {
   return normalizeGeneratedRecipe(JSON.parse(loadLlmRecording('request-lasagne')).recipes[0]);
+}
+
+/** Un contorno (solo portata `contorno`) per cena, costruito dalla lasagne: stesse diete ed elettrodomestici. */
+function sideDishRecipe(): GeneratedRecipe {
+  return { ...lasagne(), title: 'Zucchine croccanti', courses: ['contorno'], meal_types: ['cena'] };
 }
 
 function modelWith(name: string) {
@@ -289,6 +295,53 @@ describe.skipIf(!dbUp)('proposeRecipe and saveProposedRecipe', () => {
       expect(generate).toHaveBeenCalledTimes(1);
       expect(generate.mock.calls[0][3].abortSignal).toBe(controller.signal);
     });
+
+    it('rejects from the Piano a proposal that is only a side dish, with proposal_unsuitable', async () => {
+      const householdId = await createHousehold();
+      const generate = vi.fn().mockResolvedValue(sideDishRecipe());
+
+      const error = await rejectionOf(
+        proposeRecipe(
+          { householdId, request: 'zucchine croccanti', mealType: 'cena', excludeTitles: [] },
+          { generate }
+        )
+      );
+
+      expect((error as RecipeError).code).toBe('proposal_unsuitable');
+      expect(console.warn).toHaveBeenCalledWith(
+        '[recipes/propose] proposal_unsuitable',
+        expect.objectContaining({ violations: ['portata non adatta al pasto'] })
+      );
+    });
+
+    it('returns from the Libreria (no meal chosen) the same side dish, with its courses', async () => {
+      const householdId = await createHousehold();
+
+      const proposal = await proposeRecipe(
+        { householdId, request: 'zucchine croccanti', mealType: null, excludeTitles: [] },
+        { generate: vi.fn().mockResolvedValue(sideDishRecipe()) }
+      );
+
+      expect(proposal.recipe.title).toBe('Zucchine croccanti');
+      expect(proposal.recipe.courses).toEqual(['contorno']);
+    });
+
+    it('returns the proposal with the style tags derived from the rules', async () => {
+      const householdId = await createHousehold();
+      // Tre ingredienti misurati: pochi-ingredienti; portata secondo: piatto-unico va tolto.
+      const recipe = makeGeneratedRecipe({
+        title: 'Ceci saltati',
+        courses: ['secondo'],
+        tags: ['piatto-unico'],
+      });
+
+      const proposal = await proposeRecipe(
+        { householdId, request: 'ceci saltati', mealType: 'cena', excludeTitles: [] },
+        { generate: vi.fn().mockResolvedValue(recipe) }
+      );
+
+      expect(proposal.recipe.tags).toEqual(['pochi-ingredienti']);
+    });
   });
 
   describe('saveProposedRecipe', () => {
@@ -408,6 +461,15 @@ describe.skipIf(!dbUp)('proposeRecipe and saveProposedRecipe', () => {
       expect(savedFirst.slug).not.toBe(savedSecond.slug);
       expect(await countRecipes(first)).toBe(1);
       expect(await countRecipes(second)).toBe(1);
+    });
+
+    it('saves a side dish accepted from the Libreria with courses contorno', async () => {
+      const householdId = await createHousehold();
+
+      const saved = await saveProposedRecipe({ householdId, recipe: sideDishRecipe() });
+
+      expect(saved.courses).toEqual(['contorno']);
+      expect(await countRecipes(householdId)).toBe(1);
     });
   });
 });

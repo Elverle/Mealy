@@ -98,7 +98,7 @@ describe.skipIf(!dbUp)('lib/settings/service', () => {
     // Vincoli verso planner e LLM: i vincoli costruiti dall'household salvato
     // riflettono le nuove impostazioni normalizzate.
     const household = await getHouseholdById(id);
-    const constraints = buildConstraints(household!, null);
+    const constraints = buildConstraints(household!, null, undefined, undefined, null);
     expect(constraints.persons).toBe(4);
     expect(constraints.diet_tags).toEqual(['vegano']);
     expect(constraints.appliances).toEqual(['friggitrice-ad-aria']);

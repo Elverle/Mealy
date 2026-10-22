@@ -229,6 +229,20 @@ describe.skipIf(!dbUp)('Scelta a mano di una ricetta', { timeout: DB_TEST_TIMEOU
       ).rejects.toMatchObject({ code: 'plan_archived' });
     });
 
+    it('leaves out side-dish-only recipes and keeps the main courses of the same diet', async () => {
+      const { householdId, plan } = await scenario();
+      const slot = plan.slots[0];
+      const vegetarianCena = { meal_types: ['cena' as const], diet_flags: ['vegetariano' as const] };
+      const sideDish = await insertTestRecipe(householdId, { ...vegetarianCena, courses: ['contorno'] });
+      const mainCourse = await insertTestRecipe(householdId, { ...vegetarianCena, courses: ['secondo'] });
+
+      const result = await listSlotCandidates(plan.id, slot.id, opts(householdId, WED));
+
+      const ids = result.recipes.map((card) => card.id);
+      expect(ids).not.toContain(sideDish.id);
+      expect(ids).toContain(mainCourse.id);
+    });
+
     it('lists the candidates of a slot without recipe, with no error', async () => {
       const { householdId, plan } = await scenario();
       const slot = plan.slots[0];
@@ -340,6 +354,23 @@ describe.skipIf(!dbUp)('Scelta a mano di una ricetta', { timeout: DB_TEST_TIMEOU
           assignSlotRecipe(plan.id, slot.id, notEligible.id, opts(householdId, WED))
         ).rejects.toMatchObject({ code: 'recipe_not_eligible' });
       }
+
+      expect(slotRecipeId(await readPlan(plan.id, householdId), slot.id)).toBe(before);
+    });
+
+    it('rejects a side-dish-only recipe with recipe_not_eligible, leaving the slot unchanged', async () => {
+      const { householdId, plan } = await scenario();
+      const slot = plan.slots[0];
+      const before = slot.recipe!.id;
+      const sideDish = await insertTestRecipe(householdId, {
+        meal_types: ['cena'],
+        diet_flags: ['vegetariano'],
+        courses: ['contorno'],
+      });
+
+      await expect(
+        assignSlotRecipe(plan.id, slot.id, sideDish.id, opts(householdId, WED))
+      ).rejects.toMatchObject({ code: 'recipe_not_eligible' });
 
       expect(slotRecipeId(await readPlan(plan.id, householdId), slot.id)).toBe(before);
     });

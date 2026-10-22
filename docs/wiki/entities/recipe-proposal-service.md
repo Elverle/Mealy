@@ -2,8 +2,8 @@
 title: Ricette su Richiesta — Proposta, Salvataggio, Errori e Rotte (recipe-proposal-service)
 type: entity
 created: 2026-10-14
-updated: 2026-10-14
-tags: [recipes, llm, proposal, service, api-route, errors, advisory-lock, validation, feature-9]
+updated: 2026-10-21
+tags: [recipes, llm, proposal, service, api-route, errors, advisory-lock, validation, courses, feature-8, feature-9]
 ---
 
 ## File e Responsabilità
@@ -43,6 +43,12 @@ export async function proposeRecipe(input: ProposeRecipeInput, deps?: ProposeRec
 
 Un `LlmError` dell'adapter risale così com'è.
 
+**Dalla Feature 8**:
+- `requestConstraints` passa a `buildConstraints` anche le portate: `MAIN_COURSE_VALUES` se `mealType` è indicato (richiesta dal selettore del Piano), `null` altrimenti (richiesta dalla Libreria). Dal Piano una proposta solo contorno viola «portata non adatta al pasto» e finisce in `proposal_unsuitable` come le altre violazioni (spec FR-3.4); dalla Libreria qualsiasi portata è ammessa, contorno compreso, che entra in libreria e resta fuori dal piano (FR-3.5). Il prompt riceve la riga *Portata* solo nel primo caso ([[llm-adapter]]).
+- Al passo 5 la ricetta restituita ha già le etichette derivate (`deriveStyleTags`, [[courses]]): la proposta mostrata coincide con la ricetta che `insertGeneratedRecipe` salverà (requirements P5 della Feature 8).
+- Il ricontrollo di `saveProposedRecipe` usa `requestConstraints(current, null)`, quindi portate `null`: la proposta è già stata accettata nel suo contesto.
+- `SavedRecipeInputSchema` richiede da 1 a 4 portate ([[domain-types]]).
+
 ## Salvataggio (`saveProposedRecipe`)
 
 ```ts
@@ -65,7 +71,7 @@ Due salvataggi sovrapposti dello stesso titolo producono una sola ricetta: il se
 export async function insertGeneratedRecipe(executor: DbExecutor, householdId: string, recipe: GeneratedRecipe): Promise<RecipeWithDetails>;
 ```
 
-Calcola lo slug con la funzione privata `uniqueSlug(executor, slugify(title))` (slug libero, poi suffissi `-2` … `-99`, poi 6 caratteri casuali; gli slug sono **globali**, quindi lo stesso titolo in due household ha due slug distinti) e chiama `insertRecipeWith` con `source: 'llm'`, `macros_est: null` e gli ingredienti mappati campo per campo; `insertRecipeWith` crea anche la riga di preferenze di default. Va chiamata dentro una transazione, dopo `acquireRecipeGenerationLock`. È il codice che prima della Feature 9 stava nel ciclo di `generateAndStoreRecipes`, estratto senza cambiarne il comportamento (requirements P3).
+Calcola lo slug con la funzione privata `uniqueSlug(executor, slugify(title))` (slug libero, poi suffissi `-2` … `-99`, poi 6 caratteri casuali; gli slug sono **globali**, quindi lo stesso titolo in due household ha due slug distinti) e chiama `insertRecipeWith` con `source: 'llm'`, `macros_est: null` e gli ingredienti mappati campo per campo; `insertRecipeWith` crea anche la riga di preferenze di default. Va chiamata dentro una transazione, dopo `acquireRecipeGenerationLock`. È il codice che prima della Feature 9 stava nel ciclo di `generateAndStoreRecipes`, estratto senza cambiarne il comportamento (requirements P3). Dalla Feature 8 scrive anche `courses` (`normalizeCourses`) e le etichette passate da `deriveStyleTags` ([[courses]], [[recipe-generation]]).
 
 ## Errori (`errors.ts`)
 
@@ -95,10 +101,12 @@ Entrambe le rotte hanno `runtime = 'nodejs'` e `dynamic = 'force-dynamic'` e leg
 - `tests/api/recipes-propose.test.ts` (servizio sostituito): `runtime`, `dynamic` e `maxDuration`, 200 con il segnale passato al servizio, mappatura di `meal_type` ed `exclude_titles` e trim della richiesta, `proposal_unsuitable`, i quattro errori LLM, 500 senza messaggio interno, `499` senza `console.error` con il segnale già annullato.
 - `tests/api/recipes.test.ts`: casi `POST` aggiunti (201 con la ricetta normalizzata passata al servizio; 400 per corpo vuoto, oggetto vuoto, ricetta senza ingredienti, chiave in più, unico passo vuoto dopo la normalizzazione, descrizione oltre `SAVED_RECIPE_TEXT_MAX`; 409, 422, 500 senza messaggio interno).
 
+- Dalla Feature 8 `tests/recipes/propose.test.ts` ha quattro casi in più: dal Piano un contorno è rifiutato con `proposal_unsuitable`; dalla Libreria lo stesso contorno è proposto con le sue portate; la proposta ha le etichette derivate; un contorno accettato dalla Libreria si salva con `courses: ['contorno']`.
+
 ## Limiti Noti
 
 - Non è verificato che Next in modalità standalone annulli `request.signal` quando il client chiude la connessione; la prova è una verifica manuale di chiusura ([[f9-ricette-su-richiesta]]).
-- `insertGeneratedRecipe` scrive sempre `source: 'llm'`: non va usata per il dataset della Feature 8 né, in futuro, per l'inserimento a mano.
+- `insertGeneratedRecipe` scrive sempre `source: 'llm'`: non va usata per il dataset della Feature 8 né, in futuro, per l'inserimento a mano. *Nota (Feature 8): il pacchetto iniziale di ricette è passato alla Feature 10. Il piano della Feature 8 indica invece `insertGeneratedRecipe` come via di scrittura del pacchetto, per avere le regole derivate: le due indicazioni vanno conciliate nella Feature 10, per esempio con un parametro `source` ([[f8-portate-etichette]]).*
 - Il prompt riceve i titoli di `exclude_titles` fuori dai delimitatori della richiesta, ridotti a una riga e limitati a 10 × 120 caratteri (osservazione cosmetica della review architetturale, nessuna azione).
 
 ## Vedi anche
@@ -111,3 +119,4 @@ Entrambe le rotte hanno `runtime = 'nodejs'` e `dynamic = 'force-dynamic'` e leg
 - [[domain-types]] — Schemi della Feature 9
 - [[http-helpers]] — `readJsonBody`, `llmErrorResponse`
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[f8-portate-etichette]] — Feature 8: portate richieste dal Piano, etichette derivate nella proposta

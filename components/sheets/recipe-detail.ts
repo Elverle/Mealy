@@ -1,3 +1,4 @@
+import { courseLabel } from '@/lib/domain/courses';
 import { normalizeCanonicalName } from '@/lib/domain/recipe-text';
 import {
   DIET_FLAG_LABELS,
@@ -5,12 +6,15 @@ import {
   type DietFlag,
   type GeneratedRecipe,
   type Ingredient,
+  type MealStyleTag,
   type Recipe,
   type RecipeIngredientInfo,
 } from '@/lib/domain/types';
 import type { RecipeDetail, RecipeIngredient } from './recipe-sheet';
 
 const MAX_STYLE_CHIPS = 2;
+// Con una portata il badge di portata mostra già «Piatto unico»: non lo ripetiamo tra i tag.
+const COURSE_STYLE_TAG: MealStyleTag = 'piatto-unico';
 const AMOUNT_DECIMALS_FACTOR = 10;
 const DIET_CHIP_PRIORITY: readonly DietFlag[] = [
   'vegano',
@@ -20,9 +24,16 @@ const DIET_CHIP_PRIORITY: readonly DietFlag[] = [
   'senza-lattosio',
 ];
 
-/** Fino a 2 tag di stile (ordine della ricetta) + al massimo 1 dieta per priorità. */
-export function recipeChips(recipe: Pick<Recipe, 'tags' | 'diet_flags'>): string[] {
-  const chips = recipe.tags.slice(0, MAX_STYLE_CHIPS).map((tag) => MEAL_STYLE_TAG_LABELS[tag]);
+/**
+ * Fino a 2 tag di stile (ordine della ricetta; senza «Piatto unico» se la ricetta ha una portata,
+ * che lo mostra già) + al massimo 1 dieta per priorità.
+ */
+export function recipeChips(recipe: Pick<Recipe, 'tags' | 'diet_flags' | 'courses'>): string[] {
+  const styleTags =
+    recipe.courses.length > 0
+      ? recipe.tags.filter((tag) => tag !== COURSE_STYLE_TAG)
+      : recipe.tags;
+  const chips = styleTags.slice(0, MAX_STYLE_CHIPS).map((tag) => MEAL_STYLE_TAG_LABELS[tag]);
   const diet = DIET_CHIP_PRIORITY.find((flag) => recipe.diet_flags.includes(flag));
   if (diet) chips.push(DIET_FLAG_LABELS[diet]);
   return chips;
@@ -83,6 +94,7 @@ export function toRecipeDetail(
     prepTimeMinutes: recipe.prep_minutes,
     servings,
     tags: recipeChips(recipe),
+    course: courseLabel(recipe.courses) ?? undefined,
     ingredients,
     steps: recipe.steps,
     rating: recipe.prefs?.rating ?? undefined,
@@ -105,6 +117,7 @@ export function proposalToRecipeDetail(recipe: GeneratedRecipe, servings: number
     prepTimeMinutes: recipe.prep_minutes,
     servings,
     tags: recipeChips(recipe),
+    course: courseLabel(recipe.courses) ?? undefined,
     ingredients: recipe.ingredients.map((ing, index) => ({
       id: `${id}:${index}`,
       name: ing.display_name,

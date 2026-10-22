@@ -2,21 +2,21 @@
 title: Adapter LLM Multi-Provider (llm-adapter)
 type: entity
 created: 2026-09-17
-updated: 2026-10-14
-tags: [llm, ai-sdk, adapter, multi-provider, structured-output, repair-loop, errors, free-text-request]
+updated: 2026-10-21
+tags: [llm, ai-sdk, adapter, multi-provider, structured-output, repair-loop, errors, free-text-request, courses, classification, feature-8]
 ---
 
 ## File e Responsabilità
 
 - **Percorsi file**:
-  - `lib/llm/adapter.ts`: funzione principale di generazione `generateRecipes`, loop di correzione e normalizzazione; dalla Feature 9 anche `generateRecipeFromRequest` (una ricetta da una richiesta in testo libero) e la funzione privata `runRecipeGeneration` che le due condividono.
+  - `lib/llm/adapter.ts`: funzione principale di generazione `generateRecipes`, loop di correzione e normalizzazione; dalla Feature 9 anche `generateRecipeFromRequest` (una ricetta da una richiesta in testo libero) e la funzione privata `runRecipeGeneration` che le due condividono; dalla Feature 8 `classifyRecipes` (portate ed etichette di ricette esistenti) e la funzione privata generica `runStructuredCall`.
   - `lib/llm/model.ts`: factory del modello linguistico `getModel`, lettura configurazione env e timeout.
   - `lib/llm/prompts.ts`: template per istruzioni di sistema, prompt utente con vincoli ed esclusioni, prompt di riparazione schema.
   - `lib/llm/errors.ts`: classe di errore tipizzato `LlmError` e type guard `isLlmError`.
   - `lib/llm/index.ts`: facciata pubblica che riesporta le funzioni e i tipi necessari.
   - `scripts/llm-record.ts`: script CLI per registrare risposte LLM reali per test offline.
 - **Scopo**: Incapsulare interamente l'integrazione con i modelli linguistici (LLM) tramite Vercel AI SDK 7, fornendo una superficie fortemente tipizzata, provider-agnostica e resiliente per la generazione strutturata di ricette culinarie casalinghe italiane.
-- **Regola di confine architetturale vincolante**: **solo** `lib/llm/` ha il permesso di importare i pacchetti `ai` e gli SDK dei fornitori (`@ai-sdk/google`, `@openrouter/ai-sdk-provider`, `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`). Nessun altro modulo dell'applicazione conosce o importa tali dipendenze. Il servizio `lib/recipes/` è l'unico consumatore applicativo dell'adapter (`generateRecipes`; dalla Feature 9 anche `generateRecipeFromRequest`, chiamata da `lib/recipes/propose.ts`, v. [[recipe-proposal-service]]). Dalla Feature 4 altri due moduli importano **solo** `lib/llm/errors.ts` (`LlmError`, `isLlmError`) per riconoscere gli errori che risalgono da `generateAndStoreRecipes`: `lib/plans/service.ts` ([[plan-service]]) e `lib/http/responses.ts` ([[http-helpers]]). Nessuno dei due chiama il modello.
+- **Regola di confine architetturale vincolante**: **solo** `lib/llm/` ha il permesso di importare i pacchetti `ai` e gli SDK dei fornitori (`@ai-sdk/google`, `@openrouter/ai-sdk-provider`, `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`). Nessun altro modulo dell'applicazione conosce o importa tali dipendenze. Il servizio `lib/recipes/` è l'unico consumatore applicativo dell'adapter (`generateRecipes`; dalla Feature 9 anche `generateRecipeFromRequest`, chiamata da `lib/recipes/propose.ts`, v. [[recipe-proposal-service]]; dalla Feature 8 `classifyRecipes` e `getModel`, chiamate da `lib/recipes/classify.ts`, v. [[recipe-classification]]). Dalla Feature 4 altri due moduli importano **solo** `lib/llm/errors.ts` (`LlmError`, `isLlmError`) per riconoscere gli errori che risalgono da `generateAndStoreRecipes`: `lib/plans/service.ts` ([[plan-service]]) e `lib/http/responses.ts` ([[http-helpers]]). Nessuno dei due chiama il modello.
 
 ## Architettura Multi-Provider
 
@@ -66,6 +66,9 @@ Le ricette validate con successo vengono passate a `normalizeGeneratedRecipe` (`
 ### 4. Percorso condiviso (Feature 9)
 Dalla Feature 9 i passi 1–3 vivono nella funzione privata `runRecipeGeneration({ model, prompt, timeoutMs, abortSignal })`, che restituisce **tutte** le ricette normalizzate; `generateRecipes` valida `n`, costruisce il prompt e taglia ai primi `n`. Anche la pulizia dei titoli da escludere (trim, niente vuoti, niente doppioni con vince la prima occorrenza, al più `MAX_EXCLUDED_TITLES`) è estratta nella funzione privata `cleanExcludedTitles`. Comportamento di `generateRecipes` invariato (requirements P4 della Feature 9).
 
+### 5. Chiamata strutturata generica (Feature 8)
+Dalla Feature 8 la coppia "chiamata + riparazione" è la funzione privata generica `runStructuredCall<T>({ model, instructions, prompt, schema, temperature, repairTemperature, timeoutMs, abortSignal, invalidOutputMessage })`, che restituisce `result.output` validato dallo schema. `runRecipeGeneration` la chiama con `buildRecipeInstructions()`, `GenerateRecipesOutputSchema`, temperature `0.8` e `0.2` e lo stesso messaggio di prima (`Il modello non ha prodotto ricette valide dopo il tentativo di correzione.`), poi applica `normalizeGeneratedRecipe`: per la generazione non cambia nulla. `classifyRecipes` la riusa con il proprio schema (v. sotto). È l'unica astrazione nuova (innesto R4 della review architetturale della Feature 8); errori e mappatura `LlmError` restano gli stessi.
+
 ## Ricetta da una Richiesta Libera (Feature 9)
 
 ```ts
@@ -97,6 +100,27 @@ Il modulo `lib/llm/prompts.ts` governa la comunicazione con l'LLM:
 
 `lib/llm/index.ts` riesporta anche `generateRecipeFromRequest`, `buildRecipeRequestPrompt`, `RECIPE_REQUEST_OPEN` e `RECIPE_REQUEST_CLOSE`.
 
+### Portate ed etichette nei prompt di generazione (Feature 8)
+- **`buildRecipeInstructions()`** ha una riga `courses`: le portate in cui il piatto si serve davvero, di solito una e al massimo due, tra `piatto-unico` (basta da solo come pasto), `primo` (pasta, riso, zuppe), `secondo` (carne, pesce, uova, formaggi o legumi come portata principale) e `contorno` (verdure o patate che accompagnano un secondo). La riga `tags` elenca le dodici etichette da `MEAL_STYLE_TAG_VALUES`, avverte che `pochi-ingredienti` e `piatto-unico` li calcola l'app e si possono omettere, e spiega le quattro nuove assegnate dal modello (`tradizionale`, `dal-mondo`, `in-anticipo`, `piatto-freddo`).
+- **`buildRecipePrompt` e `buildRecipeRequestPrompt`**: con `constraints.courses` non `null`, subito dopo la riga del pasto, `- Portata: in courses ogni ricetta deve avere almeno una tra …` (nella richiesta: "la ricetta"). Con `null` la riga manca. La costruisce la funzione privata `courseLine`.
+- Lo schema di output `GeneratedRecipeSchema` richiede `courses` con almeno una voce ([[domain-types]]); `normalizeGeneratedRecipe` le ordina e toglie i doppioni ([[courses]]).
+
+## Classificazione di Ricette Esistenti (Feature 8)
+
+```ts
+export async function classifyRecipes(
+  items: readonly ClassifyRecipeItem[],
+  options?: GenerateRecipesOptions,
+): Promise<RecipeClassification[]>
+```
+
+- Da 1 a `CLASSIFY_BATCH_SIZE` (10) voci, altrimenti `RangeError` senza chiamare il modello. Modello iniettabile (`options.model ?? getModel()`, quindi `LlmError('config')` senza configurazione), timeout `options.timeoutMs ?? getLlmTimeoutMs()`, `abortSignal` facoltativo.
+- `runStructuredCall` con `buildClassifyInstructions()`, `buildClassifyPrompt(items)` e `ClassifyRecipesOutputSchema` (`{ recipes: [{ ref, courses, style_tags }] }`), temperatura **0,2** in entrambe le chiamate: la classificazione deve essere stabile, non creativa (requirements P10 della Feature 8). Messaggio di `invalid_output`: `Il modello non ha prodotto una classificazione valida dopo il tentativo di correzione.`
+- Restituisce le righe **così come le dà il modello**: riferimenti sconosciuti o ripetuti e portate vuote li scarta il chiamante, `classifyPendingRecipes` ([[recipe-classification]]). Lo schema accetta portate vuote (una riga vuota non invalida il lotto) ma non valori fuori elenco, che portano alla riparazione (requirements P9). `style_tags` è ristretto ai quattro valori di `CLASSIFIED_STYLE_TAG_VALUES`.
+- **`buildClassifyInstructions()`**: ruolo ("Classifichi ricette già esistenti: non le modifichi e non ne inventi di nuove"), definizione delle quattro portate e delle quattro etichette, una voce per ricetta nello stesso ordine, con `ref` copiato identico.
+- **`buildClassifyPrompt(items)`**: `Classifica queste N ricette.` e un blocco per ricetta: `[r1] Titolo`, `Descrizione:` (su una riga, tagliata a `CLASSIFY_DESCRIPTION_MAX` = 300 caratteri senza puntini, `nessuna` se vuota), `Pasti:`, `Etichette attuali:`, `Ingredienti:`. Titolo e descrizione passano da `toSingleLine` (requirements P15).
+- `lib/llm/index.ts` riesporta `classifyRecipes`, `buildClassifyInstructions`, `buildClassifyPrompt` e `CLASSIFY_DESCRIPTION_MAX`.
+
 ## Gestione Errori Tipizzata (`LlmError`)
 
 Il modulo `lib/llm/errors.ts` esporta la classe `LlmError` con codici standardizzati `LlmErrorCode`:
@@ -116,9 +140,13 @@ Per adempiere al vincolo architetturale di **test senza rete** (`CLAUDE.md § St
 
 Nei test automatici di Vitest, i modelli vengono simulati tramite `MockLanguageModelV4` (`ai/test`), garantendo esecuzioni deterministiche, istantanee e prive di costi o dipendenze da connettività esterna.
 
-**Richiesta libera (Feature 9)**: l'opzione `--request "testo"` (da 3 a 100 caratteri, altrimenti errore e codice d'uscita 1) registra la risposta al prompt `buildRecipeRequestPrompt` invece che a `buildRecipePrompt`; `--meal` imposta il tipo di pasto. Esempio nell'intestazione dello script: `pnpm llm:record --name gemini-richiesta-lasagne --request "lasagne al pesto" --meal cena`. I test della richiesta libera non leggono registrazioni reali ma due fixture scritte a mano, `tests/fixtures/llm/request-lasagne.txt` e `request-lasagne-altra.txt` (decisione U1 della Feature 9); una registrazione reale resta una verifica manuale di chiusura e al 2026-10-14 in `tests/fixtures/llm/recorded/` non ce n'è ancora una ([[f9-ricette-su-richiesta]]).
+**Richiesta libera (Feature 9)**: l'opzione `--request "testo"` (da 3 a 100 caratteri, altrimenti errore e codice d'uscita 1) registra la risposta al prompt `buildRecipeRequestPrompt` invece che a `buildRecipePrompt`; `--meal` imposta il tipo di pasto. Esempio nell'intestazione dello script: `pnpm llm:record --name gemini-richiesta-lasagne --request "lasagne al pesto" --meal cena`. I test della richiesta libera non leggono registrazioni reali ma due fixture scritte a mano, `tests/fixtures/llm/request-lasagne.txt` e `request-lasagne-altra.txt` (decisione U1 della Feature 9); una registrazione reale resta una verifica manuale di chiusura e al 2026-10-14 in `tests/fixtures/llm/recorded/` non ce n'è ancora una ([[f9-ricette-su-richiesta]]). *Nota (Feature 8): la frase precedente è superata; la registrazione reale `google-richiesta-lasagne.txt` è stata fatta il 14 ottobre 2026 ([[log]]) ed è una delle cinque registrate ritoccate con `courses`.*
+
+**Portate (Feature 8)**: `scripts/llm-record.ts` costruisce i vincoli con `courses` come l'app: `MAIN_COURSE_VALUES` per la generazione e per `--request` con `--meal`, `null` per `--request` senza `--meal` (requirements P23); senza, `RecipeConstraintsSchema` rifiuterebbe i vincoli. Le fixture a mano (`valid-2-recipes`, `generation-mixed`, `request-lasagne`, `request-lasagne-altra`) hanno ricevuto `courses`; le cinque registrate in `recorded/` sono state ritoccate a mano con lo stesso campo e non sono più risposte reali al byte (requirements P19). Nessun test legge le registrate. Per la classificazione non ci sono fixture su file: i test usano risposte scritte nel codice del test (requirements P20).
 
 Test della Feature 9: `tests/llm/prompts.test.ts` (richiesta tra i delimitatori, sequenze dei delimitatori e a capo neutralizzati, riga del pasto con e senza `meal_type`, diete, nessun elettrodomestico, niente stile né preferenze, blocco dei titoli assente o con titoli puliti e unici, istruzione finale) e `tests/llm/adapter.test.ts` (ricetta singola normalizzata, richiesta e titoli esclusi nel prompt, prima ricetta se il modello ne restituisce più d'una, riparazione con una seconda chiamata, `invalid_output` dopo due risposte non valide, `RangeError` per una richiesta vuota senza chiamare il modello).
+
+Test della Feature 8: `tests/llm/prompts.test.ts` (riga `courses` con i quattro valori e il loro significato, dodici etichette, significato delle quattro nuove, riga *Portata* subito dopo il pasto e assente con `null` in entrambi i prompt, istruzioni e prompt di classificazione, taglio a 300 caratteri, testo su una riga) e `tests/llm/adapter.test.ts` (`classifyRecipes`: righe restituite senza filtri, istruzioni e ricette numerate nel prompt, riparazione di una portata sconosciuta, `invalid_output` dopo due risposte non valide, errore HTTP del provider come `provider`, `RangeError` per lotti vuoti o oltre 10, lotto da 10 accettato, `config` senza `LLM_MODEL`).
 
 ## Vedi anche
 
@@ -130,3 +158,5 @@ Test della Feature 9: `tests/llm/prompts.test.ts` (richiesta tra i delimitatori,
 - [[plan-service]] — Feature 4: generazione a lotti da 3 e gestione di `LlmError` nel piano
 - [[recipe-proposal-service]] — Feature 9: `proposeRecipe`, chiamante di `generateRecipeFromRequest`
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[recipe-classification]] — Feature 8: `classifyPendingRecipes`, chiamante di `classifyRecipes`
+- [[f8-portate-etichette]] — Panoramica della Feature 8

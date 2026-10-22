@@ -2,8 +2,8 @@
 title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-10-14
-tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list, recipe-requests]
+updated: 2026-10-21
+tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list, recipe-requests, courses, classification]
 ---
 
 ## File e Responsabilità
@@ -15,6 +15,7 @@ tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, r
   - Dalla Feature 5 contiene anche le regole pure della Libreria (`library.ts`, documentato in [[library-service]]) e delle preferenze (`prefs.ts`, documentato in [[prefs-service]]).
   - Dalla Feature 6 contiene anche le regole pure della lista della spesa (`shopping-list.ts`) e la regola "piano chiuso" (`plan-status.ts`), documentate in [[shopping-list]].
   - Dalla Feature 9 `planner.ts` ha anche `manualChoiceExclusionReason` ([[planner]]) e `library.ts` anche `recipeRequestText` e `appendProposedTitle` ([[library-service]]).
+  - Dalla Feature 8 contiene anche le regole pure di portate ed etichette derivate (`courses.ts`, documentato in [[courses]]).
 - **Scopo**: Costituire la **single source of truth** del modello dati dell'intera applicazione (`CLAUDE.md § Regole di architettura`). Nessun tipo di dominio viene ridefinito localmente nei moduli applicativi.
 
 ## Costanti Enum Chiuse
@@ -27,7 +28,8 @@ Ogni dominio controllato dispone di una costante `as const`, di uno schema Zod `
 | `CATEGORY_VALUES` | `['ortofrutta', 'pane', 'macelleria', 'pescheria', 'banco-frigo', 'dispensa', 'surgelati', 'bevande', 'altro']` | `CategorySchema` | `Category` |
 | `MEAL_TYPE_VALUES` | `['pranzo', 'cena']` | `MealTypeSchema` | `MealType` |
 | `DIET_FLAG_VALUES` | `['vegetariano', 'vegano', 'senza-glutine', 'senza-lattosio', 'pescetariano']` | `DietFlagSchema` | `DietFlag` |
-| `MEAL_STYLE_TAG_VALUES` | `['veloce', 'salutare', 'proteico', 'leggero', 'comfort-food', 'economico', 'piatto-unico']` | `MealStyleTagSchema` | `MealStyleTag` |
+| `MEAL_STYLE_TAG_VALUES` | `['veloce', 'salutare', 'proteico', 'leggero', 'comfort-food', 'economico', 'piatto-unico']`; dalla Feature 8 anche `'tradizionale', 'dal-mondo', 'pochi-ingredienti', 'in-anticipo', 'piatto-freddo'` in coda (12 valori) | `MealStyleTagSchema` | `MealStyleTag` |
+| `COURSE_VALUES` (Feature 8) | `['piatto-unico', 'primo', 'secondo', 'contorno']` | `CourseSchema` | `Course` |
 | `APPLIANCE_VALUES` | `['fornelli', 'forno', 'microonde', 'friggitrice-ad-aria', 'frullatore']` | `ApplianceSchema` | `Appliance` |
 | `PLAN_STATUS_VALUES` | `['draft', 'active', 'archived']` | `PlanStatusSchema` | `PlanStatus` |
 | `RECIPE_SOURCE_VALUES` | `['llm', 'manual']` | `RecipeSourceSchema` | `RecipeSource` |
@@ -42,7 +44,10 @@ Le etichette mostrate nell'interfaccia sono mappe `Record<Enum, string>` accanto
 | `DIET_FLAG_LABELS` | `DietFlag` | Feature 1 |
 | `APPLIANCE_LABELS` | `Appliance` | Feature 1 |
 | `MEAL_TYPE_LABELS` | `MealType` (`Pranzo`, `Cena`) | Feature 3 |
-| `MEAL_STYLE_TAG_LABELS` | `MealStyleTag` (`Veloce`, `Salutare`, `Proteico`, `Leggero`, `Comfort food`, `Economico`, `Piatto unico`) | Feature 3 |
+| `MEAL_STYLE_TAG_LABELS` | `MealStyleTag` (`Veloce`, `Salutare`, `Proteico`, `Leggero`, `Comfort food`, `Economico`, `Piatto unico`; dalla Feature 8 anche `Tradizionale`, `Dal mondo`, `Pochi ingredienti`, `Si prepara in anticipo`, `Piatto freddo`) | Feature 3 |
+| `COURSE_LABELS` | `Course` (`Piatto unico`, `Primo`, `Secondo`, `Contorno`) | Feature 8 |
+
+Accanto alle portate, `MAIN_COURSE_VALUES: readonly Course[] = ['piatto-unico', 'primo', 'secondo']` (Feature 8): le portate che da sole fanno un pasto, fino alla Feature 11 le sole ammesse nel piano ([[courses]]). Le etichette nuove compaiono da sole in Impostazioni, onboarding, filtro della Libreria e prompt, perché quei punti iterano `MEAL_STYLE_TAG_VALUES` ([[settings-fields]]).
 
 ### Limiti di `persons` (Feature 3)
 
@@ -70,6 +75,7 @@ Modella una ricetta memorizzata nella libreria permanente.
 - `description`: `z.string().default('')`
 - `steps`: `z.array(z.string()).min(1)` (passaggi ordinati)
 - `meal_types`: `z.array(MealTypeSchema).min(1)` (`pranzo`, `cena`)
+- `courses` (Feature 8): `z.array(CourseSchema).default([])`; vuoto = ricetta **non classificata**
 - `tags`: `z.array(MealStyleTagSchema).default([])`
 - `diet_flags`: `z.array(DietFlagSchema).default([])`
 - `appliances_required`: `z.array(ApplianceSchema).default([])`
@@ -132,6 +138,7 @@ I provider LLM con supporto a structured output (come Gemini o OpenAI) richiedon
   - `title`: `z.string().min(3).max(120)`
   - `description`: `z.string()`
   - `meal_types`: `z.array(MealTypeSchema).min(1)`
+  - `courses` (Feature 8): `z.array(CourseSchema).min(1)`, senza `.optional()`: ogni ricetta generata arriva con almeno una portata. `FixtureRecipeSchema` e `SavedRecipeInputSchema` ne derivano
   - `tags`: `z.array(MealStyleTagSchema)`
   - `diet_flags`: `z.array(DietFlagSchema)`
   - `appliances_required`: `z.array(ApplianceSchema)`
@@ -143,7 +150,7 @@ I provider LLM con supporto a structured output (come Gemini o OpenAI) richiedon
 - **`GenerateRecipesOutputSchema`**: radice dell'output strutturato contenente l'array `recipes: z.array(GeneratedRecipeSchema).min(1)`.
 
 ### 2. Vincoli e Sovrascritture
-- **`RecipeConstraintsSchema`**: parametri consolidati passati all'adapter LLM (`persons` in `[PERSONS_MIN, PERSONS_MAX]`, `meal_type: MealType | null`, `diet_tags`, `meal_style_tags`, `appliances`, `ingredient_likes`, `ingredient_dislikes`). Lo schema non è cambiato nella Feature 5, ma le due liste di ingredienti, vuote fino alla Feature 4, contengono ora i nomi canonici normalizzati letti da `ingredient_prefs` ([[recipe-generation]]).
+- **`RecipeConstraintsSchema`**: parametri consolidati passati all'adapter LLM (`persons` in `[PERSONS_MIN, PERSONS_MAX]`, `meal_type: MealType | null`, `diet_tags`, `meal_style_tags`, `appliances`, `ingredient_likes`, `ingredient_dislikes`). Lo schema non è cambiato nella Feature 5, ma le due liste di ingredienti, vuote fino alla Feature 4, contengono ora i nomi canonici normalizzati letti da `ingredient_prefs` ([[recipe-generation]]). **Dalla Feature 8** ha anche `courses: z.array(CourseSchema).min(1).nullable()`: `null` = qualsiasi portata, altrimenti un elenco **mai vuoto** delle portate ammesse (il `.min(1)` è un fix della code review). Lo riempie l'ultimo parametro di `buildConstraints`.
 - **`ConstraintOverridesSchema`**: modifiche temporanee strict e parziali consentite nella richiesta (`persons` in `[PERSONS_MIN, PERSONS_MAX]`, `diet_tags`, `meal_style_tags`, `appliances`).
 
 ### 3. Contratti API HTTP e Scarti
@@ -265,6 +272,33 @@ Sezione `// Recipe Requests & Manual Slot Choice (Feature 9)` in coda a `types.t
 
 I tre schemi di risposta sono `.strict()` e `requestJson` rifiuta ciò che non li rispetta: i test di servizio fissano il confine con `Schema.parse(JSON.parse(JSON.stringify(…)))` (innesto R6 della review architetturale). Le interfacce di funzione (`ProposeRecipeInput`, `SaveProposedRecipeInput`, `RecipeProposalInput`) e le props dei componenti vivono nei rispettivi moduli.
 
+## Portate e Classificazione (Feature 8)
+
+La Feature 8 aggiunge il campo `courses` a schemi esistenti, senza toccarne gli altri campi:
+
+| Schema | Campo |
+|---|---|
+| `RecipeSchema` | `courses: Course[]`, default `[]` (non classificata) |
+| `GeneratedRecipeSchema` (e quindi `FixtureRecipeSchema`, `RecipeProposalSchema.recipe`) | `courses: Course[]`, almeno uno |
+| `SavedRecipeInputSchema` | `courses`: da 1 a `SAVED_RECIPE_COURSES_MAX` = 4 (una per portata) |
+| `RecipeConstraintsSchema` | `courses: Course[] \| null`, mai vuoto |
+| `LibraryFilterSchema`, `EMPTY_LIBRARY_FILTER` | `courses: Course[]`, default `[]`; il commento dello schema dice che dentro `courses` basta una portata (OR), gli altri criteri restano in AND |
+| `LibraryRecipeCardSchema` | `courses: Course[]` |
+
+Il nuovo campo obbligatorio dei tipi di uscita ha richiesto di ritoccare i letterali di decine di file di test. Per i test nuovi c'è ora `tests/helpers/recipes.ts` con `makeRecipe`, `makeGeneratedRecipe` (portata `['secondo']`) e `makeLibraryCard`, tutte validate con il proprio schema (innesto R1 della review architetturale della Feature 8).
+
+Sezione `// Recipe Classification (Feature 8)` in coda a `types.ts`, usata da [[llm-adapter]] e [[recipe-classification]]:
+
+| Schema / Tipo | Forma | Uso |
+|---|---|---|
+| `CLASSIFY_BATCH_SIZE = 10` | — | Ricette per chiamata di classificazione: tetto di `classifyRecipes` e lotto di `classifyPendingRecipes`. Sta qui, accanto agli schemi, come `GENERATE_COUNT_MAX` (requirements P3) |
+| `CLASSIFIED_STYLE_TAG_VALUES`, `ClassifiedStyleTagSchema` / `ClassifiedStyleTag` | `['tradizionale', 'dal-mondo', 'in-anticipo', 'piatto-freddo']` (`satisfies readonly MealStyleTag[]`) | Le sole etichette che assegna il modello nella classificazione; `pochi-ingredienti` e `piatto-unico` vengono dalle regole |
+| `ClassifyRecipeItemSchema` / `ClassifyRecipeItem` | `{ ref, title, description, meal_types, tags, ingredient_names }` | Una ricetta come la riceve il modello; `ref` è `r1`…`r10`. Si usa solo come tipo, ma resta uno schema per la regola della fonte unica (review R6) |
+| `RecipeClassificationSchema` / `RecipeClassification` | `{ ref: string, courses: Course[], style_tags: ClassifiedStyleTag[] }` | Una riga dell'output LLM. `courses` **senza** `.min(1)`: una riga vuota si scarta senza invalidare il lotto (requirements P9) |
+| `ClassifyRecipesOutputSchema` / `ClassifyRecipesOutput` | `{ recipes: RecipeClassification[] }` | Radice dell'output strutturato della classificazione |
+
+Attenzione per chi tocca gli elenchi chiusi: le letture dal DB (`toRecipeWithDetails`, `HouseholdSchema.parse`) rifiutano i valori sconosciuti. Aggiungere valori rompe le versioni precedenti che rileggono i dati (da qui la regola di `docs/DEPLOY.md §6` sul ritorno indietro); togliere un valore, come farà la Feature 11 con l'etichetta `piatto-unico`, richiede nello stesso rilascio una migrazione che lo tolga dai dati (review P2 e R3 della Feature 8).
+
 ## Funzioni Pure di Normalizzazione Testo (`recipe-text.ts`)
 
 Il modulo `lib/domain/recipe-text.ts` fornisce funzioni pure senza effetti collaterali:
@@ -300,6 +334,7 @@ Sanitizza una ricetta prodotta dall'LLM ritornando un nuovo oggetto (immutabilit
 - Pulisce e collassa gli spazi bianchi in titolo e descrizione.
 - Rimuove passi vuoti e ne effettua il trim.
 - Deduplica array di `meal_types`, `tags` e `appliances_required`.
+- Dalla Feature 8 normalizza `courses` con `normalizeCourses` (niente doppioni, ordine di `COURSE_VALUES`, v. [[courses]]). Le regole derivate sulle etichette **non** si applicano qui ma in scrittura, così l'output dell'adapter non cambia.
 - Espande i flag dietetici con `expandDietFlags`.
 - Normalizza ciascun ingrediente: applica `normalizeCanonicalName`, effettua il trim di display name e note (convertendo stringhe vuote in `null`), e garantisce la coerenza tra `qty` e `unit`:
   - Se `unit === 'qb'`, forza `qty = null`.
@@ -348,3 +383,6 @@ Questi valori sono quelli con cui il wizard di primo avvio si presenta precompil
 - [[e6-deploy]] — Panoramica della Feature 7 (alias unici nel file delle fixture)
 - [[recipe-proposal-service]] — Uso dei contratti di proposta e salvataggio (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[courses]] — Regole pure di portate ed etichette derivate in `lib/domain/courses.ts` (Feature 8)
+- [[recipe-classification]] — Uso dei contratti di classificazione (Feature 8)
+- [[f8-portate-etichette]] — Panoramica della Feature 8

@@ -198,3 +198,27 @@ describe('MealCard (pick action "Scegli")', () => {
     expect(screen.queryByRole('button', { name: /^Scegli/ })).toBeNull();
   });
 });
+
+describe('MealCard (course badge)', () => {
+  it('shows the course right after the time badge and before the style tags', () => {
+    render(
+      <MealCard {...base} prepTimeMinutes={20} course="Secondo · Contorno" tags={['Veloce']} />
+    );
+    const time = screen.getByText('20 min');
+    const course = screen.getByText('Secondo · Contorno');
+    const tag = screen.getByText('Veloce');
+    expect(time.compareDocumentPosition(course) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(course.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows the course alone when there is no prep time and no tag', () => {
+    render(<MealCard {...base} course="Primo" />);
+    expect(screen.getByText('Primo')).toBeInTheDocument();
+  });
+
+  it('shows no course text without a course', () => {
+    render(<MealCard {...base} prepTimeMinutes={20} tags={['Veloce']} />);
+    expect(screen.queryByText(/Primo|Secondo|Contorno|Piatto unico/)).toBeNull();
+    expect(screen.getByText('20 min')).toBeInTheDocument();
+  });
+});

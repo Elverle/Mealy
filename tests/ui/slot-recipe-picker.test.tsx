@@ -17,6 +17,7 @@ import type {
   RecipePref,
   SlotCandidates,
 } from "@/lib/domain/types";
+import { COURSE_LABELS } from "@/lib/domain/types";
 import { ApiRequestError } from "@/lib/http/client";
 
 vi.mock("@/lib/plans/client", async (importOriginal) => {
@@ -80,6 +81,7 @@ const LASAGNE: GeneratedRecipe = {
   title: "Lasagne al pesto",
   description: "Verdi e cremose",
   meal_types: ["pranzo", "cena"],
+  courses: ["primo"],
   tags: [],
   diet_flags: [],
   appliances_required: [],
@@ -151,8 +153,11 @@ function escapeRegExp(value: string): string {
 }
 
 /** Nome accessibile di una card: `^\d+ min <titolo>`. */
+// Tra il tempo e il titolo può esserci solo il badge di portata (Feature 8, WP4): una o più
+// etichette di COURSE_LABELS separate da " · ".
 function cardRegex(title: string): RegExp {
-  return new RegExp(`^\\d+ min ${escapeRegExp(title)}`);
+  const course = `(?:${Object.values(COURSE_LABELS).map(escapeRegExp).join("|")})`;
+  return new RegExp(`^\\d+ min (?:${course}(?: · ${course})* )?${escapeRegExp(title)}`);
 }
 
 function queryCard(title: string): HTMLElement | null {

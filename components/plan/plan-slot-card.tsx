@@ -12,6 +12,7 @@ import { SlotRecipePicker } from "@/components/plan/slot-recipe-picker";
 import { type RecipePrefChanges } from "@/components/recipes/recipe-detail-sheet";
 import { Button } from "@/components/ui/button";
 import { recipeChips } from "@/components/sheets/recipe-detail";
+import { courseLabel } from "@/lib/domain/courses";
 import {
   MEAL_TYPE_LABELS,
   SWAP_EXCLUDE_MAX,
@@ -214,6 +215,7 @@ export function PlanSlotCard({
           mealType={MEAL_TYPE_LABELS[slot.meal]}
           title={slot.recipe?.title ?? MISSING_RECIPE_TITLE}
           prepTimeMinutes={slot.recipe?.prep_minutes}
+          course={slot.recipe ? courseLabel(slot.recipe.courses) ?? undefined : undefined}
           tags={slot.recipe ? recipeChips(slot.recipe) : []}
           isLocked={slot.locked}
           isFavorite={slot.recipe?.prefs?.favorite ?? false}

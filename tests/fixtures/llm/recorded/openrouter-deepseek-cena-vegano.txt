@@ -3,7 +3,7 @@
     {
       "title": "Spaghetti al pomodoro e basilico",
       "description": "Un classico primo piatto vegano, veloce e saporito, perfetto per una cena semplice e gustosa.",
-      "meal_types": ["cena"],
+      "meal_types": ["cena"],"courses": ["primo"],
       "tags": ["veloce", "economico", "comfort-food"],
       "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
       "appliances_required": ["fornelli"],
@@ -72,7 +72,7 @@
     {
       "title": "Tofu e verdure croccanti in friggitrice ad aria con riso basmati",
       "description": "Un piatto unico vegano ricco di proteine, con verdure croccanti cotte in friggitrice ad aria e riso basmati.",
-      "meal_types": ["cena"],
+      "meal_types": ["cena"],"courses": ["secondo"],
       "tags": ["proteico", "salutare", "veloce"],
       "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio", "senza-glutine"],
       "appliances_required": ["fornelli", "friggitrice-ad-aria"],
@@ -148,7 +148,7 @@
     {
       "title": "Polpette di lenticchie al sugo",
       "description": "Polpette vegane di lenticchie, morbide e saporite, cotte in un ricco sugo di pomodoro. Un comfort food economico e proteico.",
-      "meal_types": ["cena"],
+      "meal_types": ["cena"],"courses": ["secondo"],
       "tags": ["proteico", "comfort-food", "economico"],
       "diet_flags": ["vegano", "vegetariano", "pescetariano", "senza-lattosio"],
       "appliances_required": ["fornelli"],

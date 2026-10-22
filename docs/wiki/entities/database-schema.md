@@ -2,8 +2,8 @@
 title: Schema del Database Relazionale Drizzle (db/schema)
 type: entity
 created: 2026-09-15
-updated: 2026-10-11
-tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans, ingredient-prefs, shopping-list]
+updated: 2026-10-21
+tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans, ingredient-prefs, shopping-list, courses]
 ---
 
 ## File e Responsabilità
@@ -70,7 +70,8 @@ Libreria permanente delle ricette.
   - `description`: `text` not null default `''`
   - `steps`: `jsonb` array di stringhe
   - `meal_types`: `text[]` array not null
-  - `tags`: `text[]` array default `[]`
+  - `courses`: `text[]` not null default `ARRAY[]::text[]` (Feature 8, migrazione `0005`) — portate della ricetta tra `piatto-unico`, `primo`, `secondo`, `contorno`; vuoto = ricetta **non classificata** ([[courses]]). Nessun indice: il filtro della Libreria lavora in memoria. Le ricette senza portata si trovano con `cardinality(courses) = 0` ([[recipe-repo]])
+  - `tags`: `text[]` array default `[]` — dalla Feature 8 dodici valori possibili, tra cui `pochi-ingredienti`, calcolato per regola
   - `diet_flags`: `text[]` array default `[]`
   - `appliances_required`: `text[]` array default `[]`
   - `servings_base`: `integer` not null
@@ -199,6 +200,7 @@ File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e 
 | `0002` | `0002_add_household_onboarded_at` | Solo `ALTER TABLE "households" ADD COLUMN "onboarded_at" timestamp with time zone;` (Feature 3). Le righe esistenti ricevono `null`. |
 | `0003` | `0003_add_plan_generation_tracking` | Due `ALTER TABLE … ADD COLUMN` (Feature 4): `meal_plans.generated_at timestamp with time zone DEFAULT now() NOT NULL` e `shopping_lists.needs_regeneration boolean DEFAULT false NOT NULL`. Additiva: i piani esistenti ricevono `generated_at` = istante della migrazione. |
 | `0004` | `0004_add_ingredient_prefs` | `CREATE TABLE "ingredient_prefs"` con le 4 colonne e la chiave primaria `("household_id","canonical_name")`, più la chiave esterna verso `households` con `ON DELETE cascade` (Feature 5). Additiva: nessuna modifica alle altre tabelle. |
+| `0005` | `0005_add_recipe_courses` | Colonna `recipes.courses` e `UPDATE` della regola "pochi ingredienti" sulle etichette esistenti (Feature 8; dettagli più sotto). La prima migrazione che cambia dati oltre allo schema |
 
 La Feature 6 (lista della spesa) **non aggiunge migrazioni**: usa `shopping_lists` e `shopping_items` così come sono dalla migrazione `0000`, con la colonna `needs_regeneration` della `0003` (requirements P2 della Feature 6).
 
@@ -206,6 +208,17 @@ La Feature 7 (deploy) **non aggiunge migrazioni** e non tocca `lib/db/schema.ts`
 - la cartella `lib/db/migrations/` viene copiata nell'immagine di produzione ([[production-stack]]) e la migrazione nuova si applica da sola al deploy successivo;
 - **una migrazione già arrivata su `main` non si modifica**: il migratore applica solo le voci del journal con un orario (`when`) successivo all'ultima applicata, e non si accorge di un file cambiato. `tests/db/bootstrap.test.ts` controlla che le voci del journal siano in ordine strettamente crescente e corrispondano una a una ai file `.sql`;
 - una migrazione non torna indietro: prima di avviare un'immagine diversa `scripts/deploy.sh` scrive un dump `predeploy` ([[deploy-scripts]]).
+
+### `0005_add_recipe_courses` (Feature 8)
+
+Due istruzioni:
+
+1. `ALTER TABLE "recipes" ADD COLUMN "courses" text[] DEFAULT ARRAY[]::text[] NOT NULL`: tutte le ricette esistenti diventano non classificate. Le classifica poi il modello, all'avvio dell'app in produzione ([[recipe-classification]]).
+2. Un `UPDATE` di `recipes.tags` che applica alle ricette esistenti la regola "pochi ingredienti": aggiunge `pochi-ingredienti` in coda (`array_append`, se manca) alle ricette con al massimo 6 righe di `recipe_ingredients` con `unit <> 'qb'`, e lo toglie (`array_remove`) alle altre. Nessun'altra etichetta cambia. In SQL l'etichetta va in coda e non nell'ordine di `MEAL_STYLE_TAG_VALUES` che usa `deriveStyleTags`: l'ordine nel DB non ha effetti, e la classificazione riscrive comunque le etichette in ordine (requirements P6 della Feature 8).
+
+È idempotente rispetto alla regola: ripetere l'`UPDATE` non cambia nulla. `tests/db/recipe-courses-migration.test.ts` la prova su un database usa-e-getta migrato fino alla `0004` (journal filtrato a `idx < 5`, come in `tests/db/bootstrap.test.ts`): colonna non nulla e vuota per ogni ricetta, `pochi-ingredienti` secondo la regola, nessun'altra etichetta toccata, seconda esecuzione senza effetti.
+
+**Non si torna indietro senza il dump**: dopo questa migrazione, e dopo la classificazione, le ricette contengono etichette e portate che le versioni precedenti alla 0.8 non conoscono. La loro lettura con lo schema Zod fallirebbe e la Libreria non si aprirebbe. `docs/DEPLOY.md §6` chiede di ripristinare sempre il dump `predeploy` (innesto R3 della review architetturale della Feature 8).
 
 Nel journal il `when` della migrazione `0000` è `1700000000000`, un valore scritto a mano (osservazione della review architetturale della Feature 7): l'ordine attuale è comunque crescente e il test lo conferma.
 
@@ -225,3 +238,5 @@ Nel journal il `when` della migrazione `0000` è `1700000000000`, un valore scri
 - [[e4-lista-spesa]] — Panoramica della Feature 6
 - [[db-bootstrap]] — Migrazioni e alias applicati all'avvio in produzione (Feature 7)
 - [[e6-deploy]] — Panoramica della Feature 7
+- [[courses]] — Significato di `recipes.courses` e regole derivate (Feature 8)
+- [[f8-portate-etichette]] — Panoramica della Feature 8

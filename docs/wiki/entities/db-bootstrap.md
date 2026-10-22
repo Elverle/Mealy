@@ -2,8 +2,8 @@
 title: Bootstrap del Database all'Avvio — register e runDbBootstrap (db-bootstrap)
 type: entity
 created: 2026-10-11
-updated: 2026-10-11
-tags: [database, bootstrap, migrations, drizzle, instrumentation, startup, aliases, production, deploy, feature-7]
+updated: 2026-10-21
+tags: [database, bootstrap, migrations, drizzle, instrumentation, startup, aliases, production, deploy, classification, feature-7, feature-8]
 ---
 
 ## File e Responsabilità
@@ -34,6 +34,12 @@ Esito:
 - fallito: `console.error('[bootstrap] avvio interrotto: migrazioni o alias non applicati', err)` e poi `process.exit(1)`. Il container esce, `restart: unless-stopped` lo fa ripartire e `deploy.sh` vede uno stack che non diventa sano.
 
 Finché `register()` non ha finito, il server non risponde: le richieste restano in attesa. È stato verificato sul prototipo di planning (requirements §5) ed è ciò che la spec chiede (migrazioni applicate prima di accettare traffico).
+
+### Classificazione in background (Feature 8)
+
+Dopo un bootstrap riuscito, e dopo la riga `[bootstrap] …`, `register()` importa in modo dinamico `./lib/recipes/classify` e lancia `classifyPendingRecipes()` **senza aspettarla** (`void … .catch(…)`). L'attesa delle richieste resta legata al solo bootstrap: la classificazione non allunga la partenza né la prima risposta. Un suo errore, anche nell'import, scrive `[classify] classificazione interrotta` con l'errore e non chiama `process.exit`. Se il bootstrap fallisce, la classificazione non parte. Le righe `[classify]` e il resto del comportamento sono in [[recipe-classification]].
+
+Da qui l'hook di avvio carica anche `@/lib/db`, il pool delle rotte. Il bootstrap continua a usare la sua connessione e a chiuderla (v. sotto); la classificazione usa invece il pool dell'app, che dalla Feature 8 è un singleton per processo anche in produzione ([[database-architecture]]).
 
 ## `runDbBootstrap` (`lib/db/bootstrap.ts`)
 
@@ -101,7 +107,7 @@ Con `docker compose up` il servizio `app` parte dopo che `db` è sano (`depends_
 
 ## Test
 
-- `tests/instrumentation.test.ts` (`runDbBootstrap` mockato): nessuna chiamata fuori dal runtime `nodejs`; nessuna chiamata con `DB_BOOTSTRAP_ON_START` uguale a `''`, `'false'`, `'1'`, `'TRUE'`; con le due condizioni vere una sola chiamata, senza argomenti, e la riga di log con il conteggio; in caso d'errore il log con l'errore originale e `process.exit(1)`.
+- `tests/instrumentation.test.ts` (`runDbBootstrap` mockato): nessuna chiamata fuori dal runtime `nodejs`; nessuna chiamata con `DB_BOOTSTRAP_ON_START` uguale a `''`, `'false'`, `'1'`, `'TRUE'`; con le due condizioni vere una sola chiamata, senza argomenti, e la riga di log con il conteggio; in caso d'errore il log con l'errore originale e `process.exit(1)`. Dalla Feature 8 anche `classifyPendingRecipes` è mockato: una sola classificazione dopo un bootstrap riuscito, avvio che non la aspetta, errore scritto nel log senza uscire, nessuna classificazione se il bootstrap fallisce o fuori dal bootstrap di produzione.
 - `tests/db/bootstrap.test.ts`:
   - **journal** (senza database): `idx` consecutivi, `when` strettamente crescente, e corrispondenza nei due sensi tra le voci e i file `.sql` della cartella (un file assente dal journal non verrebbe mai applicato);
   - **database irraggiungibile** (`127.0.0.1:1`): con `attempts: 2` rinuncia e rilancia, con una sola riga di log; con `attempts: 8, delayMs: 10` finisce in meno di 10 s, cosa che con l'attesa crescente di postgres-js non accadrebbe;
@@ -118,4 +124,5 @@ Non coperto da test: l'attesa delle richieste durante il bootstrap (verificata s
 - [[deploy-scripts]] — `deploy.sh` (dump prima delle migrazioni) e `smoke-prod.sh` (bootstrap idempotente)
 - [[health-check]] — Cosa vede il controllo di salute dopo il bootstrap
 - [[database-architecture]] — Flusso delle migrazioni in sviluppo e in produzione
-- [[database-schema]] — Migrazioni `0000`–`0004`
+- [[database-schema]] — Migrazioni `0000`–`0005`
+- [[recipe-classification]] — Classificazione lanciata dopo il bootstrap (Feature 8)

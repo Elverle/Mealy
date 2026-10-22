@@ -2,8 +2,8 @@
 title: Pannello Dettaglio Ricetta (recipe-sheet)
 type: entity
 created: 2026-09-15
-updated: 2026-10-14
-tags: [ui, components, recipe-sheet, sheet, drawer, ingredients, preferences, recipe-detail, alertdialog, accessibility, proposal]
+updated: 2026-10-21
+tags: [ui, components, recipe-sheet, sheet, drawer, ingredients, preferences, recipe-detail, alertdialog, accessibility, proposal, courses]
 ---
 
 ## File e Responsabilità
@@ -35,6 +35,7 @@ export interface RecipeDetail {
   description?: string;
   prepTimeMinutes: number;
   servings: number;
+  course?: string;   // Feature 8: portate già formattate (courseLabel); assente se non classificata
   tags?: string[];
   ingredients: RecipeIngredient[];
   steps: string[];
@@ -110,6 +111,9 @@ Con `recipe: null` e `isLoading` la sheet si apre comunque, con il titolo `Apro 
 - Le altezze massime del pannello passano da `max-h-[92vh]` a `max-h-[92dvh]` nei due rami (innesto R3 della review architetturale della Feature 9): sul telefono `vh` non è l'area visibile e titolo e ✕ potevano finire sotto le barre del browser.
 - **Dalla revisione UI del 14 ottobre 2026**: il pannello è **sempre** `h-[92dvh]`, anche nell'attesa e nell'errore (prima l'attesa era alta quanto il contenuto, circa 340 px nella parte bassa dello schermo, e all'arrivo della ricetta scattava a tutta altezza). L'intestazione fissa contiene solo il titolo e, se passata, la riga `subtitle` (la proposta ci mette «Hai chiesto «…»»); badge, descrizione, avviso, porzioni, ingredienti, passi e barra azioni stanno in `SheetBody`. «Ingredienti» e «Preparazione» sono `h3` (erano `h4`, un livello saltato sotto il titolo `h2`); una quantità vuota si scrive «(qb)» senza spazio.
 
+### 7. Badge di portata (Feature 8)
+Con `recipe.course` la riga dei badge, nel corpo della sheet, mostra un `Badge` `basil-subtle` subito dopo quello del tempo e prima delle etichette di stile (decisione U1 della Feature 8). Vale per il dettaglio di una ricetta in libreria e per la proposta, perché entrambi passano da qui. La portata è in sola lettura: non si corregge dall'app (spec D8). Senza `course` (ricetta non classificata) il badge non c'è.
+
 ## Conversione dal Dominio (`recipe-detail.ts`, Feature 4)
 
 ```ts
@@ -129,6 +133,10 @@ export function toRecipeDetail(
 - **`proposalToRecipeDetail(recipe: GeneratedRecipe, servings)`** (Feature 9): vista di una ricetta **proposta** e non ancora in libreria (requirements P16). Nessun giudizio (`isFavorite` e `isBlocked` `false`, nessun voto, ingredienti senza preferenza); `id` = `proposal:<titolo>` e id degli ingredienti `proposal:<titolo>:<indice>`, così una nuova proposta (*Un'altra*) cambia id e riallinea le porzioni; chip con `recipeChips`; quantità scalate da `servings_base` a `servings` con la stessa funzione privata `scaledAmount` di `toRecipeDetail` (a un decimale, `0` con `qty` nullo), estratta dalla Feature 9 senza cambiare il risultato.
 - **Terzo parametro `ingredientInfo`** (Feature 5): mappa nome canonico → `RecipeIngredientInfo`. **Solo se è passata**, ogni ingrediente riceve anche `canonicalName` (`normalizeCanonicalName(ing.canonical_name)`), `preference` (`like` → `'liked'`, `dislike` → `'disliked'`, altrimenti `null`) e `recipesCount`; la ricerca nella mappa usa il nome normalizzato. Senza la mappa l'oggetto prodotto è identico a quello della Feature 4, senza chiavi in più.
 
+**Dalla Feature 8**:
+- `recipeChips(recipe: Pick<Recipe, 'tags' | 'diet_flags' | 'courses'>)`: il parametro chiede anche `courses`. Su una ricetta **classificata** l'etichetta di stile `piatto-unico` si toglie prima di prendere le due etichette, perché lo dice già il badge di portata (decisione U2); su una non classificata resta. Cambia solo la vista: i dati non si toccano. Lo stesso vale per le card del Piano e della Libreria, che usano questa funzione.
+- `toRecipeDetail` e `proposalToRecipeDetail` valorizzano `course = courseLabel(recipe.courses) ?? undefined` ([[courses]]): portate in ordine canonico unite da `" · "`, nessun campo su una ricetta non classificata.
+
 Il piano originale le metteva in `lib/plans/format.ts`; la proposta R6 della review architetturale le ha spostate qui, accanto al tipo `RecipeDetail` che producono, così la Libreria (Feature 5) le riusa senza dipendere dal modulo dei piani e `lib/` non importa da `components/`.
 
 ## Test
@@ -137,6 +145,7 @@ Il piano originale le metteva in `lib/plans/format.ts`; la proposta R6 della rev
 - `tests/ui/recipe-sheet.test.tsx` (Feature 5): scheletro di caricamento, i quattro testi della conferma, titolo con e senza nome canonico, `alertdialog` con focus su *Annulla* e ritorno al 👎, porzioni conservate quando cambia solo l'oggetto e azzerate quando cambia l'id, stati disabilitati, `aria-pressed` su voto e *Preferita*.
 - `tests/ui/recipe-detail.test.ts`: chip, quantità scalate, e dalla Feature 5 `ingredientRowId`, `findRecipeIngredient` e `toRecipeDetail` con e senza la mappa; dalla Feature 9 `proposalToRecipeDetail` (id dal titolo, quantità scalate, `0` con `qty` nullo, stessi chip, nessun giudizio, id sintetici degli ingredienti, id che cambia con il titolo).
 - Dalla Feature 9 `tests/ui/recipe-sheet.test.tsx` ha anche il blocco su `placeholder`, `notice` e `footer` (segnaposto al posto dello scheletro, anche senza `isLoading`; posizione di avviso e footer; nessuna area senza `footer`; footer visibile con una ricetta senza handler).
+- Dalla Feature 8: `tests/ui/recipe-sheet.test.tsx` (badge di portata dopo il tempo e prima delle etichette, nessun badge senza `course`) e `tests/ui/recipe-detail.test.ts` (`recipeChips` accetta un oggetto con soli `tags`, `diet_flags` e `courses`; *Piatto unico* tolto dai chip di una classificata e conservato su una non classificata; `course` in ordine canonico o assente, per una ricetta e per una proposta).
 
 Il primitivo `components/ui/sheet.tsx` chiude con `Esc`, blocca lo scorrimento del `body` e, dalla revisione UI del 14 ottobre 2026, gestisce il focus (entra nel pannello, Tab confinato, ritorno alla chiusura) e dà al dialog il nome del titolo ([[sheet-primitive]]). Su una ricetta lunga la posizione di scorrimento della conferma di scarto non è stata verificata su un dispositivo reale. Dalla Feature 9 la primitiva tiene una pila delle sheet aperte (Esc chiude solo quella in cima, lo scorrimento torna a pila vuota).
 
@@ -154,3 +163,5 @@ Il primitivo `components/ui/sheet.tsx` chiude con `Esc`, blocca lo scorrimento d
 - [[recipe-proposal-sheet]] — Sheet di proposta costruita su `placeholder`, `notice` e `footer` (Feature 9)
 - [[sheet-primitive]] — Primitiva `Sheet` e pila delle sheet aperte
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[courses]] — `courseLabel` per il badge di portata (Feature 8)
+- [[f8-portate-etichette]] — Panoramica della Feature 8

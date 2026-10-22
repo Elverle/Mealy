@@ -1,0 +1,91 @@
+{
+  "recipes": [
+    {
+      "title": "Zucchine trifolate",
+      "description": "Classico contorno italiano di zucchine saltate in padella con aglio, prezzemolo e olio extravergine d'oliva. Un piatto semplice, leggero e perfetto per accompagnare secondi di carne o pesce.",
+      "meal_types": [
+        "pranzo",
+        "cena"
+      ],
+      "courses": [
+        "contorno"
+      ],
+      "tags": [
+        "veloce",
+        "salutare",
+        "leggero",
+        "tradizionale"
+      ],
+      "diet_flags": [
+        "vegetariano",
+        "vegano",
+        "senza-glutine",
+        "senza-lattosio",
+        "pescetariano"
+      ],
+      "appliances_required": [
+        "fornelli"
+      ],
+      "servings_base": 2,
+      "prep_minutes": 20,
+      "kcal_est": 120,
+      "steps": [
+        "Lava le zucchine e tagliale a rondelle sottili o a tocchetti regolari.",
+        "In una padella capiente scalda l'olio extravergine d'oliva con lo spicchio d'aglio intero schiacciato.",
+        "Aggiungi le zucchine e falle rosolare a fiamma vivace per circa 5 minuti mescolando spesso.",
+        "Abbassa la fiamma, aggiungi sale e pepe, copri con un coperchio e prosegui la cottura per altri 10 minuti finché saranno tenere ma non sfatte.",
+        "Togli l'aglio, spolvera con abbondante prezzemolo fresco tritato e servi caldo o tiepido."
+      ],
+      "ingredients": [
+        {
+          "canonical_name": "zucchina",
+          "display_name": "zucchine medie",
+          "qty": 400,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "aglio",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "uno spicchio"
+        },
+        {
+          "canonical_name": "olio extravergine d'oliva",
+          "display_name": "olio extravergine d'oliva",
+          "qty": 20,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": "circa 2 cucchiai"
+        },
+        {
+          "canonical_name": "prezzemolo",
+          "display_name": "prezzemolo fresco",
+          "qty": null,
+          "unit": "qb",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe",
+          "display_name": "pepe nero",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 import {
   AppliancesField,
@@ -161,6 +161,21 @@ describe("MealStyleField", () => {
       "aria-checked",
       "false"
     );
+  });
+
+  it("shows the twelve style chips, including the new ones", () => {
+    render(<MealStyleField value={[]} onChange={vi.fn()} />);
+
+    const chips = within(screen.getByRole("group", { name: "Tipo di pasti" })).getAllByRole("checkbox");
+    expect(chips).toHaveLength(12);
+    expect(screen.getByRole("checkbox", { name: "Si prepara in anticipo" })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+    expect(screen.getByRole("checkbox", { name: "Piatto freddo" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Tradizionale" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Dal mondo" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Pochi ingredienti" })).toBeInTheDocument();
   });
 });
 

@@ -2,7 +2,7 @@
  {
   "title":"Pasta al Pomodoro!",
   "description":"Un grande classico della tradizione italiana.",
-  "meal_types":["cena"],
+  "meal_types":["cena"],"courses":["primo"],
   "tags":[],
   "diet_flags":[],
   "appliances_required":["fornelli"],
@@ -18,7 +18,7 @@
  {
   "title":"Pasta al pomodoro fresco",
   "description":"Pasta veloce con pomodorini freschi e basilico.",
-  "meal_types":["cena"],
+  "meal_types":["cena"],"courses":["primo"],
   "tags":[],
   "diet_flags":[],
   "appliances_required":["fornelli"],
@@ -34,7 +34,7 @@
  {
   "title":"Lasagne vegetali al forno",
   "description":"Piatto ricco a strati con verdure di stagione.",
-  "meal_types":["cena"],
+  "meal_types":["cena"],"courses":["primo"],
   "tags":[],
   "diet_flags":[],
   "appliances_required":["forno"],
@@ -50,7 +50,7 @@
  {
   "title":"Ceci croccanti in friggitrice ad aria",
   "description":"Uno snack speziato o contorno proteico e croccante.",
-  "meal_types":["cena"],
+  "meal_types":["cena"],"courses":["secondo"],
   "tags":[],
   "diet_flags":[],
   "appliances_required":["friggitrice-ad-aria"],
@@ -67,7 +67,7 @@
  {
   "title":"ceci croccanti in friggitrice ad aria",
   "description":"Seconda variante di ceci sfiziosi cotti in friggitrice ad aria.",
-  "meal_types":["cena"],
+  "meal_types":["cena"],"courses":["secondo"],
   "tags":[],
   "diet_flags":[],
   "appliances_required":["friggitrice-ad-aria"],

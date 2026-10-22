@@ -149,6 +149,23 @@ describe("RecipeSheet dislike confirmation accessibility", () => {
   });
 });
 
+describe("RecipeSheet course badge", () => {
+  it("shows the course right after the time badge and before the style tags", () => {
+    renderSheet({ recipe: makeRecipe({ course: "Primo", tags: ["Veloce"] }) });
+    const time = screen.getByText("20 min");
+    const course = screen.getByText("Primo");
+    const tag = screen.getByText("Veloce");
+    expect(time.compareDocumentPosition(course) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(course.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows no course badge without a course", () => {
+    renderSheet({ recipe: makeRecipe({ tags: ["Veloce"] }) });
+    expect(screen.queryByText(/Primo|Secondo|Contorno|Piatto unico/)).toBeNull();
+    expect(screen.getByText("Veloce")).toBeInTheDocument();
+  });
+});
+
 describe("RecipeSheet servings sync", () => {
   it("keeps the chosen servings when the recipe object changes but id and servings do not", () => {
     const { rerenderWith } = renderSheet();

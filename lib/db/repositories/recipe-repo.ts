@@ -1,4 +1,5 @@
-import { and, arrayContains, desc, eq, sql } from 'drizzle-orm';
+import { and, arrayContains, asc, desc, eq, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { db, type DbExecutor } from '../index';
 import {
   recipe_ingredients,
@@ -8,17 +9,21 @@ import {
 import {
   Appliance,
   Category,
+  Course,
   DietFlag,
   Ingredient,
   IngredientSchema,
   MealStyleTag,
+  MealStyleTagSchema,
   MealType,
+  MealTypeSchema,
   Recipe,
   RecipePref,
   RecipePrefSchema,
   RecipeSchema,
   RecipeSource,
   Unit,
+  UnitSchema,
 } from '@/lib/domain/types';
 
 export type { DbExecutor } from '../index';
@@ -33,6 +38,7 @@ export interface InsertRecipeInput {
   description?: string;
   steps: string[];
   meal_types: MealType[];
+  courses?: Course[];
   tags?: MealStyleTag[];
   diet_flags?: DietFlag[];
   appliances_required?: Appliance[];
@@ -119,6 +125,7 @@ export async function insertRecipeWith(
       description: recipeData.description ?? '',
       steps: recipeData.steps,
       meal_types: recipeData.meal_types,
+      courses: recipeData.courses ?? [],
       tags: recipeData.tags ?? [],
       diet_flags: recipeData.diet_flags ?? [],
       appliances_required: recipeData.appliances_required ?? [],
@@ -405,4 +412,61 @@ export async function writeRecipePref(
     .returning();
 
   return RecipePrefSchema.parse(row);
+}
+
+/** Dati di una ricetta non classificata che servono alla classificazione (FR-4.2). */
+export interface UnclassifiedRecipe {
+  id: string;
+  title: string;
+  description: string;
+  meal_types: MealType[];
+  tags: MealStyleTag[];
+  /** Righe di ingredienti nell'ordine della ricetta (nome canonico com'è nel DB). */
+  ingredients: { canonical_name: string; unit: Unit }[];
+}
+
+/** Ricette dell'household con `courses` vuoto, dalla meno recente (created_at, poi id). */
+export async function listUnclassifiedRecipes(
+  executor: DbExecutor,
+  householdId: string
+): Promise<UnclassifiedRecipe[]> {
+  const rows = await executor.query.recipes.findMany({
+    where: and(eq(recipes.household_id, householdId), sql`cardinality(${recipes.courses}) = 0`),
+    columns: { id: true, title: true, description: true, meal_types: true, tags: true },
+    with: {
+      ingredients: { columns: { canonical_name: true, unit: true } },
+    },
+    orderBy: [asc(recipes.created_at), asc(recipes.id)],
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    meal_types: z.array(MealTypeSchema).parse(row.meal_types),
+    tags: z.array(MealStyleTagSchema).parse(row.tags),
+    ingredients: row.ingredients.map((ing) => ({
+      canonical_name: ing.canonical_name,
+      unit: UnitSchema.parse(ing.unit),
+    })),
+  }));
+}
+
+/**
+ * Scrive portate ed etichette solo se la ricetta è ancora non classificata
+ * (`cardinality(courses) = 0`). true se ha scritto.
+ */
+export async function setRecipeClassification(
+  executor: DbExecutor,
+  recipeId: string,
+  courses: Course[],
+  tags: MealStyleTag[]
+): Promise<boolean> {
+  const rows = await executor
+    .update(recipes)
+    .set({ courses, tags })
+    .where(and(eq(recipes.id, recipeId), sql`cardinality(${recipes.courses}) = 0`))
+    .returning({ id: recipes.id });
+
+  return rows.length > 0;
 }

@@ -2,8 +2,8 @@
 title: Controlli Condivisi delle Impostazioni (settings-fields)
 type: entity
 created: 2026-09-28
-updated: 2026-09-28
-tags: [ui, components, settings, forms, chip-filter, stepper, accessibility, feature-3]
+updated: 2026-10-21
+tags: [ui, components, settings, forms, chip-filter, stepper, accessibility, feature-3, feature-8]
 ---
 
 ## File e Responsabilità
@@ -48,6 +48,8 @@ L'ordine di `SETTINGS_FIELD_ORDER` è anche l'ordine dei passi del wizard e dell
 | `diet_tags` | Esigenze alimentari | Le ricette proposte le rispetteranno sempre. | Chip `DIET_FLAG_LABELS` | sempre valido |
 | `appliances` | Elettrodomestici | Proporremo solo ricette che puoi preparare con questi. | Chip `APPLIANCE_LABELS` | sempre valido |
 
+**Dalla Feature 8** il campo `Tipo di pasti` mostra **12** chip invece di 7: `tradizionale` (*Tradizionale*), `dal-mondo` (*Dal mondo*), `pochi-ingredienti` (*Pochi ingredienti*), `in-anticipo` (*Si prepara in anticipo*) e `piatto-freddo` (*Piatto freddo*) si aggiungono in coda. Il componente non è cambiato: itera `MEAL_STYLE_TAG_VALUES` e `MEAL_STYLE_TAG_LABELS` ([[domain-types]]), e anche `normalizeSettings` usa lo stesso elenco. Le preferenze già salvate restano valide e nessuna etichetta nuova è selezionata d'ufficio (spec FR-2.6). La resa a 360 px senza scorrimento orizzontale e con chip da 44 px è una verifica manuale di chiusura della Feature 8 ([[f8-portate-etichette]]).
+
 `isSettingsFieldValid` è una validità "leggera" per abilitare i pulsanti Avanti/Salva; la validazione autoritativa resta `HouseholdSettingsSchema` lato server.
 
 ## Struttura e Accessibilità
@@ -62,7 +64,7 @@ L'ordine di `SETTINGS_FIELD_ORDER` è anche l'ordine dei passi del wizard e dell
 
 ## Test
 
-`tests/ui/settings-fields.test.tsx` (jsdom): limiti e plurale dello stepper, stato `aria-checked` dei chip e ordine canonico dopo il toggle, messaggi di campo vuoto, `isSettingsFieldValid`, aggiornamento mirato di `SettingsField`.
+`tests/ui/settings-fields.test.tsx` (jsdom): limiti e plurale dello stepper, stato `aria-checked` dei chip e ordine canonico dopo il toggle, messaggi di campo vuoto, `isSettingsFieldValid`, aggiornamento mirato di `SettingsField`. Dalla Feature 8 un caso controlla i dodici chip di stile, nuovi compresi; `tests/api/settings.test.ts` controlla che `PUT /api/settings` accetti le etichette nuove e rifiuti con 400 un valore fuori dalle dodici.
 
 ## Vedi anche
 
@@ -71,3 +73,4 @@ L'ordine di `SETTINGS_FIELD_ORDER` è anche l'ordine dei passi del wizard e dell
 - [[chip-filter]] — Chip di selezione riusato dai 4 campi a scelta multipla
 - [[settings-service]] — `toggleInOrder` e normalizzazione
 - [[e5-impostazioni]] — Panoramica della Feature 3
+- [[f8-portate-etichette]] — Feature 8: dodici etichette di stile

@@ -24,6 +24,7 @@ function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
     description: 'Semplice',
     steps: ['Cuoci', 'Servi'],
     meal_types: ['pranzo'],
+    courses: [],
     tags: [],
     diet_flags: [],
     appliances_required: [],
@@ -52,6 +53,7 @@ function makeProposal(overrides: Partial<GeneratedRecipe> = {}): GeneratedRecipe
     title: 'Lasagne al forno',
     description: 'Classiche',
     meal_types: ['pranzo'],
+    courses: ['primo'],
     tags: ['comfort-food', 'piatto-unico', 'veloce'],
     diet_flags: ['vegetariano'],
     appliances_required: [],
@@ -86,8 +88,26 @@ describe('recipeChips', () => {
     expect(recipeChips(makeRecipe())).toEqual([]);
   });
 
-  it('accepts an object with only tags and diet_flags', () => {
-    expect(recipeChips({ tags: ['veloce'], diet_flags: ['vegano'] })).toEqual(['Veloce', 'Vegano']);
+  it('accepts an object with only tags, diet_flags and courses', () => {
+    expect(recipeChips({ tags: ['veloce'], diet_flags: ['vegano'], courses: [] })).toEqual([
+      'Veloce',
+      'Vegano',
+    ]);
+  });
+
+  it('hides Piatto unico from the style chips of a classified recipe, which the course badge shows', () => {
+    const chips = recipeChips(
+      makeRecipe({
+        courses: ['piatto-unico'],
+        tags: ['piatto-unico', 'veloce', 'salutare'],
+        diet_flags: ['vegetariano'],
+      })
+    );
+    expect(chips).toEqual(['Veloce', 'Salutare', 'Vegetariano']);
+  });
+
+  it('keeps Piatto unico among the style chips of an unclassified recipe', () => {
+    expect(recipeChips(makeRecipe({ courses: [], tags: ['piatto-unico'] }))).toEqual(['Piatto unico']);
   });
 });
 
@@ -133,6 +153,13 @@ describe('toRecipeDetail', () => {
     const detail = toRecipeDetail(makeRecipe({ ingredients: [makeIngredient(null)] }), 2);
     expect(detail.ingredients[0].amount).toBe(0);
     expect(detail.ingredients[0].id).toBe(`${ID}:0`);
+  });
+
+  it('shows the course label in course order, and no course for an unclassified recipe', () => {
+    expect(toRecipeDetail(makeRecipe({ courses: ['secondo', 'piatto-unico'] }), 2).course).toBe(
+      'Piatto unico · Secondo'
+    );
+    expect(toRecipeDetail(makeRecipe({ courses: [] }), 2).course).toBeUndefined();
   });
 
   it('defaults preference fields when prefs is null', () => {
@@ -223,6 +250,26 @@ describe('proposalToRecipeDetail', () => {
   it('gives the same chips as the library recipe', () => {
     const recipe = makeProposal();
     expect(proposalToRecipeDetail(recipe, 2).tags).toEqual(recipeChips(recipe));
+  });
+
+  it('carries the course label of the proposal', () => {
+    expect(proposalToRecipeDetail(makeProposal(), 2).course).toBe('Primo');
+  });
+
+  it('shows no course for an unclassified proposal, and drops Piatto unico from the chips of a classified one', () => {
+    const unclassified = proposalToRecipeDetail(
+      makeProposal({ courses: [], tags: ['piatto-unico'], diet_flags: [] }),
+      2
+    );
+    expect(unclassified.course).toBeUndefined();
+    expect(unclassified.tags).toEqual(['Piatto unico']);
+
+    const classified = proposalToRecipeDetail(
+      makeProposal({ courses: ['piatto-unico'], tags: ['piatto-unico', 'veloce'], diet_flags: [] }),
+      2
+    );
+    expect(classified.course).toBe('Piatto unico');
+    expect(classified.tags).toEqual(['Veloce']);
   });
 
   it('has no judgements: not favorite, not blocked, no rating', () => {

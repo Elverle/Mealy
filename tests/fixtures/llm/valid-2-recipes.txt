@@ -1,11 +1,11 @@
 {"recipes":[
- {"title":"Tofu croccante con verdure saltate","description":"Tofu dorato in padella con zucchine.","meal_types":["cena"],"tags":["veloce","proteico"],"diet_flags":["vegano"],"appliances_required":["fornelli"],"servings_base":2,"prep_minutes":25,"kcal_est":430,
+ {"title":"Tofu croccante con verdure saltate","description":"Tofu dorato in padella con zucchine.","meal_types":["cena"],"courses":["secondo"],"tags":["veloce","proteico"],"diet_flags":["vegano"],"appliances_required":["fornelli"],"servings_base":2,"prep_minutes":25,"kcal_est":430,
   "steps":["Taglia il tofu a cubetti e rosolalo in padella.","Aggiungi le zucchine e salta a fuoco vivo.","Regola di sale e servi."],
   "ingredients":[
    {"canonical_name":"Tofu","display_name":"tofu al naturale","qty":250,"unit":"g","category":"banco-frigo","note":null},
    {"canonical_name":"zucchina","display_name":"zucchine","qty":2,"unit":"pz","category":"ortofrutta","note":null},
    {"canonical_name":"sale","display_name":"sale","qty":5,"unit":"qb","category":"dispensa","note":""}]},
- {"title":"Cosce di pollo al forno con patate","description":"Il classico della domenica, senza fatica.","meal_types":["cena"],"tags":["comfort-food"],"diet_flags":["senza-glutine","senza-glutine"],"appliances_required":["forno"],"servings_base":2,"prep_minutes":50,"kcal_est":null,
+ {"title":"Cosce di pollo al forno con patate","description":"Il classico della domenica, senza fatica.","meal_types":["cena"],"courses":["secondo"],"tags":["comfort-food"],"diet_flags":["senza-glutine","senza-glutine"],"appliances_required":["forno"],"servings_base":2,"prep_minutes":50,"kcal_est":null,
   "steps":["Condisci pollo e patate.","Inforna a 200 °C per 45 minuti."],
   "ingredients":[
    {"canonical_name":"coscia di pollo","display_name":"cosce di pollo","qty":4,"unit":"pz","category":"macelleria","note":null},

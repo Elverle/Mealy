@@ -3,14 +3,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { register } from '@/instrumentation';
 import { runDbBootstrap } from '@/lib/db/bootstrap';
+import { classifyPendingRecipes } from '@/lib/recipes/classify';
 
 vi.mock('@/lib/db/bootstrap', () => ({
   runDbBootstrap: vi.fn(),
 }));
 
+vi.mock('@/lib/recipes/classify', () => ({
+  classifyPendingRecipes: vi.fn(),
+}));
+
+const NOTHING_TO_CLASSIFY = {
+  pending: 0,
+  classified: 0,
+  remaining: 0,
+  failedBatches: 0,
+  notConfigured: false,
+};
+
 describe('instrumentation register()', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(classifyPendingRecipes).mockResolvedValue(NOTHING_TO_CLASSIFY);
   });
 
   afterEach(() => {
@@ -69,5 +83,73 @@ describe('instrumentation register()', () => {
       failure
     );
     expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it('starts the recipe classification once after a successful bootstrap', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    vi.stubEnv('DB_BOOTSTRAP_ON_START', 'true');
+    vi.mocked(runDbBootstrap).mockResolvedValueOnce({ aliasesWritten: 0 });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await register();
+
+    expect(classifyPendingRecipes).toHaveBeenCalledTimes(1);
+    expect(classifyPendingRecipes).toHaveBeenCalledWith();
+  });
+
+  it('does not wait for the classification to finish', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    vi.stubEnv('DB_BOOTSTRAP_ON_START', 'true');
+    vi.mocked(runDbBootstrap).mockResolvedValueOnce({ aliasesWritten: 0 });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.mocked(classifyPendingRecipes).mockReturnValueOnce(new Promise(() => {}));
+
+    await register();
+
+    expect(classifyPendingRecipes).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a failed classification without exiting the process', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    vi.stubEnv('DB_BOOTSTRAP_ON_START', 'true');
+    vi.mocked(runDbBootstrap).mockResolvedValueOnce({ aliasesWritten: 0 });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const failure = new Error('classificazione giù');
+    vi.mocked(classifyPendingRecipes).mockRejectedValueOnce(failure);
+
+    await register();
+
+    await vi.waitFor(() => {
+      expect(error).toHaveBeenCalledWith('[classify] classificazione interrotta', failure);
+    });
+    expect(exit).not.toHaveBeenCalled();
+  });
+
+  it('does not start the classification when the bootstrap fails', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    vi.stubEnv('DB_BOOTSTRAP_ON_START', 'true');
+    vi.mocked(runDbBootstrap).mockRejectedValueOnce(new Error('boom'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+
+    await register();
+
+    expect(classifyPendingRecipes).not.toHaveBeenCalled();
+  });
+
+  it('does not start the classification outside the production bootstrap', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'edge');
+    vi.stubEnv('DB_BOOTSTRAP_ON_START', 'true');
+
+    await register();
+
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    vi.stubEnv('DB_BOOTSTRAP_ON_START', 'false');
+
+    await register();
+
+    expect(classifyPendingRecipes).not.toHaveBeenCalled();
   });
 });

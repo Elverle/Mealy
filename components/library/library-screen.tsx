@@ -39,6 +39,7 @@ function hasFilterCriteria(filter: LibraryFilter): boolean {
     filter.favorites ||
     filter.blocked ||
     filter.meals.length > 0 ||
+    filter.courses.length > 0 ||
     filter.tags.length > 0 ||
     filter.diets.length > 0
   );

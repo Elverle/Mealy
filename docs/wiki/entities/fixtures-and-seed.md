@@ -2,8 +2,8 @@
 title: Fixtures di Test e Seed Idempotente (fixtures-and-seed)
 type: entity
 created: 2026-09-17
-updated: 2026-10-11
-tags: [fixtures, seed, database, testing, offline, household, aliases, ingredients, upsert, deploy]
+updated: 2026-10-21
+tags: [fixtures, seed, database, testing, offline, household, aliases, ingredients, upsert, deploy, courses, derived-tags]
 ---
 
 ## File e Responsabilità
@@ -32,6 +32,21 @@ Contiene 18 ricette rappresentative della cucina casalinga italiana (primi piatt
   - `qty`: `null` per ingredienti a sentimento con unità `qb` (es. sale, pepe, basilico).
 - **Metadati ricetta**: indicazione realistica di `meal_types` (`pranzo`, `cena`), `diet_flags` (rispettando le relazioni di inclusione transitiva), `appliances_required`, `servings_base`, `prep_minutes` e passaggi ordinati in `steps`.
 - **Determinismo**: tutte le ricette hanno UUID fissi e una data di creazione convenzionale `FIXTURE_CREATED_AT = new Date('2026-01-01T00:00:00Z')`.
+
+#### Portate ed etichette nuove (Feature 8)
+Dalla Feature 8 ogni ricetta del file ha `courses` (obbligatorio: `FixtureRecipeSchema` deriva da `GeneratedRecipeSchema`, che ne chiede almeno una) e, dove spettano, le etichette nuove. I valori sono fissati nel piano della feature, non inventati (requirements P17):
+
+| Portata | Ricette |
+|---|---|
+| `primo` | Pasta al pomodoro e basilico, Risotto alla zucca, Vellutata di carote e zenzero, Lasagne alla bolognese, Crema di piselli e menta |
+| `secondo` | Pollo croccante in friggitrice ad aria, Salmone al forno con patate, Frittata di zucchine, Polpette al sugo, Tacchino alla piastra con insalata, Merluzzo in padella con pomodorini, Uova e spinaci al microonde, Hamburger di manzo con patate al forno |
+| `piatto-unico` | Insalata di ceci, pomodorini e feta, Poke bowl di tonno e riso, Couscous di verdure |
+| `piatto-unico` e `primo` | Pasta e ceci |
+| `contorno` (solo) | Patate e zucchine croccanti |
+
+Una sola ricetta è solo contorno: rende visibile in sviluppo la regola "mai un contorno da solo nel piano" ([[planner]]). Le etichette rispettano già le regole derivate di [[courses]] (`pochi-ingredienti` con al massimo 6 ingredienti misurati, `piatto-unico` solo con quella portata): un test lo controlla (requirements P18). Il seed applica comunque le regole, quindi un errore nel file non arriverebbe al database.
+
+La frase iniziale "primi piatti, secondi, contorni, piatti unici" ora corrisponde a un campo: prima della Feature 8 la portata non esisteva come dato.
 
 ### 2. Alias Ingredienti (`fixtures/ingredient-aliases.json`)
 Dizionario di 24 mappature per il consolidamento dei sinonimi nella spesa (es. "cipolle rosse" → "cipolla", "spaghetti" → "pasta", "latte intero" → "latte"). Validato a runtime da `IngredientAliasesFileSchema` (minimo 15 record).
@@ -91,6 +106,7 @@ Lo script (`lib/db/seed.ts`) carica le variabili d'ambiente (`.env.local` / `.en
    - Per ciascuna delle 18 ricette, verifica preventivamente se esiste già un record con lo stesso UUID (`getRecipeById`) o lo stesso slug (`getRecipeBySlug`).
    - Se presente, la ricetta viene saltata incrementando il contatore `recipesSkipped`.
    - Se assente, viene inserita in modo atomico assieme ai suoi ingredienti tramite `insertRecipe` da [[recipe-repo]], incrementando `recipesInserted`.
+   - **Dalla Feature 8** il seed scrive `courses = normalizeCourses(r.courses)` e `tags = deriveStyleTags(r.tags, r.courses, r.ingredients)` ([[courses]]). In più **completa** le ricette d'esempio già presenti per id ma non classificate (`courses` vuoto, cioè salvate prima della feature): chiama `setRecipeClassification` con portate ed etichette del file e incrementa `recipesClassified`. Il resto della ricetta non si tocca; la ricetta conta comunque anche in `recipesSkipped`. Così "dopo `pnpm db:seed` nessuna ricetta d'esempio è non classificata" vale anche per un DB di sviluppo già popolato (requirements P16). Una ricetta trovata solo per slug viene saltata come prima.
 3. **Caricamento Alias Ingredienti**:
    - Esegue una `INSERT` batch sulla tabella `ingredient_aliases`. Fino alla Feature 6 la clausola era `ON CONFLICT DO NOTHING`; **dalla Feature 7 è un upsert**:
      ```sql
@@ -107,9 +123,11 @@ Lo script (`lib/db/seed.ts`) carica le variabili d'ambiente (`.env.local` / `.en
      household: 'created' | 'existing';
      recipesInserted: number;
      recipesSkipped: number;
+     recipesClassified: number; // Feature 8: ricette d'esempio già presenti completate con le portate
      aliasesInserted: number; // alias inseriti o corretti
    }
    ```
+   Dalla Feature 8 la riga stampata dallo script contiene anche `completate con le portate: N`, tra `già presenti` e `alias inseriti o aggiornati`.
    Dalla Feature 7 `aliasesInserted` conta anche le correzioni; il nome del campo è rimasto per non toccare script, test e chiamanti senza cambiare il comportamento (requirements P27 della Feature 7).
    Lo script stampa a console il riassunto dell'operazione (`Seed completato — household: …, ricette inserite: …, già presenti: …, alias inseriti o aggiornati: …`) e chiude la connessione con `client.end()`.
 
@@ -169,6 +187,7 @@ Il limite annotato alla Feature 6 ("`seedIngredientAliases` inserisce soltanto")
 - `tests/fixtures-data/recipes-fixtures.test.ts`: validazione delle fixture e le regole sugli alias descritte sopra.
 - `tests/db/seed.test.ts` (DB reale): seed idempotente, presenza di ogni alias del file e, dalla Feature 6, `seedIngredientAliases` idempotente (la seconda chiamata scrive 0 voci) e **senza ricette**: il numero di ricette fixture nel DB non cambia e il repository delle ricette non viene mai chiamato (`getRecipeById` e `insertRecipe` sotto `vi.spyOn`). Dalla Feature 7 un caso in più: dentro una transazione poi annullata, il nome canonico di un alias viene cambiato a mano e una nuova chiamata lo riporta a quello del file, restituendo 1.
 - `tests/domain/generation-contracts.test.ts`: dalla Feature 7, `IngredientAliasesFileSchema` rifiuta un file con lo stesso alias due volte.
+- Feature 8: `tests/fixtures-data/recipes-fixtures.test.ts` controlla che ogni ricetta abbia almeno una portata, già in ordine canonico, con etichette uguali (come insieme) a quelle di `deriveStyleTags`, e che una sola ricetta sia solo contorno. `tests/db/seed.test.ts` controlla che dopo il seed ogni ricetta d'esempio abbia una portata e che una ricetta d'esempio con `courses` azzerato a mano venga completata. Il caso azzera **solo** `courses`, non le etichette (innesto P5 della review architetturale della Feature 8); come gli altri casi del file, gira sui dati condivisi del DB di sviluppo.
 - `tests/db/bootstrap.test.ts` (Feature 7): su un database usa-e-getta ancora senza alias il bootstrap scrive tutti quelli delle fixture, su uno già allineato ne scrive 0 ([[db-bootstrap]]).
 
 ## Vedi anche
@@ -183,3 +202,5 @@ Il limite annotato alla Feature 6 ("`seedIngredientAliases` inserisce soltanto")
 - [[e4-lista-spesa]] — Panoramica della Feature 6
 - [[db-bootstrap]] — Caricamento degli alias all'avvio in produzione (Feature 7)
 - [[e6-deploy]] — Panoramica della Feature 7
+- [[courses]] — Regole derivate applicate dal seed (Feature 8)
+- [[f8-portate-etichette]] — Panoramica della Feature 8

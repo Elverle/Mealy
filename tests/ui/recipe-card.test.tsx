@@ -77,3 +77,23 @@ describe('RecipeCard (library, without the ★ command)', () => {
     expect(onOpen).toHaveBeenCalledWith('recipe-9');
   });
 });
+
+describe('RecipeCard course badge', () => {
+  it('shows the course after the time and puts it in the name of the opening button', () => {
+    render(<RecipeCard recipe={makeCard({ courses: ['primo'] })} onOpen={vi.fn()} />);
+    expect(screen.getByText('Primo')).toBeInTheDocument();
+    const opener = screen.getByRole('button', { name: /^\d+ min Primo/ });
+    expect(opener).toHaveAccessibleName(expect.stringMatching(new RegExp(`^\\d+ min Primo ${TITLE}`)));
+  });
+
+  it('joins several courses in course order', () => {
+    render(<RecipeCard recipe={makeCard({ courses: ['secondo', 'primo'] })} onOpen={vi.fn()} />);
+    expect(screen.getByText('Primo · Secondo')).toBeInTheDocument();
+  });
+
+  it('shows no course badge for an unclassified recipe', () => {
+    render(<RecipeCard recipe={makeCard({ courses: [], prep_minutes: 20 })} onOpen={vi.fn()} />);
+    expect(screen.getByRole('button', { name: new RegExp(`^20 min ${TITLE}`) })).toBeInTheDocument();
+    expect(screen.queryByText(/Primo|Secondo|Contorno|Piatto unico/)).toBeNull();
+  });
+});

@@ -12,6 +12,8 @@ export interface MealCardProps {
   mealType: string;
   title: string;
   prepTimeMinutes?: number;
+  /** Portate, già formattate: badge accanto al tempo. */
+  course?: string;
   tags?: string[];
   isFavorite?: boolean;
   isLocked?: boolean;
@@ -37,6 +39,7 @@ export function MealCard({
   mealType,
   title,
   prepTimeMinutes,
+  course,
   tags = [],
   isFavorite = false,
   isLocked = false,
@@ -167,12 +170,17 @@ export function MealCard({
         </h4>
 
         {/* Tags row */}
-        {(prepTimeMinutes || tags.length > 0) && (
+        {(prepTimeMinutes || course || tags.length > 0) && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {prepTimeMinutes && (
               <Badge variant="secondary" className="gap-1 text-[11px] font-medium">
                 <Clock className="h-3 w-3 text-stone" />
                 <span className="tabular-nums">{prepTimeMinutes} min</span>
+              </Badge>
+            )}
+            {course && (
+              <Badge variant="basil-subtle" className="text-[11px] font-medium">
+                {course}
               </Badge>
             )}
             {tags.map((tag) => (

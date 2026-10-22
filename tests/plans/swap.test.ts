@@ -29,7 +29,7 @@ import {
   createTestHousehold,
   deleteTestHousehold,
 } from '@/tests/helpers/db';
-import { insertTestRecipes } from '@/tests/helpers/plans';
+import { insertTestRecipe, insertTestRecipes } from '@/tests/helpers/plans';
 
 const MON = () => new Date('2026-09-28T08:00:00Z'); // settimana 28/09 completa
 const WED = () => new Date('2026-09-30T10:00:00Z'); // settimana 28/09, dal 30/09: 5 giorni
@@ -183,6 +183,29 @@ describe.skipIf(!dbUp)('swapSlot', { timeout: DB_TEST_TIMEOUT_MS }, () => {
     await expect(
       swapSlot(plan.id, plan.slots[0].id, NO_EXCLUSIONS, opts(householdId, WED, generate))
     ).rejects.toBe(error);
+  });
+
+  it('never swaps in a side-dish-only recipe, and takes a free main course instead', async () => {
+    const householdId = await createTestHousehold({ meals: ['cena'] });
+    createdHouseholdIds.push(householdId);
+    await insertTestRecipes(householdId, 5, { meal_types: ['cena'], courses: ['secondo'] });
+    const sideDish = await insertTestRecipe(householdId, { meal_types: ['cena'], courses: ['contorno'] });
+    const plan = await createPlan(householdId);
+    expect(recipeIds(plan)).not.toContain(sideDish.id);
+    const slot = plan.slots[0];
+
+    // Unica alternativa libera: il contorno. Niente da proporre, nessuna generazione.
+    await expect(
+      swapSlot(plan.id, slot.id, NO_EXCLUSIONS, opts(householdId, WED, emptyGenerate()))
+    ).rejects.toMatchObject({ code: 'no_alternatives' });
+    expect((await getPlanById(db, plan.id))!.slots.find((s) => s.id === slot.id)!.recipe_id).toBe(
+      slot.recipe!.id
+    );
+
+    const mainCourse = await insertTestRecipe(householdId, { meal_types: ['cena'], courses: ['secondo'] });
+    const result = await swapSlot(plan.id, slot.id, NO_EXCLUSIONS, opts(householdId, WED));
+
+    expect(result.plan.slots.find((s) => s.id === slot.id)!.recipe!.id).toBe(mainCourse.id);
   });
 
   it('rejects locked slots, archived plans, unknown slots and foreign plans', async () => {

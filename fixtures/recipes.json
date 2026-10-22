@@ -13,7 +13,8 @@
         "Spegni la fiamma, unisci le foglie di basilico fresco e servi."
       ],
       "meal_types": ["pranzo", "cena"],
-      "tags": ["veloce", "economico"],
+      "courses": ["primo"],
+      "tags": ["veloce", "economico", "tradizionale", "pochi-ingredienti"],
       "diet_flags": ["vegetariano", "vegano", "senza-lattosio", "pescetariano"],
       "appliances_required": ["fornelli"],
       "servings_base": 2,
@@ -83,7 +84,8 @@
         "A cottura ultimata spegni il fuoco e manteca con parmigiano reggiano grattugiato."
       ],
       "meal_types": ["cena"],
-      "tags": ["comfort-food"],
+      "courses": ["primo"],
+      "tags": ["comfort-food", "tradizionale"],
       "diet_flags": ["vegetariano", "senza-glutine", "pescetariano"],
       "appliances_required": ["fornelli"],
       "servings_base": 2,
@@ -169,7 +171,8 @@
         "Cuoci a 190 gradi per circa 15 minuti scuotendo il cestello a metà cottura."
       ],
       "meal_types": ["cena"],
-      "tags": ["proteico", "veloce"],
+      "courses": ["secondo"],
+      "tags": ["proteico", "veloce", "pochi-ingredienti"],
       "diet_flags": ["senza-lattosio"],
       "appliances_required": ["friggitrice-ad-aria"],
       "servings_base": 2,
@@ -239,7 +242,8 @@
         "Condisci con olio extravergine di oliva, origano secco e un pizzico di sale prima di mescolare."
       ],
       "meal_types": ["pranzo"],
-      "tags": ["veloce", "salutare", "leggero"],
+      "courses": ["piatto-unico"],
+      "tags": ["veloce", "salutare", "leggero", "piatto-unico", "pochi-ingredienti", "in-anticipo", "piatto-freddo"],
       "diet_flags": ["vegetariano", "senza-glutine", "pescetariano"],
       "appliances_required": [],
       "servings_base": 2,
@@ -317,7 +321,8 @@
         "Sforna quando il pesce risulta morbido e le patate ben dorate."
       ],
       "meal_types": ["cena"],
-      "tags": ["proteico", "salutare"],
+      "courses": ["secondo"],
+      "tags": ["proteico", "salutare", "pochi-ingredienti"],
       "diet_flags": ["senza-glutine", "senza-lattosio", "pescetariano"],
       "appliances_required": ["forno"],
       "servings_base": 2,
@@ -387,7 +392,8 @@
         "Gira la frittata con l'aiuto del coperchio e completa la cottura dall'altro lato."
       ],
       "meal_types": ["pranzo", "cena"],
-      "tags": ["veloce", "economico"],
+      "courses": ["secondo"],
+      "tags": ["veloce", "economico", "tradizionale", "pochi-ingredienti", "in-anticipo"],
       "diet_flags": ["vegetariano", "senza-glutine", "pescetariano"],
       "appliances_required": ["fornelli"],
       "servings_base": 2,
@@ -457,7 +463,8 @@
         "Frulla il tutto a immersione fino a ottenere una crema liscia e vellutata."
       ],
       "meal_types": ["cena"],
-      "tags": ["leggero", "salutare"],
+      "courses": ["primo"],
+      "tags": ["leggero", "salutare", "pochi-ingredienti"],
       "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
       "appliances_required": ["fornelli", "frullatore"],
       "servings_base": 2,
@@ -527,7 +534,8 @@
         "Immergi delicatamente le polpette nel sugo e fai cuocere a fiamma bassa con coperchio per 30 minuti."
       ],
       "meal_types": ["pranzo", "cena"],
-      "tags": ["comfort-food"],
+      "courses": ["secondo"],
+      "tags": ["comfort-food", "tradizionale", "in-anticipo"],
       "diet_flags": [],
       "appliances_required": ["fornelli"],
       "servings_base": 4,
@@ -613,7 +621,8 @@
         "Guarnisci con semi di sesamo prima di servire."
       ],
       "meal_types": ["pranzo"],
-      "tags": ["salutare", "piatto-unico"],
+      "courses": ["piatto-unico"],
+      "tags": ["salutare", "piatto-unico", "dal-mondo", "piatto-freddo"],
       "diet_flags": ["senza-lattosio", "pescetariano"],
       "appliances_required": ["fornelli"],
       "servings_base": 2,
@@ -691,7 +700,8 @@
         "Rimuovi il rosmarino e servi la minestra densa con un filo di olio a crudo."
       ],
       "meal_types": ["pranzo"],
-      "tags": ["economico", "comfort-food", "piatto-unico"],
+      "courses": ["piatto-unico", "primo"],
+      "tags": ["economico", "comfort-food", "piatto-unico", "tradizionale", "pochi-ingredienti"],
       "diet_flags": ["vegetariano", "vegano", "senza-lattosio", "pescetariano"],
       "appliances_required": ["fornelli"],
       "servings_base": 2,
@@ -769,7 +779,8 @@
         "Appoggia il tacchino sull'insalata, condisci con olio extravergine, succo di limone, sale e pepe nero."
       ],
       "meal_types": ["pranzo"],
-      "tags": ["proteico", "leggero", "veloce"],
+      "courses": ["secondo"],
+      "tags": ["proteico", "leggero", "veloce", "pochi-ingredienti"],
       "diet_flags": ["senza-glutine", "senza-lattosio"],
       "appliances_required": ["fornelli"],
       "servings_base": 2,
@@ -839,7 +850,8 @@
         "Inforna per 25 minuti finché la superficie forma una crosticina ben dorata."
       ],
       "meal_types": ["pranzo"],
-      "tags": ["comfort-food"],
+      "courses": ["primo"],
+      "tags": ["comfort-food", "tradizionale", "in-anticipo"],
       "diet_flags": [],
       "appliances_required": ["fornelli", "forno"],
       "servings_base": 4,
@@ -933,7 +945,8 @@
         "Cuoci per 18 minuti scuotendo a metà tempo per una doratura omogenea."
       ],
       "meal_types": ["cena"],
-      "tags": ["veloce", "leggero"],
+      "courses": ["contorno"],
+      "tags": ["veloce", "leggero", "pochi-ingredienti"],
       "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
       "appliances_required": ["friggitrice-ad-aria"],
       "servings_base": 2,
@@ -1003,7 +1016,8 @@
         "Completa con una spolverata di prezzemolo fresco tritato prima di servire."
       ],
       "meal_types": ["cena"],
-      "tags": ["leggero", "proteico", "veloce"],
+      "courses": ["secondo"],
+      "tags": ["leggero", "proteico", "veloce", "pochi-ingredienti"],
       "diet_flags": ["senza-glutine", "senza-lattosio", "pescetariano"],
       "appliances_required": ["fornelli"],
       "servings_base": 2,
@@ -1081,7 +1095,8 @@
         "Cuoci per altri 2 minuti a 600 watt, lasciando riposare un minuto prima di servire."
       ],
       "meal_types": ["cena"],
-      "tags": ["veloce", "proteico"],
+      "courses": ["secondo"],
+      "tags": ["veloce", "proteico", "pochi-ingredienti"],
       "diet_flags": ["vegetariano", "senza-glutine", "pescetariano"],
       "appliances_required": ["microonde"],
       "servings_base": 2,
@@ -1159,7 +1174,8 @@
         "Unisci le verdure saltate al couscous, mescola bene e servi caldo o tiepido."
       ],
       "meal_types": ["pranzo"],
-      "tags": ["piatto-unico", "salutare"],
+      "courses": ["piatto-unico"],
+      "tags": ["piatto-unico", "salutare", "pochi-ingredienti", "dal-mondo"],
       "diet_flags": ["vegetariano", "vegano", "senza-lattosio", "pescetariano"],
       "appliances_required": ["fornelli"],
       "servings_base": 2,
@@ -1229,7 +1245,8 @@
         "Servi gli hamburger caldi accompagnati dalle patate al forno ben dorate."
       ],
       "meal_types": ["cena"],
-      "tags": ["proteico", "comfort-food"],
+      "courses": ["secondo"],
+      "tags": ["proteico", "comfort-food", "pochi-ingredienti", "dal-mondo"],
       "diet_flags": ["senza-glutine", "senza-lattosio"],
       "appliances_required": ["fornelli", "forno"],
       "servings_base": 2,
@@ -1299,7 +1316,8 @@
         "Regola di sale e servi la crema con un giro di olio a crudo."
       ],
       "meal_types": ["pranzo", "cena"],
-      "tags": ["leggero"],
+      "courses": ["primo"],
+      "tags": ["leggero", "pochi-ingredienti"],
       "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
       "appliances_required": ["fornelli", "frullatore"],
       "servings_base": 2,

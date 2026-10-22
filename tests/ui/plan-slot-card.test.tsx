@@ -2,6 +2,7 @@ import * as React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtureRecipesAsDomain } from "@/fixtures";
+import { makeRecipe } from "@/tests/helpers/recipes";
 import { PlanSlotCard, type PlanSlotCardProps } from "@/components/plan/plan-slot-card";
 import {
   SWAP_EXCLUDE_MAX,
@@ -554,5 +555,33 @@ describe("PlanSlotCard — Scegli", () => {
     expect(
       screen.getByRole("button", { name: scegliName("Ricetta non disponibile") })
     ).toBeInTheDocument();
+  });
+});
+
+describe("PlanSlotCard — course badge", () => {
+  it("shows the courses of the recipe in course order", () => {
+    render(<Harness initial={makeSlot(makeRecipe({ courses: ["contorno", "secondo"] }))} />);
+
+    expect(screen.getByText("Secondo · Contorno")).toBeInTheDocument();
+  });
+
+  it("shows no course badge for an unclassified recipe", () => {
+    render(<Harness initial={makeSlot(makeRecipe({ courses: [] }))} />);
+
+    expect(screen.queryByText(/Primo|Secondo|Contorno|Piatto unico/)).toBeNull();
+    expect(screen.getByText("Ricetta di prova")).toBeInTheDocument();
+  });
+
+  it("shows Piatto unico once, as the course, and not again among the style chips", () => {
+    render(
+      <Harness
+        initial={makeSlot(
+          makeRecipe({ courses: ["piatto-unico"], tags: ["piatto-unico", "veloce"] })
+        )}
+      />
+    );
+
+    expect(screen.getAllByText("Piatto unico")).toHaveLength(1);
+    expect(screen.getByText("Veloce")).toBeInTheDocument();
   });
 });

@@ -1,13 +1,20 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import {
+  buildClassifyInstructions,
+  buildClassifyPrompt,
   buildRecipeInstructions,
   buildRecipePrompt,
   buildRecipeRequestPrompt,
   buildRepairPrompt,
+  CLASSIFY_DESCRIPTION_MAX,
   MAX_EXCLUDED_TITLES,
 } from '@/lib/llm/prompts';
-import type { RecipeConstraints } from '@/lib/domain/types';
+import {
+  MEAL_STYLE_TAG_VALUES,
+  type ClassifyRecipeItem,
+  type RecipeConstraints,
+} from '@/lib/domain/types';
 
 describe('lib/llm/prompts', () => {
   describe('buildRecipeInstructions', () => {
@@ -19,12 +26,43 @@ describe('lib/llm/prompts', () => {
       expect(instructions).toContain('Rispondi solo con un oggetto JSON');
       expect(instructions).toContain('unit: solo "g", "ml", "pz" oppure "qb"');
     });
+
+    it('asks for the courses with the four values and their meaning', () => {
+      const lines = buildRecipeInstructions().split('\n');
+      const coursesIndex = lines.findIndex((line) => line.startsWith('- courses: '));
+      const mealTypesIndex = lines.findIndex((line) => line.startsWith('- meal_types: '));
+
+      expect(coursesIndex).toBe(mealTypesIndex + 1);
+      expect(lines[coursesIndex]).toContain('piatto-unico (basta da solo come pasto)');
+      expect(lines[coursesIndex]).toContain('primo (pasta, riso, zuppe)');
+      expect(lines[coursesIndex]).toContain('secondo (carne, pesce, uova, formaggi o legumi come portata principale)');
+      expect(lines[coursesIndex]).toContain('contorno (verdure o patate che accompagnano un secondo)');
+    });
+
+    it('lists all the twelve style tags in the tags rule', () => {
+      const instructions = buildRecipeInstructions();
+
+      expect(instructions).toContain(`- tags: solo tra ${MEAL_STYLE_TAG_VALUES.join(', ')}`);
+      for (const tag of MEAL_STYLE_TAG_VALUES) {
+        expect(instructions).toContain(tag);
+      }
+      expect(MEAL_STYLE_TAG_VALUES).toHaveLength(12);
+    });
+
+    it('explains the meaning of the four new style tags', () => {
+      const instructions = buildRecipeInstructions();
+
+      expect(instructions).toContain(
+        'Significati: tradizionale = classico della cucina italiana; dal-mondo = di una cucina non italiana; in-anticipo = si prepara prima e si conserva bene, adatto alla schiscetta; piatto-freddo = si mangia freddo o è estivo.',
+      );
+    });
   });
 
   describe('buildRecipePrompt', () => {
     const baseConstraints: RecipeConstraints = {
       persons: 4,
       meal_type: 'cena',
+      courses: null,
       diet_tags: ['vegetariano', 'senza-glutine'],
       meal_style_tags: ['veloce', 'salutare'],
       appliances: ['fornelli', 'forno'],
@@ -51,6 +89,7 @@ describe('lib/llm/prompts', () => {
       const emptyConstraints: RecipeConstraints = {
         persons: 2,
         meal_type: null,
+        courses: null,
         diet_tags: [],
         meal_style_tags: [],
         appliances: [],
@@ -91,12 +130,33 @@ describe('lib/llm/prompts', () => {
       expect(pizzaLines.length).toBe(1);
       expect(prompt).toContain('- Focaccia');
     });
+
+    it('adds the course line right after the meal line when courses are set', () => {
+      const prompt = buildRecipePrompt(
+        { ...baseConstraints, courses: ['piatto-unico', 'primo', 'secondo'] },
+        2,
+        [],
+      );
+      const lines = prompt.split('\n');
+      const mealIndex = lines.findIndex((line) => line.startsWith('- Pasto: '));
+
+      expect(lines[mealIndex + 1]).toBe(
+        '- Portata: in courses ogni ricetta deve avere almeno una tra piatto-unico, primo, secondo.',
+      );
+    });
+
+    it('omits the course line when courses is null', () => {
+      const prompt = buildRecipePrompt({ ...baseConstraints, courses: null }, 2, []);
+
+      expect(prompt).not.toContain('- Portata:');
+    });
   });
 
   describe('buildRecipeRequestPrompt', () => {
     const requestConstraints: RecipeConstraints = {
       persons: 2,
       meal_type: null,
+      courses: null,
       diet_tags: [],
       meal_style_tags: [],
       appliances: ['fornelli', 'forno'],
@@ -160,6 +220,26 @@ describe('lib/llm/prompts', () => {
       expect(withoutDiets).toContain('- Diete da rispettare: nessuna.');
     });
 
+    it('adds the course line for the requested recipe right after the meal line', () => {
+      const prompt = buildRecipeRequestPrompt(
+        { ...requestConstraints, meal_type: 'cena', courses: ['secondo', 'primo'] },
+        'lasagne',
+        [],
+      );
+      const lines = prompt.split('\n');
+      const mealIndex = lines.findIndex((line) => line.startsWith('- Pasto: '));
+
+      expect(lines[mealIndex + 1]).toBe(
+        '- Portata: in courses la ricetta deve avere almeno una tra secondo, primo.',
+      );
+    });
+
+    it('omits the course line when courses is null', () => {
+      const prompt = buildRecipeRequestPrompt(requestConstraints, 'lasagne', []);
+
+      expect(prompt).not.toContain('- Portata:');
+    });
+
     it('says that only recipes without cooking fit when there are no appliances', () => {
       const prompt = buildRecipeRequestPrompt(
         { ...requestConstraints, appliances: [] },
@@ -219,6 +299,84 @@ describe('lib/llm/prompts', () => {
       expect(lines[lines.length - 1]).toBe(
         'Rispondi con l\'oggetto JSON richiesto, con una sola ricetta in "recipes".',
       );
+    });
+  });
+
+  describe('buildClassifyInstructions', () => {
+    it('describes the classification task, the courses and the four style tags', () => {
+      const instructions = buildClassifyInstructions();
+
+      expect(instructions.split('\n')[0]).toBe(
+        'Sei il ricettario di casa di una famiglia italiana. Classifichi ricette già esistenti: non le modifichi e non ne inventi di nuove.',
+      );
+      expect(instructions).toContain('Rispondi solo con un oggetto JSON conforme allo schema richiesto, senza testo prima o dopo.');
+      expect(instructions).toContain('- ref: il riferimento della ricetta, copiato identico (es. "r1").');
+      expect(instructions).toContain('  - piatto-unico: un piatto completo che basta da solo come pasto;');
+      expect(instructions).toContain('  - primo: pasta, riso, gnocchi, zuppe e minestre;');
+      expect(instructions).toContain('  - secondo: carne, pesce, uova, formaggi o legumi serviti come portata principale;');
+      expect(instructions).toContain('  - contorno: verdure o patate che accompagnano un secondo.');
+      expect(instructions).toContain('- style_tags: zero o più tra:');
+      expect(instructions).toContain('  - tradizionale: piatto classico della cucina italiana;');
+      expect(instructions).toContain('  - dal-mondo: piatto di una cucina non italiana;');
+      expect(instructions).toContain('  - in-anticipo: si prepara prima e si conserva bene, adatto alla schiscetta;');
+      expect(instructions).toContain('  - piatto-freddo: si mangia freddo o è un piatto estivo.');
+      expect(instructions.endsWith('Una voce per ogni ricetta ricevuta, nello stesso ordine, senza aggiungerne altre.')).toBe(true);
+    });
+  });
+
+  describe('buildClassifyPrompt', () => {
+    const pasta: ClassifyRecipeItem = {
+      ref: 'r1',
+      title: 'Pasta al pomodoro',
+      description: 'Un classico veloce.',
+      meal_types: ['pranzo', 'cena'],
+      tags: ['veloce', 'economico'],
+      ingredient_names: ['pasta', 'pomodoro'],
+    };
+    const salad: ClassifyRecipeItem = {
+      ref: 'r2',
+      title: 'Insalata di riso',
+      description: '',
+      meal_types: ['pranzo'],
+      tags: [],
+      ingredient_names: [],
+    };
+
+    it('starts with the count and puts each recipe in a block with its reference', () => {
+      const lines = buildClassifyPrompt([pasta, salad]).split('\n');
+
+      expect(lines).toEqual([
+        'Classifica queste 2 ricette.',
+        '',
+        '[r1] Pasta al pomodoro',
+        'Descrizione: Un classico veloce.',
+        'Pasti: pranzo, cena',
+        'Etichette attuali: veloce, economico',
+        'Ingredienti: pasta, pomodoro',
+        '',
+        '[r2] Insalata di riso',
+        'Descrizione: nessuna',
+        'Pasti: pranzo',
+        'Etichette attuali: nessuna',
+        'Ingredienti: nessuno',
+      ]);
+    });
+
+    it('cuts the description at CLASSIFY_DESCRIPTION_MAX characters without ellipsis', () => {
+      expect(CLASSIFY_DESCRIPTION_MAX).toBe(300);
+      const longDescription = 'a'.repeat(400);
+      const lines = buildClassifyPrompt([{ ...pasta, description: longDescription }]).split('\n');
+
+      expect(lines).toContain(`Descrizione: ${'a'.repeat(300)}`);
+    });
+
+    it('turns titles and descriptions with line breaks into a single line', () => {
+      const lines = buildClassifyPrompt([
+        { ...pasta, title: 'Pasta\n al   pomodoro', description: 'Riga uno\nRiga due' },
+      ]).split('\n');
+
+      expect(lines).toContain('[r1] Pasta al pomodoro');
+      expect(lines).toContain('Descrizione: Riga uno Riga due');
     });
   });
 

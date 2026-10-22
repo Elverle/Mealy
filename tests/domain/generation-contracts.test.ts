@@ -31,6 +31,7 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
     title: 'Pasta al pomodoro fresco',
     description: 'Ricetta semplice e veloce',
     meal_types: ['pranzo'],
+    courses: ['primo'],
     tags: ['veloce', 'economico'],
     diet_flags: ['vegetariano'],
     appliances_required: [], // valid with empty appliances
@@ -191,6 +192,7 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
       const constraints = {
         persons: 2,
         meal_type: null,
+        courses: null,
         diet_tags: [],
         meal_style_tags: [],
         appliances: [],
@@ -203,11 +205,27 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
       expect(parsed.diet_tags).toEqual([]);
     });
 
+    it('accepts null (any course) or a non-empty course list, and rejects an empty one', () => {
+      const base = {
+        persons: 2,
+        meal_type: null,
+        diet_tags: [],
+        meal_style_tags: [],
+        appliances: [],
+        ingredient_likes: [],
+        ingredient_dislikes: [],
+      };
+      expect(RecipeConstraintsSchema.safeParse({ ...base, courses: null }).success).toBe(true);
+      expect(RecipeConstraintsSchema.safeParse({ ...base, courses: ['primo'] }).success).toBe(true);
+      expect(RecipeConstraintsSchema.safeParse({ ...base, courses: [] }).success).toBe(false);
+    });
+
     it('rejects persons out of 1-12 bounds', () => {
       expect(
         RecipeConstraintsSchema.safeParse({
           persons: 0,
           meal_type: null,
+          courses: null,
           diet_tags: [],
           meal_style_tags: [],
           appliances: [],
@@ -220,6 +238,7 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
         RecipeConstraintsSchema.safeParse({
           persons: 13,
           meal_type: null,
+          courses: null,
           diet_tags: [],
           meal_style_tags: [],
           appliances: [],

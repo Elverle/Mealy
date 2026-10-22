@@ -9,6 +9,7 @@ import {
   MealType,
   Unit,
 } from '@/lib/domain/types';
+import { normalizeCourses } from '@/lib/domain/courses';
 
 /**
  * Normalizes recipe title:
@@ -91,6 +92,7 @@ export function expandDietFlags(flags: readonly DietFlag[]): DietFlag[] {
  * - trims and collapses title whitespace; trims description
  * - trims each step and removes empty steps
  * - deduplicates meal_types, tags, appliances_required (preserving first occurrence)
+ * - normalizes courses (no duplicates, COURSE_VALUES order)
  * - expands diet_flags via expandDietFlags
  * - normalizes each ingredient:
  *   - canonical_name normalized via normalizeCanonicalName
@@ -135,6 +137,7 @@ export function normalizeGeneratedRecipe(recipe: GeneratedRecipe): GeneratedReci
     description: recipe.description.trim(),
     steps: normalizedSteps,
     meal_types: dedupe(recipe.meal_types),
+    courses: normalizeCourses(recipe.courses),
     tags: dedupe(recipe.tags),
     diet_flags: expandDietFlags(recipe.diet_flags),
     appliances_required: dedupe(recipe.appliances_required),

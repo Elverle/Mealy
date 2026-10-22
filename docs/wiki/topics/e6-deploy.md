@@ -2,7 +2,7 @@
 title: E6 Deploy — Raspberry Pi, Immagine da GitHub Actions e Database che si Prepara da Solo
 type: topic
 created: 2026-10-11
-updated: 2026-10-12
+updated: 2026-10-21
 tags: [deploy, raspberry-pi, tailscale, docker, compose, ghcr, github-actions, bootstrap, migrations, backup, health, e6, feature-7]
 ---
 
@@ -165,6 +165,12 @@ Non provati nemmeno in locale: l'esclusione delle immagini senza tag nella puliz
 - **Limite "`pnpm db:seed:aliases` inserisce soltanto"** della Feature 6: chiuso dall'upsert (U3). Resta aperto solo il caso della voce tolta dal file.
 - **Feature 5** ([[e2-libreria-preferenze]]) annotava "una migrazione in più (`0004`), applicata dallo stesso `pnpm db:migrate`": in produzione la applica il bootstrap, insieme alle altre quattro.
 
+### Sviluppi nella Feature 8
+
+[[f8-portate-etichette]] è la prima feature che usa i contratti qui sopra: la migrazione `0005` arriva in produzione con il normale `scripts/deploy.sh`, applicata dal bootstrap; nessuna variabile d'ambiente nuova. Dopo il bootstrap `register()` lancia in background la classificazione delle ricette senza portata, che scrive righe `[classify]` nei log dell'app e non ferma mai l'avvio ([[recipe-classification]], [[db-bootstrap]]). `docs/DEPLOY.md` le elenca in §5 (verifiche) e §9 (problemi frequenti). Due conseguenze per il ritorno indietro:
+- dalla 0.8 si torna a una versione precedente **solo ripristinando il dump `predeploy`**: le versioni vecchie non leggono le etichette e le portate nuove, e la Libreria non si aprirebbe (`DEPLOY §6`, review R3 della Feature 8). Il limite "Le migrazioni non tornano indietro" qui sotto vale quindi anche senza un cambio di schema;
+- su un database appena creato l'household di default nasce all'avvio, perché la classificazione lo legge ([[database-architecture]]).
+
 ## Punti Aperti e Limiti Noti
 
 - **Un alias tolto dal file non viene cancellato** dal database. La cancellazione è esclusa perché i test DB inseriscono alias propri nella stessa tabella (requirements U3).
@@ -203,7 +209,8 @@ I criteri di accettazione della spec che dipendono dal Raspberry (accesso da LAN
 - [[ci-workflows]] — Gate delle pull request e workflow `Image`
 - [[fixtures-and-seed]] — Alias in upsert e comandi di seed
 - [[database-architecture]] — Ambienti del database e flusso delle migrazioni
-- [[database-schema]] — Tabelle e migrazioni `0000`–`0004`
+- [[database-schema]] — Tabelle e migrazioni `0000`–`0004` (dalla Feature 8 anche `0005`)
+- [[recipe-classification]] — Feature 8: classificazione in background dopo il bootstrap
 - [[household-repo]] — `getDefaultHousehold`, che crea l'household alla prima lettura
 - [[e4-lista-spesa]] — Feature 6: alias letti dalla lista della spesa e contratto per il deploy
 - [[e0-fondamenta]] — Feature 1: schema, migrazioni e Postgres di sviluppo

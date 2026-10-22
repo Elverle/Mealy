@@ -10,6 +10,7 @@ import {
   type ConstraintOverrides,
   type GenerationSkip,
   type MealType,
+  MAIN_COURSE_VALUES,
 } from '@/lib/domain/types';
 import { normalizeTitle } from '@/lib/domain/recipe-text';
 import { generateRecipes, type GenerateRecipesOptions } from '@/lib/llm';
@@ -53,11 +54,13 @@ export async function generateAndStoreRecipes(
 
   const ingredientPrefs = await loadIngredientPreferences(household.id);
 
+  // Piano, swap e /api/recipes/generate: solo ricette che fanno da pasto.
   const constraints = buildConstraints(
     household,
     input.mealType,
     input.overrides ?? {},
-    ingredientPrefs
+    ingredientPrefs,
+    MAIN_COURSE_VALUES
   );
 
   const excludeTitles = await listRecipeTitles(db, household.id, {

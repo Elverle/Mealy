@@ -128,6 +128,7 @@ La libreria è vuota: il primo **Genera piano** crea tutte le ricette con l'LLM 
 | Accesso da casa | `http://<ip-del-raspberry>:3000` da PC o telefono in Wi-Fi: si legge e si scrive |
 | Accesso fuori casa | Telefono su rete mobile (Wi-Fi spento) con Tailscale attivo: `http://mealy:3000` oppure `http://100.x.y.z:3000`. Scrivi `http://` per esteso: il browser potrebbe provare `https` da solo. Spunta qualche riga della lista |
 | Generazione ricette | **Genera piano** arriva in fondo senza errori |
+| Classificazione delle ricette | Dopo l'avvio, `bash scripts/compose-prod.sh logs app` mostra `[classify] ricette da classificare: N` e poi `[classify] classificate: X, rimaste: Y`, oppure `[classify] nessuna ricetta da classificare`. Le rimaste si riprovano al riavvio |
 | Backup | `bash scripts/compose-prod.sh exec backup sh /opt/backup/backup.sh manual`, poi `ls -l backups/`: c'è un file `mealy-manual-….sql.gz` |
 | Backup notturno | La mattina dopo: `ls -l backups/` mostra un file `mealy-daily-….sql.gz` e `bash scripts/compose-prod.sh logs backup` contiene una riga `[backup] scritto` |
 | Riavvio | `sudo reboot`; dopo un paio di minuti l'app risponde di nuovo e i dati ci sono |
@@ -168,6 +169,8 @@ bash scripts/deploy.sh --no-pull
 Serve la rete: sul Raspberry resta solo l'immagine in uso, quella precedente viene scaricata di nuovo. L'immagine esiste solo per i commit che sono stati in cima a `main` con il workflow **Image** verde: quello su cui girava l'app lo è di sicuro, un commit qualunque della storia no.
 
 Le migrazioni del database non tornano indietro: se la versione nuova aveva cambiato lo schema, ripristina il dump `mealy-predeploy-…` fatto prima dell'aggiornamento (§7). Scegli quello con l'orario precedente all'aggiornamento: anche il ritorno indietro ne crea uno, con lo schema nuovo. Per riprendere gli aggiornamenti normali: `git checkout main`.
+
+Anche i dati possono impedire il ritorno: dalla 0.8 le ricette e le Impostazioni contengono etichette e portate che le versioni precedenti non conoscono, e la Libreria non si aprirebbe. Tornando a una versione precedente alla 0.8, ripristina sempre il dump `mealy-predeploy-…`.
 
 ## 7. Backup e ripristino
 
@@ -252,6 +255,8 @@ Tutti da `/opt/mealy`. `scripts/compose-prod.sh` è `docker compose` con il file
 | `password authentication failed` nei log dell'app | `POSTGRES_PASSWORD` cambiata dopo la prima creazione | Rimetti la password originale |
 | La porta 3000 è occupata | Un altro servizio sul Raspberry | `APP_PORT=3001` in `.env.production`, poi `bash scripts/deploy.sh --no-pull` |
 | Fuori casa non risponde | Tailscale spento sul telefono, o chiave del Raspberry scaduta | Apri l'app Tailscale; sul Raspberry `tailscale status` |
+| `[classify] modello non configurato (…): N ricette restano senza portata` nei log dell'app | Mancano le variabili `LLM_*` o la chiave del provider in `.env.production` | Nessun danno: l'app funziona e le ricette restano ammesse nel piano. Compila le variabili (§3.5), poi `bash scripts/deploy.sh --no-pull`: la classificazione riparte all'avvio |
+| `[classify] lotto i/n non classificato: …` nei log dell'app | Rete, timeout o risposta non valida del provider LLM | Le ricette di quel lotto restano senza portata e si riprovano al riavvio dell'app. Se si ripete, controlla la chiave API e `LLM_TIMEOUT_MS` |
 
 ## 10. Note per chi sviluppa
 

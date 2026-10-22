@@ -2,8 +2,8 @@
 title: Servizio di Generazione e Route API (recipe-generation)
 type: entity
 created: 2026-09-17
-updated: 2026-10-14
-tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches, ingredient-prefs]
+updated: 2026-10-21
+tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches, ingredient-prefs, courses, derived-tags, feature-8]
 ---
 
 ## File e Responsabilità
@@ -20,13 +20,17 @@ tags: [recipes, generation, constraints, deduplication, api-route, transactions,
 
 La composizione e la validazione dei vincoli operano tramite due funzioni pure:
 
-### `buildConstraints(household, mealType, overrides?, ingredientPrefs?): RecipeConstraints`
+### `buildConstraints(household, mealType, overrides, ingredientPrefs, courses): RecipeConstraints`
+
+Firma dalla Feature 8; fino alla Feature 9 era `buildConstraints(household, mealType, overrides?, ingredientPrefs?)` (v. "Portate nei vincoli" più sotto).
+
 Fonde i valori di base configurati nell'anagrafica del nucleo familiare ([[household-repo]]) con eventuali sovrascritture temporanee fornite dall'utente (`ConstraintOverrides`):
 - `persons`: numero di coperti (priorità ad `overrides.persons`, altrimenti `household.persons`); ammesso in `[PERSONS_MIN, PERSONS_MAX]` (1..12, costanti condivise con le impostazioni dalla Feature 3).
 - `meal_type`: pasto target (`pranzo` o `cena` o `null` per generazione mista).
 - `diet_tags`: array di regimi dietetici attivi.
 - `meal_style_tags`: stili desiderati (es. `veloce`, `salutare`).
 - `appliances`: elettrodomestici disponibili per la preparazione.
+- `courses` (Feature 8): portate ammesse, copiate dall'ultimo parametro; `null` = qualsiasi portata. Lo schema rifiuta l'elenco vuoto.
 - `ingredient_likes` e `ingredient_dislikes`: fino alla Feature 4 erano sempre liste vuote. Dalla Feature 5 arrivano dal quarto parametro opzionale `ingredientPrefs: IngredientPreferenceSets` ([[planner]]): i gradimenti in ordine alfabetico italiano, **al più `PROMPT_INGREDIENT_LIKES_MAX` = 30**; gli scarti in ordine alfabetico, **tutti**, perché servono anche a `findConstraintViolations`. Senza il parametro le due liste restano vuote. `buildConstraints` resta pura: gli insiemi li legge chi la chiama, tramite `loadIngredientPreferences` in `lib/prefs/ingredient-prefs.ts` (modulo neutro importabile sia da `recipes` sia da `plans`, proposta R4 della review architetturale di F4; v. [[prefs-service]]).
 
 ### `findConstraintViolations(recipe, constraints): string[]`
@@ -38,9 +42,23 @@ Esegue un controllo deterministico a posteriori su ciascuna ricetta generata dal
 
 Restituisce l'elenco delle violazioni: un array vuoto attesta la piena conformità della ricetta.
 
+Dalla Feature 8 i controlli sono cinque: tra il pasto e la dieta c'è **la portata** (`portata non adatta al pasto` se `!coursesAllowed(recipe.courses, constraints.courses)`, v. [[courses]]). Con `constraints.courses = null` il controllo non scatta. L'ordine delle violazioni è quindi pasto, portata, diete, elettrodomestici, ingredienti esclusi.
+
 Le stesse quattro regole sono applicate alla libreria da `exclusionReason` del planner ([[planner]]); dalla Feature 4 un commento incrociato nei due file ricorda di allinearle quando se ne modifica una (proposta P3 della review architetturale).
 
 **Dalla Feature 9** le due funzioni servono anche le ricette chieste dall'utente ([[recipe-proposal-service]]), senza varianti (requirements P27 della Feature 9): `proposeRecipe` e `saveProposedRecipe` chiamano `buildConstraints(household, mealType, { meal_style_tags: [] })` senza il quarto parametro, quindi con `ingredient_dislikes` vuoto il controllo sugli ingredienti non scatta e una ricetta chiesta può contenere un ingrediente scartato (spec D7). Una ricetta che passa `findConstraintViolations` deve passare anche `manualChoiceExclusionReason` ([[planner]]), altrimenti il flusso *chiedi → salva → metti nel piano* fallirebbe a ogni richiesta: `tests/recipes/propose.test.ts` lo verifica per una ricetta appena salvata (innesto R6 della review architetturale della Feature 9). Le regole restano due copie tenute insieme da un commento, senza un test che le confronti per intero (osservazione P2 della stessa review).
+
+### Portate nei vincoli (Feature 8)
+
+`buildConstraints` ha un quinto parametro **obbligatorio**, `courses: readonly Course[] | null`. I due parametri intermedi sono diventati `T | undefined` espliciti, perché TypeScript non ammette un parametro obbligatorio dopo uno opzionale; così nessun chiamante può dimenticare le portate (requirements P7 della Feature 8).
+
+| Chiamante | Portate |
+|---|---|
+| `generateAndStoreRecipes` (piano, swap e `POST /api/recipes/generate`) | `MAIN_COURSE_VALUES`: solo ricette che fanno da pasto |
+| `requestConstraints` di `lib/recipes/propose.ts`, con tipo di pasto (dal Piano) | `MAIN_COURSE_VALUES` |
+| `requestConstraints` senza tipo di pasto (dalla Libreria) e ricontrollo di `saveProposedRecipe` | `null` |
+
+Una ricetta generata solo contorno per il piano o per lo swap finisce in `skipped` come `constraint_violation`, con `detail` che contiene `portata non adatta al pasto` (spec FR-3.3). Il prompt chiede già la portata ([[llm-adapter]]): il controllo è la rete di sicurezza, come per le diete. Le stesse portate entrano nel conteggio del planner tramite `isMainDish`, cioè `coursesAllowed(courses, MAIN_COURSE_VALUES)`: un solo predicato per le due funzioni (innesto R2 della review architetturale della Feature 8).
 
 I valori base arrivano dai vincoli che l'utente imposta nel wizard di primo avvio e in `/impostazioni` (Feature 3, [[e5-impostazioni]]); `tests/settings/service.test.ts` verifica che un salvataggio si rifletta in `buildConstraints`.
 
@@ -103,6 +121,8 @@ All'interno della transazione, ogni ricetta generata attraversa una sequenza a 4
 
 Dalla Feature 9 i passi 4 e 5 non sono più scritti nel ciclo: la chiamata è `insertGeneratedRecipe(tx, household.id, recipe)` di `lib/recipes/store.ts`, dove è stata spostata anche la funzione privata `uniqueSlug`. Il comportamento della generazione a lotti è invariato (stessi campi, `source: 'llm'`, `macros_est: null`); la stessa funzione scrive le ricette chieste dall'utente ([[recipe-proposal-service]]), che però saltano il livello 3: per loro la somiglianza trigram non conta (spec D11).
 
+**Dalla Feature 8** `insertGeneratedRecipe` scrive anche le portate (`normalizeCourses`) e applica `deriveStyleTags` alle etichette prima di scrivere: `pochi-ingredienti` segue il numero di ingredienti misurati, `piatto-unico` segue la portata ([[courses]]). È il punto unico di scrittura per generazione, proposta salvata e, con la Feature 10, il pacchetto iniziale; la regola non sta in `normalizeGeneratedRecipe`, quindi l'output dell'adapter non cambia (requirements P5 della Feature 8). Test in `tests/recipes/generate.test.ts`: contorno scartato e secondo salvato; portate salvate in ordine canonico e senza doppioni; etichette derivate aggiunte e tolte.
+
 L'oggetto finale restituito (`GenerateAndStoreResult`) riassume:
 - `requested`: numero di ricette richieste.
 - `created`: array delle `RecipeWithDetails` effettivamente create e salvate.
@@ -155,3 +175,5 @@ Dalla Feature 4 la rotta costruisce queste risposte con gli helper condivisi di 
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
 - [[recipe-proposal-service]] — Feature 9: ricette chieste dall'utente, stessi vincoli e stessa scrittura
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[courses]] — `coursesAllowed`, `normalizeCourses`, `deriveStyleTags` (Feature 8)
+- [[f8-portate-etichette]] — Panoramica della Feature 8

@@ -2,8 +2,8 @@
 title: Libreria — Regole Pure, Servizio, API e Client (library-service)
 type: entity
 created: 2026-10-05
-updated: 2026-10-14
-tags: [library, domain, pure-functions, service, api-route, client-fetch, filters, search, recipe-requests, feature-5, feature-9]
+updated: 2026-10-21
+tags: [library, domain, pure-functions, service, api-route, client-fetch, filters, search, recipe-requests, courses, feature-5, feature-8, feature-9]
 ---
 
 ## File e Responsabilità
@@ -29,6 +29,8 @@ tags: [library, domain, pure-functions, service, api-route, client-fetch, filter
 | `recipeRequestText(query)` (Feature 9) | Testo da mandare al modello per una richiesta libera: il testo cercato senza spazi ai bordi, oppure `null` se è più corto di `RECIPE_REQUEST_MIN` (3) o più lungo di `LIBRARY_QUERY_MAX` (100). Decide quando compare il riquadro *Chiedi una ricetta per «…»* ([[recipe-proposal-sheet]]) |
 | `appendProposedTitle(titles, title)` (Feature 9) | Sequenza di *Un'altra*: aggiunge `title` in coda, toglie un eventuale doppione per titolo normalizzato (`normalizeTitle`) e tiene gli ultimi `PROPOSAL_EXCLUDE_MAX` (10). Restituisce un array nuovo |
 
+Dalla Feature 8 `toLibraryCard` copia anche `courses`: ogni card di `GET /api/recipes`, della pagina `/libreria` e delle candidate di *Scegli* porta le portate, da cui le card ricavano il badge ([[library-screen]]).
+
 Dalla Feature 9 `toLibraryCard` e `compareLibraryCards` servono anche il selettore del Piano (`listSlotCandidates` in [[plan-service]]), e `filterLibraryCards` la sua ricerca ([[slot-recipe-picker]]), con le stesse regole della Libreria.
 
 ### Criteri del filtro (in AND)
@@ -36,6 +38,7 @@ Dalla Feature 9 `toLibraryCard` e `compareLibraryCards` servono anche il seletto
 2. **Preferite**: con `filter.favorites` passano solo le preferite.
 3. **Pasti** e **tag**: ogni valore selezionato deve essere presente nella card.
 4. **Diete**: ogni dieta selezionata deve stare in `expandDietFlags(card.diet_flags)`, quindi una ricetta vegana soddisfa anche *Vegetariano*; non vale il contrario (stessa regola del planner, [[domain-types]]).
+4b. **Portate** (Feature 8), controllate dopo i pasti: con almeno una portata selezionata la card deve averne **almeno una** (OR dentro il gruppo, decisione U3 della Feature 8). Una ricetta non classificata (`courses` vuoto) non corrisponde a nessuna portata; senza portate selezionate il criterio non filtra. Gli altri gruppi restano in AND anche al loro interno: la spec diceva "in OR… come i filtri esistenti", ma `matchesLibraryFilter` usa `every` per pasti e tag, e *Primo* + *Secondo* in AND non mostrerebbe quasi nulla.
 5. **Ricerca**: `normalizeTitle(filter.q)` spezzato in parole; ogni parola deve essere sottostringa di `normalizeTitle` di titolo + nomi canonici degli ingredienti. Quindi niente accenti né maiuscole, ordine delle parole libero, e `zucchina` trova una ricetta che la contiene anche se non è nel titolo. Senza parole la ricerca non filtra.
 
 ### Query string (`parseLibraryQuery`)
@@ -43,7 +46,8 @@ Dalla Feature 9 `toLibraryCard` e `compareLibraryCards` servono anche il seletto
 |---|---|---|
 | `q` | `q` | Trim; al più `LIBRARY_QUERY_MAX` (100) caratteri |
 | `pasto` (ripetibile) | `meals` | Valori di `MealType`, senza doppioni |
-| `tag` (ripetibile) | `tags` | Valori di `MealStyleTag`, senza doppioni |
+| `portata` (ripetibile, Feature 8) | `courses` | Valori di `Course`, senza doppioni, nell'ordine della query |
+| `tag` (ripetibile) | `tags` | Valori di `MealStyleTag` (dodici dalla Feature 8), senza doppioni |
 | `dieta` (ripetibile) | `diets` | Valori di `DietFlag`, senza doppioni |
 | `preferite`, `bloccate` | `favorites`, `blocked` | Assente → `false`; `1` / `true` → `true`; `0` / `false` → `false`; ogni altro valore è rifiutato |
 
@@ -110,6 +114,7 @@ export async function requestSaveRecipe(recipe: GeneratedRecipe): Promise<Recipe
 - `tests/library/service.test.ts` (DB reale, household dedicati): bloccate comprese e preferite in testa, `total`, dettaglio con giudizio e impatto, ricetta di un altro household e id inesistente → `null`.
 - `tests/api/recipes.test.ts` (servizio mockato): filtro passato al servizio, 400 con `details`, 500 senza messaggio interno, 200 e 404 del dettaglio, id non UUID.
 - `tests/library/client.test.ts`: URL, codifica dell'id, `ApiRequestError` con il codice del server; dalla Feature 9 corpo e `signal` di `requestRecipeProposal`, ricetta restituita da `requestSaveRecipe`, errori.
+- Dalla Feature 8 `tests/domain/library.test.ts` copre il filtro per portata (OR dentro il gruppo, ricetta con più portate, AND con i pasti, ricetta non classificata mai trovata filtrando per portata e mostrata senza filtro) e il parametro `portata` (doppioni, ordine, valore fuori elenco rifiutato); `tests/api/recipes.test.ts` il parametro passato al servizio, le card della sola portata richiesta con le loro `courses` e il 400 per una portata sconosciuta.
 - Dalla Feature 9 `tests/domain/library.test.ts` copre anche `recipeRequestText` (vuoto, troppo corto dopo il trim, trim, esattamente 100, oltre 100) e `appendProposedTitle` (coda, doppione normalizzato, ultimi 10, input non mutato).
 
 ## Vedi anche
@@ -124,3 +129,4 @@ export async function requestSaveRecipe(recipe: GeneratedRecipe): Promise<Recipe
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
 - [[recipe-proposal-service]] — `POST /api/recipes` e `POST /api/recipes/propose` (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[f8-portate-etichette]] — Feature 8: filtro per portata e `courses` sulle card

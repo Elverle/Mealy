@@ -57,6 +57,7 @@ function makeCard(overrides: Partial<LibraryRecipeCard> = {}): LibraryRecipeCard
     title: 'Pollo al limone',
     prep_minutes: 20,
     meal_types: ['pranzo', 'cena'],
+    courses: [],
     tags: ['veloce', 'salutare'],
     diet_flags: [],
     ingredient_names: ['pollo', 'limone'],
@@ -137,6 +138,39 @@ describe('matchesLibraryFilter', () => {
     expect(matchesLibraryFilter(card, filterWith({ meals: ['cena'] }))).toBe(true);
     expect(matchesLibraryFilter(card, filterWith({ meals: ['pranzo'] }))).toBe(false);
     expect(matchesLibraryFilter(card, filterWith({ meals: ['pranzo', 'cena'] }))).toBe(false);
+  });
+
+  it('matches a recipe with any of the selected courses (OR inside the group)', () => {
+    const card = makeCard({ courses: ['primo'] });
+    expect(matchesLibraryFilter(card, filterWith({ courses: ['primo', 'secondo'] }))).toBe(true);
+    expect(matchesLibraryFilter(card, filterWith({ courses: ['secondo', 'contorno'] }))).toBe(false);
+  });
+
+  it('matches a recipe with several courses when one of them is selected', () => {
+    const card = makeCard({ courses: ['primo', 'contorno'] });
+    expect(matchesLibraryFilter(card, filterWith({ courses: ['contorno'] }))).toBe(true);
+  });
+
+  it('combines the course group with the meal group in AND', () => {
+    const card = makeCard({ courses: ['primo'], meal_types: ['cena'] });
+    expect(matchesLibraryFilter(card, filterWith({ courses: ['primo'], meals: ['cena'] }))).toBe(true);
+    expect(matchesLibraryFilter(card, filterWith({ courses: ['primo'], meals: ['pranzo'] }))).toBe(false);
+    expect(matchesLibraryFilter(card, filterWith({ courses: ['secondo'], meals: ['cena'] }))).toBe(false);
+  });
+
+  it('never matches an unclassified recipe to a course filter', () => {
+    const unclassified = makeCard({ courses: [] });
+    expect(matchesLibraryFilter(unclassified, filterWith({ courses: ['primo'] }))).toBe(false);
+    expect(
+      matchesLibraryFilter(
+        unclassified,
+        filterWith({ courses: ['piatto-unico', 'primo', 'secondo', 'contorno'] })
+      )
+    ).toBe(false);
+  });
+
+  it('shows an unclassified recipe when no course is selected', () => {
+    expect(matchesLibraryFilter(makeCard({ courses: [] }), filterWith({ courses: [] }))).toBe(true);
   });
 
   it('requires every selected tag', () => {
@@ -235,8 +269,27 @@ describe('parseLibraryQuery', () => {
     );
     expect(parseLibraryQuery(params)).toEqual({
       ok: true,
-      filter: { q: 'pollo', meals: ['cena'], tags: ['veloce'], diets: ['vegano'], favorites: true, blocked: true },
+      filter: {
+        q: 'pollo',
+        meals: ['cena'],
+        courses: [],
+        tags: ['veloce'],
+        diets: ['vegano'],
+        favorites: true,
+        blocked: true,
+      },
     });
+  });
+
+  it('reads the portata parameter, deduped and in query order', () => {
+    const result = parseLibraryQuery(
+      new URLSearchParams('portata=primo&portata=primo&portata=secondo')
+    );
+    expect(result).toEqual({ ok: true, filter: { ...EMPTY_LIBRARY_FILTER, courses: ['primo', 'secondo'] } });
+  });
+
+  it('rejects a course outside the closed list', () => {
+    expect(parseLibraryQuery(new URLSearchParams('portata=antipasto')).ok).toBe(false);
   });
 
   it('accepts 0 and false as false', () => {

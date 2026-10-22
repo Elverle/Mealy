@@ -33,6 +33,7 @@ export function toLibraryCard(recipe: Recipe): LibraryRecipeCard {
     title: recipe.title,
     prep_minutes: recipe.prep_minutes,
     meal_types: recipe.meal_types,
+    courses: recipe.courses,
     tags: recipe.tags,
     diet_flags: recipe.diet_flags,
     ingredient_names: recipeIngredientNames(recipe),
@@ -48,6 +49,10 @@ export function matchesLibraryFilter(card: LibraryRecipeCard, filter: LibraryFil
   if (filter.blocked ? !card.blocked : card.blocked) return false;
   if (filter.favorites && !card.favorite) return false;
   if (!filter.meals.every((meal) => card.meal_types.includes(meal))) return false;
+  // Portate in OR: basta una. Una ricetta non classificata non corrisponde.
+  if (filter.courses.length > 0 && !card.courses.some((course) => filter.courses.includes(course))) {
+    return false;
+  }
   if (!filter.tags.every((tag) => card.tags.includes(tag))) return false;
   if (filter.diets.length > 0) {
     const diets = expandDietFlags(card.diet_flags);
@@ -102,6 +107,7 @@ export function parseLibraryQuery(params: URLSearchParams): LibraryQueryResult {
   const parsed = LibraryFilterSchema.safeParse({
     q: (params.get('q') ?? '').trim(),
     meals: distinct(params.getAll('pasto')),
+    courses: distinct(params.getAll('portata')),
     tags: distinct(params.getAll('tag')),
     diets: distinct(params.getAll('dieta')),
     favorites: parseFlag(params.get('preferite')),

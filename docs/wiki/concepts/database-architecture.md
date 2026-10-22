@@ -2,8 +2,8 @@
 title: Architettura del Database Relazionale e Migrazioni
 type: concept
 created: 2026-09-15
-updated: 2026-10-11
-tags: [database, postgresql, drizzle, migrations, pg_trgm, architecture, production, bootstrap]
+updated: 2026-10-21
+tags: [database, postgresql, drizzle, migrations, pg_trgm, architecture, production, bootstrap, connection-pool]
 ---
 
 ## Scelte Architetturali
@@ -31,6 +31,12 @@ Differenze tra i due ambienti, dalla Feature 7 ([[e6-deploy]]):
 | Alias degli ingredienti | `pnpm db:seed` oppure `pnpm db:seed:aliases` | All'avvio dell'app, dopo le migrazioni |
 | Ricette di esempio e household | `pnpm db:seed` | Mai: la libreria parte vuota, l'household nasce alla prima lettura |
 | Backup | Nessuno | Dump notturno e prima di ogni cambio di immagine ([[backup-service]]) |
+
+> **Nota (Feature 8)**: dalla Feature 8, all'avvio in produzione e dopo il bootstrap, parte in background la classificazione delle ricette senza portata ([[recipe-classification]]). Legge l'household di default con `loadHousehold()`, che lo crea se manca: su un database appena creato l'household nasce quindi all'avvio, non più alla prima lettura di una pagina. Il dato è lo stesso (household senza onboarding).
+
+### Pool di connessioni (Feature 8)
+
+`lib/db/index.ts` crea il client di postgres.js una sola volta per processo e lo salva in `globalThis` (`globalForDb.conn ??= postgres(connectionString)`). Fino alla Feature 7 il salvataggio avveniva solo con `NODE_ENV !== 'production'`, per sopravvivere all'HMR di sviluppo; in produzione il singleton dipendeva dalla cache dei moduli. Dalla Feature 8 l'hook di avvio (`instrumentation.ts`) importa la classificazione e quindi `@/lib/db`: se Next caricasse il modulo da un grafo diverso da quello delle rotte, senza il salvataggio globale nascerebbe un secondo pool, con una connessione aperta e mai chiusa. Il salvataggio vale ora anche in produzione (proposta P4 della review architetturale della Feature 8). Che Next usi davvero due grafi non è stato verificato; la modifica è innocua in entrambi i casi. Il bootstrap continua a usare una connessione propria, che chiude alla fine ([[db-bootstrap]]).
 
 ## Estensioni e Strategie di Indicizzazione
 
@@ -90,6 +96,7 @@ I passi sopra valgono per lo sviluppo e per il gate CI. In produzione il passo 3
 - I due strumenti condividono la tabella `drizzle.__drizzle_migrations`: un database migrato con l'uno è riconosciuto dall'altro.
 - Il migratore applica le migrazioni il cui orario nel journal è successivo all'ultima applicata, tutte in una transazione. Non confronta l'elenco: per questo **una migrazione arrivata su `main` non si modifica, se ne aggiunge una nuova**, e un test controlla che il journal resti in ordine (`tests/db/bootstrap.test.ts`).
 - Le migrazioni non tornano indietro. Il punto di ritorno è il dump `predeploy` che `scripts/deploy.sh` scrive prima di avviare un'immagine diversa ([[deploy-scripts]], [[backup-service]]).
+- Dalla Feature 8 anche i **dati** possono impedire il ritorno: la migrazione `0005` e la classificazione scrivono etichette e portate che le versioni precedenti alla 0.8 non sanno leggere, perché le letture validano gli elenchi chiusi con Zod. Tornando a una versione precedente si ripristina sempre il dump `predeploy` (`docs/DEPLOY.md §6`, [[database-schema]]).
 
 ## Vedi anche
 
@@ -100,3 +107,4 @@ I passi sopra valgono per lo sviluppo e per il gate CI. In produzione il passo 3
 - [[household-repo]] — Repository singleton del nucleo domestico
 - [[ingredient-pref-repo]] — Repository dei giudizi sugli ingredienti (Feature 5)
 - [[e0-fondamenta]] — Panoramica della Feature 1
+- [[recipe-classification]] — Classificazione all'avvio, che usa il pool dell'app (Feature 8)

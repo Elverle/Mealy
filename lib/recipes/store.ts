@@ -7,6 +7,7 @@ import {
   slugExists,
 } from '@/lib/db/repositories/recipe-repo';
 import { type GeneratedRecipe } from '@/lib/domain/types';
+import { deriveStyleTags, normalizeCourses } from '@/lib/domain/courses';
 import { slugify } from '@/lib/domain/recipe-text';
 
 /**
@@ -29,6 +30,8 @@ async function uniqueSlug(executor: DbExecutor, baseSlug: string): Promise<strin
  * Inserisce una ricetta generata nella libreria dell'household, con slug univoco, origine
  * 'llm' e la riga di preferenze di default. Va chiamata dentro una transazione, dopo
  * `acquireRecipeGenerationLock`: lo slug si calcola leggendo quelli esistenti.
+ * Applica le regole derivate (`deriveStyleTags`): è il punto unico di scrittura per
+ * generazione, proposta salvata e pacchetto della Feature 10.
  */
 export async function insertGeneratedRecipe(
   executor: DbExecutor,
@@ -36,6 +39,7 @@ export async function insertGeneratedRecipe(
   recipe: GeneratedRecipe
 ): Promise<RecipeWithDetails> {
   const slug = await uniqueSlug(executor, slugify(recipe.title));
+  const courses = normalizeCourses(recipe.courses);
 
   return insertRecipeWith(
     executor,
@@ -46,7 +50,8 @@ export async function insertGeneratedRecipe(
       description: recipe.description,
       steps: recipe.steps,
       meal_types: recipe.meal_types,
-      tags: recipe.tags,
+      courses,
+      tags: deriveStyleTags(recipe.tags, courses, recipe.ingredients),
       diet_flags: recipe.diet_flags,
       appliances_required: recipe.appliances_required,
       servings_base: recipe.servings_base,
