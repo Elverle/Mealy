@@ -1,0 +1,193 @@
+{
+  "recipes": [
+    {
+      "title": "Pasta alla carbonara",
+      "description": "Un classico della cucina romana, cremoso e saporito, perfetto per una cena veloce.",
+      "meal_types": ["cena"],
+      "courses": ["primo"],
+      "tags": ["veloce", "tradizionale", "comfort-food"],
+      "diet_flags": [],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 20,
+      "kcal_est": 650,
+      "steps": ["Porta a bollore abbondante acqua salata e cuoci la pasta.", "Taglia il guanciale a listarelle e rosolalo in padella finché non diventa croccante.", "In una ciotola, sbatti i tuorli con il pecorino grattugiato e abbondante pepe nero.", "Scola la pasta al dente tenendo da parte un mestolo di acqua di cottura.", "Salta la pasta nella padella con il guanciale, togli dal fuoco e aggiungi il composto di uova e formaggio mescolando velocemente con un filo di acqua di cottura per creare la cremina."],
+      "ingredients": [
+        {
+          "canonical_name": "spaghetto",
+          "display_name": "spaghetti",
+          "qty": 200,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "guanciale",
+          "display_name": "guanciale",
+          "qty": 100,
+          "unit": "g",
+          "category": "macelleria",
+          "note": null
+        },
+        {
+          "canonical_name": "uovo",
+          "display_name": "tuorli d'uovo",
+          "qty": 3,
+          "unit": "pz",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "pecorino",
+          "display_name": "pecorino romano grattugiato",
+          "qty": 50,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe",
+          "display_name": "pepe nero",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "title": "Salmone al forno con patate",
+      "description": "Un secondo piatto leggero e nutriente, cucinato in modo semplice al forno.",
+      "meal_types": ["cena"],
+      "courses": ["secondo"],
+      "tags": ["salutare", "proteico", "leggero"],
+      "diet_flags": ["pescetariano"],
+      "appliances_required": ["forno"],
+      "servings_base": 2,
+      "prep_minutes": 40,
+      "kcal_est": 450,
+      "steps": ["Pela le patate e tagliale a fettine molto sottili.", "Disponi le patate su una teglia con carta forno, condisci con olio, sale e rosmarino, quindi inforna a 200 gradi per 15 minuti.", "Adagia i filetti di salmone sopra le patate, aggiungi altro rosmarino e una fetta di limone su ciascun filetto.", "Continua la cottura in forno per altri 15-20 minuti finché il salmone non è cotto."],
+      "ingredients": [
+        {
+          "canonical_name": "salmone",
+          "display_name": "filetti di salmone",
+          "qty": 300,
+          "unit": "g",
+          "category": "pescheria",
+          "note": null
+        },
+        {
+          "canonical_name": "patata",
+          "display_name": "patate medie",
+          "qty": 2,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine d'oliva",
+          "display_name": "olio extravergine d'oliva",
+          "qty": 20,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "rosmarino",
+          "display_name": "rosmarino fresco",
+          "qty": null,
+          "unit": "qb",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "limone",
+          "display_name": "fette di limone",
+          "qty": 2,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "title": "Insalata di riso ricca",
+      "description": "Piatto unico estivo, perfetto da preparare in anticipo.",
+      "meal_types": ["cena"],
+      "courses": ["piatto-unico"],
+      "tags": ["piatto-unico", "in-anticipo", "piatto-freddo"],
+      "diet_flags": ["senza-glutine", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 30,
+      "kcal_est": 500,
+      "steps": ["Bollisci il riso in acqua salata, scolalo e raffreddalo sotto acqua corrente.", "Taglia a cubetti il formaggio, i pomodorini e il prosciutto cotto.", "In una ciotola capiente unisci il riso, gli ingredienti tagliati, il tonno sott'olio ben sgocciolato e i piselli precotti.", "Condisci con un filo d'olio e riponi in frigorifero fino al momento di servire."],
+      "ingredients": [
+        {
+          "canonical_name": "riso",
+          "display_name": "riso per insalate",
+          "qty": 160,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "tonno",
+          "display_name": "tonno sott'olio",
+          "qty": 100,
+          "unit": "g",
+          "category": "dispensa",
+          "note": "peso sgocciolato"
+        },
+        {
+          "canonical_name": "pisello",
+          "display_name": "piselli precotti",
+          "qty": 80,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pomodoro",
+          "display_name": "pomodorini",
+          "qty": 100,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "prosciutto cotto",
+          "display_name": "prosciutto cotto a dadini",
+          "qty": 50,
+          "unit": "g",
+          "category": "macelleria",
+          "note": null
+        },
+        {
+          "canonical_name": "formaggio",
+          "display_name": "emmental a cubetti",
+          "qty": 50,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        }
+      ]
+    }
+  ]
+}
