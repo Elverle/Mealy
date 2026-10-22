@@ -1,6 +1,6 @@
 # Feature 8 — Portate delle ricette e nuove etichette di stile · Piano di implementazione
 
-**Data:** 2026-10-21 · **Stato:** reviewed (sviluppata il 21–22 ottobre 2026, release 0.8.0) · **Input di:** `/arch-review 8` → `/feature-dev 8`
+**Data:** 2026-10-21 · **Stato:** done (sviluppata il 21–22 ottobre 2026, release 0.8.0, sul Raspberry dal 22 ottobre 2026) · **Input di:** `/arch-review 8` → `/feature-dev 8`
 **Spec:** [`spec.md`](spec.md) (FR-1 … FR-6, D1–D8)
 **Decisioni motivate:** [`requirements.md`](requirements.md) (U1–U3 dell'utente, P1–P24 di planning), recepite qui come definitive.
 **Architecture review:** [`architecture-review-2026-10-21.md`](architecture-review-2026-10-21.md) — proposte R1 (WP1 diviso in WP1a/WP1b), R2 (`coursesAllowed`), R3 (ritorno indietro solo con il dump), R4, P4, P5 già innestate in questo piano (2026-10-21).
