@@ -27,3 +27,6 @@ backups/
 
 # Dataset grezzo delle ricette (10 MB, di terzi): resta fuori dal repository
 docs/recipe.csv
+
+# File di lavoro del pacchetto di ricette (contengono i testi del dataset): restano fuori dal repository
+.recipe-pack/

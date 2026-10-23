@@ -6,7 +6,7 @@ import {
   insertRecipeWith,
   slugExists,
 } from '@/lib/db/repositories/recipe-repo';
-import { type GeneratedRecipe } from '@/lib/domain/types';
+import { type GeneratedRecipe, type RecipeSource } from '@/lib/domain/types';
 import { deriveStyleTags, normalizeCourses } from '@/lib/domain/courses';
 import { slugify } from '@/lib/domain/recipe-text';
 
@@ -26,9 +26,17 @@ async function uniqueSlug(executor: DbExecutor, baseSlug: string): Promise<strin
   return `${baseSlug}-${crypto.randomUUID().slice(0, 6)}`;
 }
 
+export interface InsertGeneratedRecipeOptions {
+  /** Default 'llm'. Le ricette del pacchetto (Feature 10) entrano con 'manual'. */
+  source?: RecipeSource;
+  /** Default adesso. Le ricette del pacchetto usano una data fissa, per l'ordine in Libreria. */
+  createdAt?: Date;
+}
+
 /**
  * Inserisce una ricetta generata nella libreria dell'household, con slug univoco, origine
- * 'llm' e la riga di preferenze di default. Va chiamata dentro una transazione, dopo
+ * 'llm' e la riga di preferenze di default. L'origine è `'llm'` salvo `options.source`; la data
+ * di creazione è adesso salvo `options.createdAt`. Va chiamata dentro una transazione, dopo
  * `acquireRecipeGenerationLock`: lo slug si calcola leggendo quelli esistenti.
  * Applica le regole derivate (`deriveStyleTags`): è il punto unico di scrittura per
  * generazione, proposta salvata e pacchetto della Feature 10.
@@ -36,7 +44,8 @@ async function uniqueSlug(executor: DbExecutor, baseSlug: string): Promise<strin
 export async function insertGeneratedRecipe(
   executor: DbExecutor,
   householdId: string,
-  recipe: GeneratedRecipe
+  recipe: GeneratedRecipe,
+  options: InsertGeneratedRecipeOptions = {}
 ): Promise<RecipeWithDetails> {
   const slug = await uniqueSlug(executor, slugify(recipe.title));
   const courses = normalizeCourses(recipe.courses);
@@ -58,7 +67,8 @@ export async function insertGeneratedRecipe(
       prep_minutes: recipe.prep_minutes,
       kcal_est: recipe.kcal_est,
       macros_est: null,
-      source: 'llm',
+      source: options.source ?? 'llm',
+      created_at: options.createdAt,
     },
     recipe.ingredients.map(({ canonical_name, display_name, qty, unit, category, note }) => ({
       canonical_name,
