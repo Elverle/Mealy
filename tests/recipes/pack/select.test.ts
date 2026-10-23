@@ -90,6 +90,10 @@ function makeCandidate(
   };
 }
 
+function conversionsWarning(convertedDir: string): string {
+  return `Ci sono già conversioni in ${convertedDir}: sono legate ai codici, che con un CSV o regole diverse possono indicare altre ricette. Se il CSV è cambiato, cancella la cartella prima di "pnpm recipes:pack convert".`;
+}
+
 let dir: string;
 
 beforeEach(() => {
@@ -220,6 +224,28 @@ describe('lib/recipes/pack/select', () => {
       expect(evaluateRow(makeRow({ index: '1', title: 'Torta', category: 'Dolci' }))).toEqual({
         ok: false,
         reason: 'categoria',
+      });
+    });
+
+    it('rejects a row without a title, or with a title of only spaces', () => {
+      expect(evaluateRow(makeRow({ index: '1', title: '' }))).toEqual({ ok: false, reason: 'titolo' });
+      expect(evaluateRow(makeRow({ index: '1', title: ' \n  ' }))).toEqual({
+        ok: false,
+        reason: 'titolo',
+      });
+    });
+
+    it('rejects an ingredient pair whose name is empty or only spaces', () => {
+      const blank = makeRow({ index: '2', title: 'Pasta', ingredients: "[['   ', '200g'], ['Sale', 'q.b.']]" });
+      const empty = makeRow({ index: '3', title: 'Pasta', ingredients: "[['', '200g'], ['Sale', 'q.b.']]" });
+      expect(evaluateRow(blank)).toEqual({ ok: false, reason: 'ingredienti' });
+      expect(evaluateRow(empty)).toEqual({ ok: false, reason: 'ingredienti' });
+    });
+
+    it('turns line breaks and repeated spaces in the title into single spaces', () => {
+      expect(evaluateRow(makeRow({ index: '1', title: 'Pasta\n  al   forno' }))).toMatchObject({
+        ok: true,
+        candidate: { title: 'Pasta al forno' },
       });
     });
 
@@ -551,6 +577,40 @@ describe('lib/recipes/pack/select', () => {
       const selection = fs.readFileSync(`${dir}/selection.md`, 'utf8');
       expect(selection).not.toContain('revisione a mano');
       expect(selection.startsWith('# Pacchetto di ricette — selezione')).toBe(true);
+    });
+
+    it('warns with force when converted records already exist, and keeps them', async () => {
+      await runSelect({ csvPath: SAMPLE_PATH, workDir: dir, force: false });
+      const convertedDir = `${dir}/converted`;
+      fs.mkdirSync(convertedDir);
+      fs.writeFileSync(`${convertedDir}/P001.json`, '{}\n', 'utf8');
+
+      const report = await runSelect({ csvPath: SAMPLE_PATH, workDir: dir, force: true });
+
+      expect(report.warnings).toContain(conversionsWarning(convertedDir));
+      expect(fs.existsSync(`${convertedDir}/P001.json`)).toBe(true);
+    });
+
+    it('does not warn with force when the converted directory is missing or empty', async () => {
+      await runSelect({ csvPath: SAMPLE_PATH, workDir: dir, force: false });
+      const convertedDir = `${dir}/converted`;
+
+      const missing = await runSelect({ csvPath: SAMPLE_PATH, workDir: dir, force: true });
+      expect(missing.warnings).not.toContain(conversionsWarning(convertedDir));
+
+      fs.mkdirSync(convertedDir);
+      const empty = await runSelect({ csvPath: SAMPLE_PATH, workDir: dir, force: true });
+      expect(empty.warnings).not.toContain(conversionsWarning(convertedDir));
+    });
+
+    it('does not warn without force, even when converted records exist', async () => {
+      const convertedDir = `${dir}/converted`;
+      fs.mkdirSync(convertedDir);
+      fs.writeFileSync(`${convertedDir}/P001.json`, '{}\n', 'utf8');
+
+      const report = await runSelect({ csvPath: SAMPLE_PATH, workDir: dir, force: false });
+
+      expect(report.warnings).not.toContain(conversionsWarning(convertedDir));
     });
 
     it('throws with the exact message when the dataset is missing', async () => {

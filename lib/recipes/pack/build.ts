@@ -105,6 +105,28 @@ function quotaProblems(
   });
 }
 
+/** Nomi della tabella da normalizzare a mano, e nomi normalizzati che compaiono in più voci. */
+function tableNameProblems(entries: readonly { name: string }[]): string[] {
+  const notNormalized = entries
+    .map((entry) => entry.name)
+    .filter((name) => normalizeCanonicalName(name) !== name)
+    .sort((a, b) => a.localeCompare(b, 'it'));
+
+  const seen = new Set<string>();
+  const duplicated = new Set<string>();
+  for (const entry of entries) {
+    const name = normalizeCanonicalName(entry.name);
+    if (seen.has(name)) duplicated.add(name);
+    seen.add(name);
+  }
+  const duplicates = [...duplicated].sort((a, b) => a.localeCompare(b, 'it'));
+
+  return [
+    ...(notNormalized.length > 0 ? [`Nomi non normalizzati nella tabella: ${notNormalized.join(', ')}.`] : []),
+    ...(duplicates.length > 0 ? [`Voci doppie nella tabella: ${duplicates.join(', ')}.`] : []),
+  ];
+}
+
 function aliasProblems(names: readonly string[]): string[] {
   const aliases = toAliasMap(FIXTURE_INGREDIENT_ALIASES);
   return names.flatMap((name) => {
@@ -196,6 +218,7 @@ export async function runBuild(options: BuildOptions): Promise<BuildReport> {
 
   const problems = [
     ...quotaProblems(accepted, quotas),
+    ...tableNameProblems(entries),
     ...(missing.length > 0 ? [`Ingredienti senza voce nella tabella: ${missing.join(', ')}.`] : []),
     ...(unreviewed.length > 0 ? [`Ingredienti da rivedere: ${unreviewed.join(', ')}.`] : []),
     ...aliasProblems(names),

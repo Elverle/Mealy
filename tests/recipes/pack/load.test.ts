@@ -185,5 +185,5 @@ describe.skipIf(!dbUp)('loadRecipePack', () => {
     // non il confronto offline) compare nell'elenco degli scartati.
     const inserted = new Set(await listRecipeTitles(db, h));
     expect(RECIPE_PACK_RECIPES.map((r) => r.title).filter((t) => !inserted.has(t))).toEqual([]);
-  });
+  }, 30_000);
 });

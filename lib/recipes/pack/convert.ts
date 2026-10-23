@@ -15,7 +15,14 @@ import {
   type PackConvertItem,
   type PackGroup,
 } from '@/lib/domain/types';
-import { convertDatasetRecipe, getModel, isLlmError, readLlmConfig } from '@/lib/llm';
+import {
+  convertDatasetRecipe,
+  getModel,
+  isLlmError,
+  readLlmConfig,
+  type LlmError,
+  type LlmErrorCode,
+} from '@/lib/llm';
 import { formatQuantityReading, parseDatasetQuantity } from './dataset';
 import { readJsonFile } from './files';
 import { PACK_INGREDIENTS_FILE_PATH } from './paths';
@@ -26,6 +33,9 @@ import { readWorkState, writeRecord, type PackWorkState } from './state';
 const MIN_CONCURRENCY = 1;
 const MAX_CONCURRENCY = 5;
 const INJECTED_MODEL_NAME = 'iniettato';
+/** Errori del modello che si ripetono a ogni chiamata (modello sbagliato, chiave, quota): dopo tanti di fila la corsa si ferma. */
+export const MAX_CONSECUTIVE_MODEL_ERRORS = 5;
+const PERSISTENT_MODEL_ERROR_CODES: readonly LlmErrorCode[] = ['provider', 'config'];
 
 export interface ConvertOptions {
   workDir: string;
@@ -75,6 +85,10 @@ interface ConvertRun {
   convert: typeof convertDatasetRecipe;
   concurrency: number;
   retryRejected: boolean;
+  /** Vero dopo un errore non del modello o dopo `MAX_CONSECUTIVE_MODEL_ERRORS` errori di fila: nessuna nuova chiamata. */
+  stopped: boolean;
+  /** Errori `provider`/`config` di fila; un esito `accepted` o `rejected` lo azzera. */
+  consecutiveModelErrors: number;
 }
 
 interface Attempt {
@@ -90,8 +104,21 @@ export function buildKnownNames(facts: readonly { name: string }[]): string[] {
     ...FIXTURE_RECIPES.flatMap((recipe) =>
       recipe.ingredients.map((ingredient) => ingredient.canonical_name)
     ),
-  ].map(normalizeCanonicalName);
+  ]
+    .map(normalizeCanonicalName)
+    .filter((name) => name !== '');
   return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'it'));
+}
+
+/** Errore del modello che si ripete (provider, config): alla soglia la corsa si ferma, una sola volta. */
+function countModelError(run: ConvertRun, error: LlmError): void {
+  if (run.stopped || !PERSISTENT_MODEL_ERROR_CODES.includes(error.code)) return;
+  run.consecutiveModelErrors += 1;
+  if (run.consecutiveModelErrors < MAX_CONSECUTIVE_MODEL_ERRORS) return;
+  run.stopped = true;
+  run.logger.warn(
+    `[pack] conversione interrotta: ${MAX_CONSECUTIVE_MODEL_ERRORS} errori del modello di fila. Ultimo: ${error.code}: ${error.message}`
+  );
 }
 
 /** Voce per il modello: nomi e quantità del dataset, con la lettura delle quantità. */
@@ -139,6 +166,7 @@ async function convertCandidate(run: ConvertRun, candidate: PackCandidate): Prom
   } catch (error) {
     if (!isLlmError(error)) throw error;
     run.logger.warn(`[pack] ${code} non convertita: ${error.code}: ${error.message}`);
+    countModelError(run, error);
     return 'failed';
   }
 
@@ -155,6 +183,7 @@ async function convertCandidate(run: ConvertRun, candidate: PackCandidate): Prom
       : { ...base, status: 'rejected', recipe: null, errors: attempt.errors, warnings: [] };
   await writeRecord(run.workDir, record);
   run.state.records.set(code, record);
+  run.consecutiveModelErrors = 0;
 
   if (record.status === 'accepted') {
     run.logger.log(`[pack] ${code} accettata`);
@@ -178,11 +207,10 @@ async function convertGroup(run: ConvertRun, group: PackGroup, quota: number): P
   let accepted = codes.filter((code) => run.state.records.get(code)?.status === 'accepted').length;
   let failed = 0;
   let inFlight = 0;
-  let stopped = false;
 
   const worker = async (): Promise<void> => {
     // Dopo uno scarto il parallelismo può scendere sotto `concurrency`, ma il worker che lo ha visto continua.
-    while (!stopped && queue.length > 0 && accepted + inFlight < quota) {
+    while (!run.stopped && queue.length > 0 && accepted + inFlight < quota) {
       const candidate = queue.shift();
       if (candidate === undefined) return;
       inFlight++;
@@ -191,8 +219,8 @@ async function convertGroup(run: ConvertRun, group: PackGroup, quota: number): P
         if (outcome === 'accepted') accepted++;
         if (outcome === 'failed') failed++;
       } catch (error) {
-        // Errore non del modello: gli altri worker non avviano nuove chiamate.
-        stopped = true;
+        // Errore non del modello: nessuna nuova chiamata, in questo gruppo né nei successivi.
+        run.stopped = true;
         throw error;
       } finally {
         inFlight--;
@@ -245,6 +273,8 @@ export async function runConvert(options: ConvertOptions): Promise<ConvertReport
     convert,
     concurrency,
     retryRejected,
+    stopped: false,
+    consecutiveModelErrors: 0,
   };
 
   const groups = {} as Record<PackGroup, ConvertGroupReport>;

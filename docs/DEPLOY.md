@@ -11,7 +11,7 @@ Guida operativa della v1. Mealy gira su un Raspberry Pi con Docker Compose ed è
 | `backup` | Ogni notte alle 03:00 scrive un dump compresso in `backups/` e tiene gli ultimi 7 |
 
 - **Il Raspberry non costruisce nulla.** A ogni push su `main` GitHub Actions (workflow **Image**) costruisce l'immagine arm64 e la pubblica come `ghcr.io/elverle/mealy:sha-<commit>`. Il Raspberry scarica l'immagine del commit che ha in `git`.
-- **Nessun comando `pnpm` sul Raspberry.** Migrazioni e alias li applica l'app da sola. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione: la libreria parte vuota.
+- **Nessun comando `pnpm` sul Raspberry.** Migrazioni e alias li applica l'app da sola. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione: la libreria parte dal pacchetto iniziale di ricette (`fixtures/recipe-pack.json`), che l'app carica all'avvio.
 - **Nessuna porta aperta su Internet.** Fuori casa si entra solo con Tailscale. L'app però ascolta su tutte le interfacce di rete del Raspberry, e le porte pubblicate da Docker non passano da `ufw`: in IPv4 la protegge il router di casa. Se la tua rete assegna indirizzi IPv6 pubblici, controlla che il firewall IPv6 del router blocchi le connessioni in ingresso.
 
 ## 2. Cosa serve
@@ -118,7 +118,7 @@ L'ultima riga deve essere `[deploy] fatto: Mealy risponde sulla porta 3000`.
 
 3. Da un dispositivo in casa apri `http://<ip-del-raspberry>:3000`: parte la configurazione iniziale.
 
-La libreria è vuota: il primo **Genera piano** crea tutte le ricette con l'LLM e può richiedere qualche minuto. Dal secondo piano in poi le ricette vengono dalla libreria.
+La libreria contiene già le ricette del pacchetto iniziale: di solito il primo **Genera piano** le prende da lì, senza chiamare l'LLM. Il modello interviene solo quando la libreria non basta, per esempio con preferenze molto restrittive.
 
 ## 5. Verifica
 

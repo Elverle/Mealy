@@ -312,6 +312,32 @@ describe('runBuild: errori', () => {
     expect(lines).toEqual([HEADER, 'Nomi che sono alias: sale fino (usa "sale").']);
   });
 
+  it('reports a table name that is not normalized, and the duplicate it makes with its normalized twin', async () => {
+    await prepareState(standardFixtures(), [
+      ...reviewedTable().filter((entry) => entry.name !== 'sale'),
+      fact('Sale'),
+      fact('sale'),
+    ]);
+
+    const lines = await buildProblemLines();
+
+    expect(lines).toEqual([HEADER, 'Nomi non normalizzati nella tabella: Sale.', 'Voci doppie nella tabella: sale.']);
+    expect(fs.existsSync(packFile)).toBe(false);
+  });
+
+  it('reports the table names that are not normalized, sorted, without duplicates', async () => {
+    await prepareState(
+      standardFixtures(),
+      reviewedTable().map((entry) =>
+        entry.name === 'zucchero' || entry.name === 'farina' ? { ...entry, name: `${entry.name[0].toUpperCase()}${entry.name.slice(1)}` } : entry
+      )
+    );
+
+    const lines = await buildProblemLines();
+
+    expect(lines).toEqual([HEADER, 'Nomi non normalizzati nella tabella: Farina, Zucchero.']);
+  });
+
   it('reports two recipes with similar titles', async () => {
     const fixtures = standardFixtures();
     fixtures[1] = { ...fixtures[1], recipe: recipeWith(PACK_ORDER[0], ['primo']) };

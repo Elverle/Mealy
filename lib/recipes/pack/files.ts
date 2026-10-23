@@ -51,8 +51,10 @@ export async function readJsonFile<T>(
   return parsed.data;
 }
 
-/** Scrive `value` come JSON indentato, con a capo finale; crea le cartelle mancanti. */
+/** Scrive `value` come JSON indentato con a capo finale, creando le cartelle; scrive su un file temporaneo e poi lo rinomina: un'interruzione non lascia file troncati. */
 export async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, `${JSON.stringify(value, null, JSON_INDENT)}\n`, ENCODING);
+  const tempPath = `${filePath}.tmp`;
+  await fs.writeFile(tempPath, `${JSON.stringify(value, null, JSON_INDENT)}\n`, ENCODING);
+  await fs.rename(tempPath, filePath);
 }

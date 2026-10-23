@@ -15,6 +15,7 @@ import {
 import { normalizeCanonicalName } from '@/lib/domain/recipe-text';
 import { LlmError, type PackConvertOptions } from '@/lib/llm';
 import {
+  MAX_CONSECUTIVE_MODEL_ERRORS,
   buildKnownNames,
   runConvert,
   toConvertItem,
@@ -345,6 +346,87 @@ describe('runConvert', () => {
     expect(report.complete).toBe(true);
   });
 
+  describe('errori del modello di fila', () => {
+    const STOP_PREFIX = '[pack] conversione interrotta';
+    const PROVIDER_MESSAGE = 'Modello non trovato';
+    /** Candidati primi P001… spuntati, uno per indice da 1 a `count`. */
+    const primi = (count: number): PackCandidate[] =>
+      Array.from({ length: count }, (_, index) => makeCandidate(`P${String(index + 1).padStart(3, '0')}`, 'primi'));
+    const primiOnly = { ...QUOTAS, primi: 8 };
+
+    function stopLines(): unknown[] {
+      return logger.warn.mock.calls.filter(([message]) => String(message).startsWith(STOP_PREFIX));
+    }
+
+    function failingWith(code: 'provider' | 'config' | 'timeout' | 'invalid_output'): ConvertResponder {
+      return () => {
+        throw new LlmError(code, PROVIDER_MESSAGE);
+      };
+    }
+
+    it('interrompe la corsa dopo 5 errori del modello di fila: nessuna chiamata dopo, report scritto', async () => {
+      await writeWork([...primi(8), ...otherGroups()]);
+      const convert = fakeConvert(failingWith('provider'));
+
+      const report = await runConvert(convertOptions(convert, { quotas: primiOnly }));
+
+      expect(MAX_CONSECUTIVE_MODEL_ERRORS).toBe(5);
+      expect(convert).toHaveBeenCalledTimes(5);
+      expect(callsFor(convert, 'secondi')).toHaveLength(0);
+      expect(report.groups.primi).toEqual({ accepted: 0, quota: 8, rejected: 0, failed: 5 });
+      expect(report.complete).toBe(false);
+      expect(fs.existsSync(workPaths(workDir).report)).toBe(true);
+    });
+
+    it('logga la riga di interruzione una sola volta, con l ultimo errore', async () => {
+      await writeWork([...primi(8), ...otherGroups()]);
+
+      await runConvert(convertOptions(fakeConvert(failingWith('provider')), { quotas: primiOnly }));
+
+      expect(stopLines()).toEqual([
+        [`[pack] conversione interrotta: 5 errori del modello di fila. Ultimo: provider: ${PROVIDER_MESSAGE}`],
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(`[pack] P001 non convertita: provider: ${PROVIDER_MESSAGE}`);
+    });
+
+    it.each(['provider', 'config'] as const)('conta anche gli errori %s', async (code) => {
+      await writeWork([...primi(8), ...otherGroups()]);
+      const convert = fakeConvert(failingWith(code));
+
+      await runConvert(convertOptions(convert, { quotas: primiOnly }));
+
+      expect(convert).toHaveBeenCalledTimes(5);
+      expect(stopLines()).toHaveLength(1);
+    });
+
+    it('un successo tra gli errori azzera il conteggio: quattro errori, un successo, quattro errori, nessuna interruzione', async () => {
+      // P001–P004 falliscono, P005 riesce, P006–P009 falliscono: 4 + 4 errori con un successo in mezzo.
+      const titlesToFail = ['Ricetta P001', 'Ricetta P002', 'Ricetta P003', 'Ricetta P004', 'Ricetta P006', 'Ricetta P007', 'Ricetta P008', 'Ricetta P009'];
+      await writeWork([...primi(9), ...otherGroups()]);
+      const convert = fakeConvert((item) => {
+        if (titlesToFail.includes(item.title)) throw new LlmError('provider', PROVIDER_MESSAGE);
+        return goodRecipe(item);
+      });
+
+      const report = await runConvert(convertOptions(convert, { quotas: { ...QUOTAS, primi: 9 } }));
+
+      expect(callsFor(convert, 'primi')).toHaveLength(9);
+      expect(stopLines()).toHaveLength(0);
+      expect(report.groups.primi).toEqual({ accepted: 1, quota: 9, rejected: 0, failed: 8 });
+    });
+
+    it.each(['timeout', 'invalid_output'] as const)('gli errori %s non contano e non interrompono', async (code) => {
+      await writeWork([...primi(8), ...otherGroups()]);
+      const convert = fakeConvert(failingWith(code));
+
+      const report = await runConvert(convertOptions(convert, { quotas: primiOnly }));
+
+      expect(callsFor(convert, 'primi')).toHaveLength(8);
+      expect(stopLines()).toHaveLength(0);
+      expect(report.groups.primi.failed).toBe(8);
+    });
+  });
+
   it.each([0, 6])('concurrency %i è fuori dall intervallo 1–5: RangeError', async (concurrency) => {
     await writeWork([makeCandidate('P001', 'primi'), ...otherGroups()]);
 
@@ -435,6 +517,13 @@ describe('buildKnownNames', () => {
 
     expect(names).toContain(normalizeCanonicalName(FIXTURE_INGREDIENT_ALIASES[0].canonical_name));
     expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('non include nomi vuoti: una voce di soli spazi non diventa un nome noto', () => {
+    const names = buildKnownNames([{ name: '   ' }, { name: 'Sale' }]);
+
+    expect(names).not.toContain('');
+    expect(names).toContain('sale');
   });
 
   it('ordina con il confronto italiano', () => {

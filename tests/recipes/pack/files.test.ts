@@ -82,6 +82,23 @@ describe('writeJsonFile', () => {
     expect(text).toBe('{\n  "items": [\n    {\n      "name": "riso"\n    }\n  ]\n}\n');
   });
 
+  it('leaves no temporary file next to the written one', async () => {
+    const filePath = path.join(dir, 'data.json');
+    await writeJsonFile(filePath, { items: [{ name: 'riso' }] });
+
+    expect(fs.readdirSync(dir)).toEqual(['data.json']);
+  });
+
+  it('replaces an existing file with the new content', async () => {
+    const filePath = path.join(dir, 'data.json');
+    fs.writeFileSync(filePath, '{"items": [{"name": "vecchio"}, {"name": "più lungo"}]}\n', 'utf8');
+
+    await writeJsonFile(filePath, { items: [{ name: 'nuovo' }] });
+
+    expect(fs.readFileSync(filePath, 'utf8')).toBe('{\n  "items": [\n    {\n      "name": "nuovo"\n    }\n  ]\n}\n');
+    expect(fs.readdirSync(dir)).toEqual(['data.json']);
+  });
+
   it('round-trips through readJsonFile', async () => {
     const filePath = path.join(dir, 'round', 'trip.json');
     const value = { items: [{ name: 'pane' }, { name: 'olio' }] };

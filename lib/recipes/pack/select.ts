@@ -37,6 +37,7 @@ const MAX_SERVINGS = 8;
 const MAX_MEASURED_INGREDIENTS = 10;
 const PROCEDURE_CHARS_PER_SCORE_POINT = 500;
 const NO_CANDIDATES = 'Nessun candidato.';
+const RECORD_SUFFIX = '.json';
 
 type MainIngredientKey = Exclude<PackMainIngredient, 'verdure'>;
 type Queued = Omit<PackCandidate, 'code' | 'checked'>;
@@ -218,14 +219,24 @@ function reject(reason: string): RowEvaluation {
   return { ok: false, reason };
 }
 
+/** Titolo su una riga sola, con spazi singoli. */
+function collapseWhitespace(title: string): string {
+  return title.trim().replace(/\s+/g, ' ');
+}
+
 /** Valuta una riga del dataset: il primo controllo che fallisce dà il motivo dello scarto. */
 export function evaluateRow(row: PackDatasetRow): RowEvaluation {
   const category = row.category.trim();
   if (!Object.hasOwn(CATEGORY_TO_GROUP, category)) return reject('categoria');
   const group = CATEGORY_TO_GROUP[category];
 
+  const title = collapseWhitespace(row.title);
+  if (title === '') return reject('titolo');
+
   const pairs = parsePairList(row.ingredients);
-  if (pairs === null || pairs.length < MIN_PAIRS) return reject('ingredienti');
+  if (pairs === null || pairs.length < MIN_PAIRS || pairs.some(([name]) => name.trim() === '')) {
+    return reject('ingredienti');
+  }
 
   const procedure = row.steps.trim();
   if (procedure.length < MIN_PROCEDURE_LENGTH) return reject('procedimento');
@@ -254,7 +265,7 @@ export function evaluateRow(row: PackDatasetRow): RowEvaluation {
       main_ingredient: mainIngredientOf(pairs.map(([name]) => name)),
       dataset_index: row.index.trim(),
       link: row.link.trim(),
-      title: row.title.trim(),
+      title,
       category,
       servings,
       ingredients: pairs,
@@ -426,6 +437,21 @@ function missingWorkFile(filePath: string, step: string): PackError {
   return new PackError(`Manca ${filePath}: lancia prima "pnpm recipes:pack ${step}".`);
 }
 
+/** Vero se la cartella delle conversioni contiene almeno un file .json (manca → falso). */
+async function hasConversions(convertedDir: string): Promise<boolean> {
+  try {
+    const entries = await fs.readdir(convertedDir, { withFileTypes: true });
+    return entries.some((entry) => entry.isFile() && entry.name.endsWith(RECORD_SUFFIX));
+  } catch (error) {
+    if (isNotFound(error)) return false;
+    throw error;
+  }
+}
+
+function conversionsWarning(convertedDir: string): string {
+  return `Ci sono già conversioni in ${convertedDir}: sono legate ai codici, che con un CSV o regole diverse possono indicare altre ricette. Se il CSV è cambiato, cancella la cartella prima di "pnpm recipes:pack convert".`;
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath);
@@ -515,5 +541,9 @@ export async function runSelect(options: SelectOptions): Promise<SelectReport> {
   await writeJsonFile(paths.candidates, { candidates });
   await fs.writeFile(paths.selection, renderSelection(candidates), UTF8);
 
-  return buildReport(candidates, available);
+  const report = buildReport(candidates, available);
+  if (force && (await hasConversions(paths.convertedDir))) {
+    report.warnings.unshift(conversionsWarning(paths.convertedDir));
+  }
+  return report;
 }
