@@ -2,7 +2,10 @@ export {
   generateRecipes,
   generateRecipeFromRequest,
   classifyRecipes,
+  convertDatasetRecipe,
+  draftIngredientFacts,
   type GenerateRecipesOptions,
+  type PackConvertOptions,
   describeValidationError,
 } from './adapter';
 
@@ -33,4 +36,10 @@ export {
   buildRecipePrompt,
   buildRecipeRequestPrompt,
   buildRepairPrompt,
+  PACK_PROCEDURE_OPEN,
+  PACK_PROCEDURE_CLOSE,
+  buildPackConvertInstructions,
+  buildPackConvertPrompt,
+  buildDraftFactsInstructions,
+  buildDraftFactsPrompt,
 } from './prompts';

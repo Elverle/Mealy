@@ -12,7 +12,13 @@ import {
   RecipeConstraintsSchema,
   ClassifyRecipesOutputSchema,
   CLASSIFY_BATCH_SIZE,
+  GeneratedRecipeSchema,
+  PackConvertItemSchema,
+  DraftIngredientFactsOutputSchema,
+  PACK_DRAFT_BATCH_SIZE,
   type ClassifyRecipeItem,
+  type PackConvertItem,
+  type PackIngredientFactDraft,
   type RecipeClassification,
   type RecipeConstraints,
   type GeneratedRecipe,
@@ -24,6 +30,10 @@ import { getModel, getLlmTimeoutMs } from './model';
 import {
   buildClassifyInstructions,
   buildClassifyPrompt,
+  buildDraftFactsInstructions,
+  buildDraftFactsPrompt,
+  buildPackConvertInstructions,
+  buildPackConvertPrompt,
   buildRecipeInstructions,
   buildRecipePrompt,
   buildRecipeRequestPrompt,
@@ -303,4 +313,63 @@ export async function classifyRecipes(
   });
 
   return output.recipes;
+}
+
+export interface PackConvertOptions extends GenerateRecipesOptions {
+  /** Motivi per cui il tentativo precedente è stato scartato (secondo tentativo). */
+  feedback?: readonly string[];
+}
+
+/**
+ * Converte una ricetta del dataset nel formato dell'app. Restituisce la ricetta normalizzata.
+ */
+export async function convertDatasetRecipe(
+  item: PackConvertItem,
+  options?: PackConvertOptions,
+): Promise<GeneratedRecipe> {
+  const parsed = PackConvertItemSchema.parse(item);
+  const model = options?.model ?? getModel();
+
+  const output = await runStructuredCall({
+    model,
+    instructions: buildPackConvertInstructions(),
+    prompt: buildPackConvertPrompt(parsed, options?.feedback ?? []),
+    schema: GeneratedRecipeSchema,
+    temperature: 0.4,
+    repairTemperature: 0.2,
+    timeoutMs: options?.timeoutMs ?? getLlmTimeoutMs(),
+    abortSignal: options?.abortSignal,
+    invalidOutputMessage: 'Il modello non ha prodotto una ricetta valida dopo il tentativo di correzione.',
+  });
+
+  return normalizeGeneratedRecipe(output);
+}
+
+/**
+ * Bozza della tabella degli ingredienti: reparto e sei attributi per nome, come li dà il modello.
+ * Le righe non sono filtrate né completate: il chiamante verifica nomi e valori.
+ */
+export async function draftIngredientFacts(
+  names: readonly string[],
+  options?: GenerateRecipesOptions,
+): Promise<PackIngredientFactDraft[]> {
+  if (names.length < 1 || names.length > PACK_DRAFT_BATCH_SIZE) {
+    throw new RangeError(`names must contain between 1 and ${PACK_DRAFT_BATCH_SIZE} items`);
+  }
+
+  const model = options?.model ?? getModel();
+
+  const output = await runStructuredCall({
+    model,
+    instructions: buildDraftFactsInstructions(),
+    prompt: buildDraftFactsPrompt(names),
+    schema: DraftIngredientFactsOutputSchema,
+    temperature: 0.2,
+    repairTemperature: 0.2,
+    timeoutMs: options?.timeoutMs ?? getLlmTimeoutMs(),
+    abortSignal: options?.abortSignal,
+    invalidOutputMessage: 'Il modello non ha prodotto una tabella valida dopo il tentativo di correzione.',
+  });
+
+  return output.ingredients;
 }
