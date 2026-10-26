@@ -2,8 +2,8 @@
 title: Libreria — Regole Pure, Servizio, API e Client (library-service)
 type: entity
 created: 2026-10-05
-updated: 2026-10-21
-tags: [library, domain, pure-functions, service, api-route, client-fetch, filters, search, recipe-requests, courses, feature-5, feature-8, feature-9]
+updated: 2026-10-26
+tags: [library, domain, pure-functions, service, api-route, client-fetch, filters, search, recipe-requests, courses, feature-5, feature-8, feature-9, feature-10]
 ---
 
 ## File e Responsabilità
@@ -30,6 +30,8 @@ tags: [library, domain, pure-functions, service, api-route, client-fetch, filter
 | `appendProposedTitle(titles, title)` (Feature 9) | Sequenza di *Un'altra*: aggiunge `title` in coda, toglie un eventuale doppione per titolo normalizzato (`normalizeTitle`) e tiene gli ultimi `PROPOSAL_EXCLUDE_MAX` (10). Restituisce un array nuovo |
 
 Dalla Feature 8 `toLibraryCard` copia anche `courses`: ogni card di `GET /api/recipes`, della pagina `/libreria` e delle candidate di *Scegli* porta le portate, da cui le card ricavano il badge ([[library-screen]]).
+
+Dalla Feature 10 l'ordine per `created_at` decide dove stanno le 200 ricette del pacchetto iniziale: entrano con una data fissa al 1° gennaio 2026 (`RECIPE_PACK_CREATED_AT`), come le ricette d'esempio, quindi vengono dopo le ricette dell'utente e tra loro in ordine di titolo. Senza quella data i 60 contorni, ultimi del file e quindi i più recenti, avrebbero aperto la Libreria (review R2 della Feature 10, [[recipe-pack]]). La funzione non è cambiata.
 
 Dalla Feature 9 `toLibraryCard` e `compareLibraryCards` servono anche il selettore del Piano (`listSlotCandidates` in [[plan-service]]), e `filterLibraryCards` la sua ricerca ([[slot-recipe-picker]]), con le stesse regole della Libreria.
 
@@ -130,3 +132,4 @@ export async function requestSaveRecipe(recipe: GeneratedRecipe): Promise<Recipe
 - [[recipe-proposal-service]] — `POST /api/recipes` e `POST /api/recipes/propose` (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[f8-portate-etichette]] — Feature 8: filtro per portata e `courses` sulle card
+- [[recipe-pack]] — Feature 10: data di creazione fissa delle ricette del pacchetto

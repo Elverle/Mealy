@@ -2,8 +2,8 @@
 title: Fixtures di Test e Seed Idempotente (fixtures-and-seed)
 type: entity
 created: 2026-09-17
-updated: 2026-10-21
-tags: [fixtures, seed, database, testing, offline, household, aliases, ingredients, upsert, deploy, courses, derived-tags]
+updated: 2026-10-26
+tags: [fixtures, seed, database, testing, offline, household, aliases, ingredients, upsert, deploy, courses, derived-tags, recipe-pack]
 ---
 
 ## File e Responsabilità
@@ -16,6 +16,7 @@ tags: [fixtures, seed, database, testing, offline, household, aliases, ingredien
   - `lib/db/seed.ts`: script eseguibile da riga di comando via `pnpm db:seed`.
   - `lib/db/seed-aliases.ts` (Feature 6): script eseguibile via `pnpm db:seed:aliases`, che carica **solo** gli alias, senza household né ricette.
   - Dalla Feature 7 `seedIngredientAliases` è chiamata anche da `lib/db/bootstrap.ts`, che in produzione carica gli alias all'avvio dell'app ([[db-bootstrap]]).
+  - Dalla Feature 10 in `fixtures/` ci sono anche il **pacchetto iniziale di ricette** (`recipe-pack.json`, 200 ricette), la sua tabella degli ingredienti (`recipe-pack-ingredients.json`) e il modulo che li valida (`recipe-pack.ts`). Non fanno parte del seed: v. "Pacchetto iniziale di ricette (Feature 10)" più sotto e [[recipe-pack]].
 - **Scopo**: Garantire l'autonomia dello sviluppo e del testing offline secondo i principi vincolanti del progetto (`CLAUDE.md § Stack`). Fornisce sia un dataset culinario credibile per inizializzare il database di sviluppo, sia strutture dati in memoria pronte all'uso per i test unitari di planner e lista spesa senza richiedere connessioni di rete né chiamate LLM.
 
 ## Corpus di Fixtures Normalizzate
@@ -135,6 +136,23 @@ Grazie a questa strategia a prova di riesecuzione, il comando `pnpm db:seed` pu�
 
 `pnpm db:seed` resta un comando **di sviluppo**: inserisce anche l'household di default e le 18 ricette di esempio. In produzione non va usato (v. sotto).
 
+## Pacchetto iniziale di ricette (Feature 10)
+
+Il pacchetto di 200 ricette convive con le fixture ma ha un percorso tutto suo ([[recipe-pack]], [[f10-pacchetto-ricette]]):
+
+| | Ricette d'esempio (`fixtures/recipes.json`) | Pacchetto (`fixtures/recipe-pack.json`) |
+|---|---|---|
+| Quante | 18 | 200 |
+| Chi le scrive | A mano | `pnpm recipes:pack build`, dal dataset `docs/recipe.csv` riscritto dal modello ([[recipe-pack-tools]]) |
+| Diete | Scritte a mano | Per regola dalla tabella `recipe-pack-ingredients.json` ([[diet-rules]]) |
+| Come entrano nel DB | `pnpm db:seed`, solo in sviluppo | All'avvio in produzione (`loadRecipePack`); in sviluppo con `pnpm recipes:pack load` |
+| Regola di caricamento | Per id e slug | Per titolo: si salta se uguale o simile a uno già in libreria |
+| Origine e data | `manual`, `FIXTURE_CREATED_AT` (2026-01-01) | `manual`, `RECIPE_PACK_CREATED_AT` (2026-01-01) |
+
+- **`pnpm db:seed` non carica il pacchetto** (spec FR-4.2 della Feature 10) e i test non lo caricano mai sul DB condiviso, solo su un household usa-e-getta.
+- **In sviluppo le ricette d'esempio contano come già presenti**: con `pnpm recipes:pack load` dopo `pnpm db:seed`, le ricette del pacchetto simili a quelle d'esempio si saltano (per esempio *Pasta e ceci cremosa*, simile a *Pasta e ceci*).
+- **Nomi canonici condivisi**: la conversione del pacchetto propone al modello, come nomi da riusare, le destinazioni degli alias e gli ingredienti delle ricette d'esempio; `build` rifiuta un nome canonico che sia un alias di `ingredient-aliases.json`, e il test del file lo ricontrolla. Gli alias non sono cambiati.
+
 ## Seed dei Soli Alias (Feature 6)
 
 ```ts
@@ -149,7 +167,7 @@ pnpm db:seed:aliases
 - **`lib/db/seed-aliases.ts`**: script sul modello di `lib/db/seed.ts`. Carica `.env.local` e `.env`, importa dinamicamente il client e la funzione, stampa `Alias completati — inseriti o aggiornati: N`, imposta `process.exitCode = 1` in caso d'errore e chiude sempre la connessione.
 - **Perché esiste** (innesto R4 della review architetturale): fino alla Feature 5 gli alias arrivavano nel DB solo con `pnpm db:seed`. Dalla Feature 6 la lista della spesa li legge: senza alias in produzione la lista funzionerebbe senza fondere nulla (`olio extravergine d'oliva` e `olio extravergine di oliva` su due righe), e nessun test se ne accorgerebbe, perché i test inseriscono alias propri. Eseguire `pnpm db:seed` in produzione metterebbe invece le ricette di esempio nella libreria vera.
 - **Contratto per la Feature 7 (deploy)**: il deploy esegue `pnpm db:migrate` e poi `pnpm db:seed:aliases`; **mai** `pnpm db:seed`. La regola è scritta anche tra i comandi di `CLAUDE.md`.
-  - **Esito nella Feature 7** ([[e6-deploy]]): sul Raspberry non gira nessun comando `pnpm`. Migrazioni e alias li applica l'app all'avvio, con `runDbBootstrap`, che chiama il migratore di drizzle e poi questa stessa `seedIngredientAliases` ([[db-bootstrap]]). La regola di fondo è rispettata: `seedDatabase` non viene mai chiamata in produzione, e la prova dello stack fallisce se trova ricette nel database ([[deploy-scripts]]). `pnpm db:seed:aliases` resta un comando per lo sviluppo; `CLAUDE.md` e `README.md` sono stati allineati.
+  - **Esito nella Feature 7** ([[e6-deploy]]): sul Raspberry non gira nessun comando `pnpm`. Migrazioni e alias li applica l'app all'avvio, con `runDbBootstrap`, che chiama il migratore di drizzle e poi questa stessa `seedIngredientAliases` ([[db-bootstrap]]). La regola di fondo è rispettata: `seedDatabase` non viene mai chiamata in produzione, e la prova dello stack fallisce se trova ricette nel database ([[deploy-scripts]]). *Nota (Feature 10): dalla Feature 10 lo smoke si aspetta le ricette del pacchetto iniziale, non zero ricette; `seedDatabase` resta fuori dalla produzione.* `pnpm db:seed:aliases` resta un comando per lo sviluppo; `CLAUDE.md` e `README.md` sono stati allineati.
 
 ## Upsert degli Alias (Feature 7)
 
@@ -204,3 +222,4 @@ Il limite annotato alla Feature 6 ("`seedIngredientAliases` inserisce soltanto")
 - [[e6-deploy]] — Panoramica della Feature 7
 - [[courses]] — Regole derivate applicate dal seed (Feature 8)
 - [[f8-portate-etichette]] — Panoramica della Feature 8
+- [[recipe-pack]] — Feature 10: pacchetto iniziale di 200 ricette e tabella degli ingredienti

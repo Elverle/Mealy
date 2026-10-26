@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { register } from '@/instrumentation';
 import { runDbBootstrap } from '@/lib/db/bootstrap';
 import { classifyPendingRecipes } from '@/lib/recipes/classify';
+import { loadRecipePack } from '@/lib/recipes/pack/load';
 
 vi.mock('@/lib/db/bootstrap', () => ({
   runDbBootstrap: vi.fn(),
@@ -11,6 +12,10 @@ vi.mock('@/lib/db/bootstrap', () => ({
 
 vi.mock('@/lib/recipes/classify', () => ({
   classifyPendingRecipes: vi.fn(),
+}));
+
+vi.mock('@/lib/recipes/pack/load', () => ({
+  loadRecipePack: vi.fn(),
 }));
 
 const NOTHING_TO_CLASSIFY = {
@@ -25,6 +30,7 @@ describe('instrumentation register()', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(classifyPendingRecipes).mockResolvedValue(NOTHING_TO_CLASSIFY);
+    vi.mocked(loadRecipePack).mockResolvedValue({ inserted: 0, skipped: 0 });
   });
 
   afterEach(() => {
@@ -152,4 +158,63 @@ describe('instrumentation register()', () => {
 
     expect(classifyPendingRecipes).not.toHaveBeenCalled();
   });
+
+  it('loads the recipe pack once, without arguments, after the bootstrap and before the classification', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    vi.stubEnv('DB_BOOTSTRAP_ON_START', 'true');
+    vi.mocked(runDbBootstrap).mockResolvedValueOnce({ aliasesWritten: 0 });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await register();
+
+    expect(loadRecipePack).toHaveBeenCalledTimes(1);
+    expect(loadRecipePack).toHaveBeenCalledWith();
+    expect(vi.mocked(loadRecipePack).mock.invocationCallOrder[0]).toBeGreaterThan(
+      vi.mocked(runDbBootstrap).mock.invocationCallOrder[0]
+    );
+    expect(vi.mocked(loadRecipePack).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(classifyPendingRecipes).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('logs a failed recipe pack load without exiting, and still starts the classification', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    vi.stubEnv('DB_BOOTSTRAP_ON_START', 'true');
+    vi.mocked(runDbBootstrap).mockResolvedValueOnce({ aliasesWritten: 0 });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const failure = new Error('pacchetto giù');
+    vi.mocked(loadRecipePack).mockRejectedValueOnce(failure);
+
+    await register();
+
+    expect(error).toHaveBeenCalledWith('[pack] caricamento interrotto', failure);
+    expect(exit).not.toHaveBeenCalled();
+    expect(classifyPendingRecipes).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not load the recipe pack when the bootstrap fails', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    vi.stubEnv('DB_BOOTSTRAP_ON_START', 'true');
+    vi.mocked(runDbBootstrap).mockRejectedValueOnce(new Error('boom'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+
+    await register();
+
+    expect(loadRecipePack).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'false', '1', 'TRUE'])(
+    'does not load the recipe pack when DB_BOOTSTRAP_ON_START is "%s"',
+    async (value) => {
+      vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+      vi.stubEnv('DB_BOOTSTRAP_ON_START', value);
+
+      await register();
+
+      expect(loadRecipePack).not.toHaveBeenCalled();
+    }
+  );
 });

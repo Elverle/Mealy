@@ -5,6 +5,7 @@
 .next
 node_modules
 docs
+.recipe-pack
 tests
 backups
 .smoke

@@ -33,6 +33,7 @@ pnpm db:seed        # seed idempotente (fixtures + household default + alias)
 pnpm db:seed:aliases # solo gli alias degli ingredienti: inserisce e corregge (idempotente). In produzione li carica l'app all'avvio; mai db:seed, che inserisce anche le ricette di esempio
 pnpm llm:record     # registra una risposta LLM reale in tests/fixtures/llm/recorded/ (richiede chiave API)
 pnpm recipes:classify  # classifica (portate + etichette) le ricette senza portata sul DB di DATABASE_URL; in produzione lo fa l'app all'avvio (richiede chiave API)
+pnpm recipes:pack <passo>  # pacchetto iniziale, sul PC con docs/recipe.csv: select → (revisione) → convert → ingredients → (revisione) → build; load lo carica sul DB di DATABASE_URL. In produzione lo carica l'app all'avvio
 docker build -t mealy-app:smoke . && bash scripts/smoke-prod.sh mealy-app:smoke   # prova lo stack di produzione in locale (porta 3100)
 bash scripts/deploy.sh   # solo sul Raspberry: codice, immagine, backup, riavvio, verifica (docs/DEPLOY.md)
 ```

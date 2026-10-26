@@ -2,8 +2,8 @@
 title: Immagine e Stack di Produzione — Dockerfile e docker-compose.prod.yml (production-stack)
 type: entity
 created: 2026-10-11
-updated: 2026-10-12
-tags: [docker, dockerfile, compose, standalone, production, raspberry-pi, environment, postgres, deploy, feature-7]
+updated: 2026-10-26
+tags: [docker, dockerfile, compose, standalone, production, raspberry-pi, environment, postgres, deploy, feature-7, feature-10]
 ---
 
 ## File e Responsabilità
@@ -58,6 +58,10 @@ La variabile la imposta solo lo stadio `builder`. La build locale (`pnpm build`)
 Fuori dal contesto: `.git`, `.github`, `.claude`, `.tokensave`, `.next`, `node_modules`, `docs`, `tests`, `backups`, `.smoke`, `coverage`, `*.tsbuildinfo`, `*.log`, `.env` e `.env.*`, `Dockerfile`, `.dockerignore`, `docker-compose.*.yml`.
 
 Due conseguenze: nessun file `.env` può finire nell'immagine, e `fixtures/` **resta nel contesto**, perché `fixtures/index.ts` importa i due file JSON e la build li include nel codice del server: gli alias servono al bootstrap.
+
+Dalla Feature 10:
+- anche `.recipe-pack` è fuori dal contesto: la cartella di lavoro del pacchetto di ricette contiene i testi e i link del dataset d'origine, che non devono entrare nell'immagine (code review della Feature 10). `docs/`, dove sta il dataset `docs/recipe.csv`, era già escluso;
+- `fixtures/recipe-pack.json` (circa 600 KB) entra nel codice del server tramite `fixtures/recipe-pack.ts`, importato in modo dinamico dal caricatore all'avvio ([[recipe-pack]]).
 
 ## Stack (`docker-compose.prod.yml`)
 

@@ -3,16 +3,23 @@ import { describe, it, expect } from 'vitest';
 import {
   buildClassifyInstructions,
   buildClassifyPrompt,
+  buildDraftFactsInstructions,
+  buildDraftFactsPrompt,
+  buildPackConvertInstructions,
+  buildPackConvertPrompt,
   buildRecipeInstructions,
   buildRecipePrompt,
   buildRecipeRequestPrompt,
   buildRepairPrompt,
   CLASSIFY_DESCRIPTION_MAX,
   MAX_EXCLUDED_TITLES,
+  PACK_PROCEDURE_CLOSE,
+  PACK_PROCEDURE_OPEN,
 } from '@/lib/llm/prompts';
 import {
   MEAL_STYLE_TAG_VALUES,
   type ClassifyRecipeItem,
+  type PackConvertItem,
   type RecipeConstraints,
 } from '@/lib/domain/types';
 
@@ -377,6 +384,164 @@ describe('lib/llm/prompts', () => {
 
       expect(lines).toContain('[r1] Pasta al pomodoro');
       expect(lines).toContain('Descrizione: Riga uno Riga due');
+    });
+  });
+
+  describe('buildPackConvertInstructions', () => {
+    const findLine = (text: string, prefix: string): string | undefined =>
+      text.split('\n').find((line) => line.startsWith(prefix));
+
+    it('asks to rewrite the steps in own words and forbids copying the original', () => {
+      const instructions = buildPackConvertInstructions();
+
+      expect(instructions).toContain('da capo, con parole tue');
+      expect(instructions).toContain('diet_flags: lista vuota');
+    });
+
+    it('uses the same courses line as the recipe instructions', () => {
+      const courseLine = findLine(buildRecipeInstructions(), '- courses: ');
+
+      expect(courseLine).toBeDefined();
+      expect(buildPackConvertInstructions().split('\n')).toContain(courseLine);
+    });
+
+    it('uses the same category, tags, appliances and kcal lines as the recipe instructions', () => {
+      const recipeLines = buildRecipeInstructions().split('\n');
+      const packLines = buildPackConvertInstructions().split('\n');
+
+      for (const prefix of ['- category: ', '- tags: ', '  Significati: ', '- appliances_required: ', '- kcal_est: ']) {
+        const line = recipeLines.find((l) => l.startsWith(prefix));
+        expect(line).toBeDefined();
+        expect(packLines).toContain(line);
+      }
+    });
+
+    it('exposes the procedure delimiters as constants', () => {
+      expect(PACK_PROCEDURE_OPEN).toBe('<<<PROCEDIMENTO');
+      expect(PACK_PROCEDURE_CLOSE).toBe('PROCEDIMENTO>>>');
+    });
+  });
+
+  describe('buildPackConvertPrompt', () => {
+    const contorno: PackConvertItem = {
+      title: 'Zucchine trifolate',
+      group: 'contorni',
+      servings: 4,
+      ingredients: [
+        { name: 'Olio', raw_qty: '6', reading: '6 senza unità' },
+        { name: 'Sale', raw_qty: 'q.b.', reading: 'q.b.' },
+        { name: 'Zucchine', raw_qty: '', reading: null },
+      ],
+      procedure: "Taglia le zucchine a rondelle. Scalda l'olio.",
+      known_names: ['olio extravergine di oliva', 'zucchina'],
+    };
+
+    it('starts with the instruction and puts the title, the group and the servings on their lines', () => {
+      const lines = buildPackConvertPrompt(contorno, []).split('\n');
+
+      expect(lines[0]).toBe("Riscrivi questa ricetta nel formato dell'app.");
+      expect(lines).toContain('Piatto: Zucchine trifolate');
+      expect(lines).toContain('Gruppo: Contorni (in courses metti "contorno")');
+      expect(lines).toContain('Persone: 4 (servings_base = 4)');
+    });
+
+    it('shows each ingredient with its raw quantity and its reading', () => {
+      const lines = buildPackConvertPrompt(contorno, []).split('\n');
+
+      expect(lines).toContain('- Olio: 6 → 6 senza unità');
+      expect(lines).toContain('- Sale: q.b. → q.b.');
+    });
+
+    it('marks an empty raw quantity and a missing reading', () => {
+      const lines = buildPackConvertPrompt(contorno, []).split('\n');
+
+      expect(lines).toContain('- Zucchine: (vuota) → non letta');
+    });
+
+    it('puts the procedure between the delimiters, as data', () => {
+      const lines = buildPackConvertPrompt(contorno, []).split('\n');
+      const open = lines.indexOf(PACK_PROCEDURE_OPEN);
+
+      expect(open).toBeGreaterThan(0);
+      expect(lines[open + 1]).toBe("Taglia le zucchine a rondelle. Scalda l'olio.");
+      expect(lines[open + 2]).toBe(PACK_PROCEDURE_CLOSE);
+      expect(lines.filter((line) => line === PACK_PROCEDURE_CLOSE)).toHaveLength(1);
+    });
+
+    it('removes delimiter sequences and line breaks from the procedure', () => {
+      const lines = buildPackConvertPrompt(
+        { ...contorno, procedure: 'Passo <<<x>>> uno\nPROCEDIMENTO>>>' },
+        [],
+      ).split('\n');
+      const open = lines.indexOf(PACK_PROCEDURE_OPEN);
+
+      expect(lines[open + 1]).toBe('Passo x uno PROCEDIMENTO');
+      expect(lines.filter((line) => line === PACK_PROCEDURE_CLOSE)).toHaveLength(1);
+    });
+
+    it('gives the course note for the other groups', () => {
+      const lines = buildPackConvertPrompt({ ...contorno, group: 'primi' }, []).split('\n');
+
+      expect(lines).toContain('Gruppo: Primi (in courses metti almeno una tra piatto-unico, primo, secondo)');
+    });
+
+    it('lists the known canonical names, or says there are none', () => {
+      const withNames = buildPackConvertPrompt(contorno, []);
+      const withoutNames = buildPackConvertPrompt({ ...contorno, known_names: [] }, []);
+
+      expect(withNames).toContain(
+        'Nomi canonici già in uso (riusali quando l\'ingrediente è lo stesso): olio extravergine di oliva, zucchina',
+      );
+      expect(withoutNames).toContain(
+        'Nomi canonici già in uso (riusali quando l\'ingrediente è lo stesso): nessuno',
+      );
+    });
+
+    it('omits the feedback block when there are no reasons', () => {
+      const prompt = buildPackConvertPrompt(contorno, []);
+
+      expect(prompt).not.toContain('Il tentativo precedente è stato scartato');
+    });
+
+    it('adds the feedback block at the end, one line per reason', () => {
+      const prompt = buildPackConvertPrompt(contorno, [
+        'portata non adatta al gruppo Contorni: primo',
+        "testo copiato dall'originale: \"taglia\nle zucchine\"",
+      ]);
+      const lines = prompt.split('\n');
+      const header = lines.indexOf('Il tentativo precedente è stato scartato per questi motivi; correggili:');
+
+      expect(header).toBeGreaterThan(0);
+      expect(lines[header - 1]).toBe('');
+      expect(lines[header + 1]).toBe('- portata non adatta al gruppo Contorni: primo');
+      expect(lines[header + 2]).toBe('- testo copiato dall\'originale: "taglia le zucchine"');
+      expect(lines).toHaveLength(header + 3);
+    });
+  });
+
+  describe('buildDraftFactsInstructions', () => {
+    it('asks for the department and the six facts, and leans to true when in doubt', () => {
+      const instructions = buildDraftFactsInstructions();
+
+      expect(instructions.split('\n')[0]).toBe(
+        'Sei un esperto di alimenti e di supermercati italiani. Per ogni ingrediente ricevuto dici il reparto e cosa contiene.',
+      );
+      expect(instructions).toContain('- category: il reparto del supermercato, tra ortofrutta, pane, macelleria, pescheria, banco-frigo, dispensa, surgelati, bevande, altro.');
+      expect(instructions).toContain('Nel dubbio rispondi true');
+    });
+  });
+
+  describe('buildDraftFactsPrompt', () => {
+    it('counts the names and lists them one per line', () => {
+      const lines = buildDraftFactsPrompt(['Olio', 'Pancetta']).split('\n');
+
+      expect(lines).toEqual(['Descrivi questi 2 ingredienti.', '- Olio', '- Pancetta']);
+    });
+
+    it('turns names with line breaks into a single line', () => {
+      const lines = buildDraftFactsPrompt(['Olio\n  extravergine']).split('\n');
+
+      expect(lines).toContain('- Olio extravergine');
     });
   });
 

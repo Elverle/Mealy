@@ -2,8 +2,8 @@
 title: Repository Ricette (recipe-repo)
 type: entity
 created: 2026-09-15
-updated: 2026-10-21
-tags: [database, repository, recipes, ingredients, preferences, drizzle, transactions, trigram, advisory-lock, executor, row-lock, courses, classification]
+updated: 2026-10-26
+tags: [database, repository, recipes, ingredients, preferences, drizzle, transactions, trigram, advisory-lock, executor, row-lock, courses, classification, recipe-pack]
 ---
 
 ## File e Responsabilità
@@ -122,6 +122,11 @@ Dalla Feature 5 `listRecipes` è chiamata anche a ogni visita della Libreria, a 
 ### Nuovi chiamanti di `listRecipesWith` (Feature 9)
 `listSlotCandidates` (con `db`) e `assignSlotRecipe` (con la transazione, sotto il lock dei piani) di [[plan-service]] leggono l'intera libreria dell'household: il primo per elencare le ricette adatte allo slot, il secondo per trovare **una** ricetta per id e controllarne l'idoneità (requirements P10: `getRecipeById` non accetta un executor né controlla l'household). La seconda lettura è evitabile; la review architetturale della Feature 9 (R7) fissa la soglia per intervenire (oltre 200 ricette, o più di 300 ms sul Pi per aprire *Scegli*) e il rimedio: `getRecipeById(id, executor = db)` con controllo dell'household.
 
+### Nuovo chiamante di titoli, similarità e lock (Feature 10)
+`loadRecipePack` ([[recipe-pack]]) carica il pacchetto iniziale di ricette all'avvio in produzione e con `pnpm recipes:pack load`. In una transazione prende `acquireRecipeGenerationLock`, legge tutti i titoli con `listRecipeTitles` (senza limite) e, per ogni ricetta del pacchetto con titolo nuovo, chiama `findSimilarRecipeTitle` con la soglia di default; le scritture passano da `insertGeneratedRecipe`, che chiama `insertRecipeWith` con `source: 'manual'` e un `created_at` fisso (il campo era già facoltativo). Il repository non è stato modificato. La soglia `TITLE_SIMILARITY_THRESHOLD` ha ora una copia offline, `SIMILAR_TITLE_THRESHOLD` di `lib/domain/title-similarity.ts`, legata da un commento ([[diet-rules]]).
+
+**Dimensione della libreria**: con il pacchetto una libreria arriva a circa 200 ricette già al primo avvio (sul Raspberry 26 + quelle inserite). Le letture complete annotate sopra (Feature 5, 6 e 9) crescono di conseguenza, e la soglia fissata dalla review R7 della Feature 9 per togliere la lettura evitabile di `assignSlotRecipe` («oltre 200 ricette, o più di 300 ms sul Pi per aprire *Scegli*») è raggiunta per il primo criterio. Da misurare sul Raspberry ([[f10-pacchetto-ricette]]).
+
 ## Classificazione delle Ricette (Feature 8)
 
 Due funzioni in coda al file, per la classificazione delle ricette senza portata ([[recipe-classification]]) e per il seed ([[fixtures-and-seed]]).
@@ -193,3 +198,4 @@ await db.transaction(async (tx) => {
 - [[shopping-service]] — Lettura della libreria per il reparto degli articoli a mano (Feature 6)
 - [[recipe-proposal-service]] — `listRecipeTitleRefs`, salvataggio sotto il lock di generazione (Feature 9)
 - [[recipe-classification]] — `listUnclassifiedRecipes` e `setRecipeClassification` (Feature 8)
+- [[recipe-pack]] — `loadRecipePack`: titoli, similarità e lock per il pacchetto iniziale (Feature 10)

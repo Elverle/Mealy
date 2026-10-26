@@ -1,11 +1,19 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { APICallError } from 'ai';
-import { generateRecipes, generateRecipeFromRequest, classifyRecipes } from '@/lib/llm/adapter';
+import {
+  generateRecipes,
+  generateRecipeFromRequest,
+  classifyRecipes,
+  convertDatasetRecipe,
+  draftIngredientFacts,
+} from '@/lib/llm/adapter';
 import { isLlmError } from '@/lib/llm/errors';
 import {
   CLASSIFY_BATCH_SIZE,
+  PACK_DRAFT_BATCH_SIZE,
   type ClassifyRecipeItem,
+  type PackConvertItem,
   type RecipeConstraints,
 } from '@/lib/domain/types';
 import { createRecordedModel, loadLlmRecording } from '@/tests/helpers/mock-llm';
@@ -392,6 +400,189 @@ describe('lib/llm/adapter', () => {
       expect(isLlmError(error)).toBe(true);
       if (isLlmError(error)) {
         expect(error.code).toBe('config');
+      }
+    });
+  });
+
+  describe('convertDatasetRecipe', () => {
+    const contorno: PackConvertItem = {
+      title: 'Zucchine trifolate',
+      group: 'contorni',
+      servings: 4,
+      ingredients: [
+        { name: 'Zucchine', raw_qty: '3', reading: '3 senza unità' },
+        { name: 'Sale', raw_qty: 'q.b.', reading: 'q.b.' },
+      ],
+      procedure: "Taglia le zucchine a rondelle. Falle saltare con l'olio.",
+      known_names: ['zucchina'],
+    };
+    const convertedRecipe = {
+      title: 'Zucchine trifolate',
+      description: 'Zucchine saltate in padella, dorate e morbide.',
+      meal_types: ['pranzo', 'cena'],
+      courses: ['contorno'],
+      tags: ['tradizionale'],
+      diet_flags: [],
+      appliances_required: ['fornelli'],
+      servings_base: 4,
+      prep_minutes: 20,
+      kcal_est: 60,
+      steps: ['  Taglia le zucchine a rondelle.  ', 'Falle saltare per cinque minuti.'],
+      ingredients: [
+        {
+          canonical_name: 'Zucchina',
+          display_name: 'zucchina',
+          qty: 3,
+          unit: 'pz',
+          category: 'ortofrutta',
+          note: null,
+        },
+        { canonical_name: 'sale', display_name: 'sale', qty: null, unit: 'qb', category: 'dispensa', note: null },
+      ],
+    };
+    const validConversion = JSON.stringify(convertedRecipe);
+    const invalidUnit = JSON.stringify({
+      ...convertedRecipe,
+      ingredients: [{ ...convertedRecipe.ingredients[0], unit: 'kg' }, convertedRecipe.ingredients[1]],
+    });
+
+    it('returns the converted recipe normalized, with one model call', async () => {
+      const { model, calls } = createRecordedModel([validConversion]);
+
+      const recipe = await convertDatasetRecipe(contorno, { model });
+
+      expect(calls).toHaveLength(1);
+      expect(recipe.title).toBe('Zucchine trifolate');
+      expect(recipe.ingredients[0].canonical_name).toBe('zucchina');
+      expect(recipe.steps).toEqual(['Taglia le zucchine a rondelle.', 'Falle saltare per cinque minuti.']);
+    });
+
+    it('sends the procedure of the original in the prompt', async () => {
+      const { model, calls } = createRecordedModel([validConversion]);
+
+      await convertDatasetRecipe(contorno, { model });
+
+      const callJson = JSON.stringify(calls[0]);
+      expect(callJson).toContain('Taglia le zucchine a rondelle. Falle saltare con l');
+      expect(callJson).toContain('Gruppo: Contorni (in courses metti \\"contorno\\")');
+    });
+
+    it('repairs an invalid unit with a second call', async () => {
+      const { model, calls } = createRecordedModel([invalidUnit, validConversion]);
+
+      const recipe = await convertDatasetRecipe(contorno, { model });
+
+      expect(calls).toHaveLength(2);
+      expect(recipe.ingredients[0].canonical_name).toBe('zucchina');
+      expect(JSON.stringify(calls[1])).toContain('ingredients.0.unit');
+    });
+
+    it('throws LlmError invalid_output after two invalid answers', async () => {
+      const { model, calls } = createRecordedModel([invalidUnit, invalidUnit]);
+
+      const error = await convertDatasetRecipe(contorno, { model }).then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+      expect(isLlmError(error)).toBe(true);
+      if (isLlmError(error)) {
+        expect(error.code).toBe('invalid_output');
+        expect(error.message).toContain('non ha prodotto una ricetta valida');
+      }
+      expect(calls).toHaveLength(2);
+    });
+
+    it('adds the feedback of the previous attempt to the prompt', async () => {
+      const { model, calls } = createRecordedModel([validConversion]);
+
+      await convertDatasetRecipe(contorno, {
+        model,
+        feedback: ['portata non adatta al gruppo Contorni: primo'],
+      });
+
+      expect(JSON.stringify(calls[0])).toContain('Il tentativo precedente è stato scartato');
+    });
+
+    it('rejects an invalid item with a ZodError without invoking the model', async () => {
+      const { model, calls } = createRecordedModel([]);
+
+      await expect(
+        convertDatasetRecipe({ ...contorno, ingredients: [] }, { model }),
+      ).rejects.toThrow();
+
+      expect(calls).toHaveLength(0);
+    });
+  });
+
+  describe('draftIngredientFacts', () => {
+    const fact = (name: string) => ({
+      name,
+      category: 'dispensa',
+      carne: false,
+      pesce: false,
+      latticini: false,
+      uova: false,
+      miele: false,
+      glutine: false,
+    });
+
+    it('returns the rows the model gives, one per name', async () => {
+      const response = JSON.stringify({
+        ingredients: [
+          { ...fact('Olio'), category: 'dispensa' },
+          { ...fact('Pancetta'), category: 'macelleria', carne: true, glutine: false },
+        ],
+      });
+      const { model, calls } = createRecordedModel([response]);
+
+      const rows = await draftIngredientFacts(['Olio', 'Pancetta'], { model });
+
+      expect(calls).toHaveLength(1);
+      expect(rows).toEqual([
+        { ...fact('Olio'), category: 'dispensa' },
+        { ...fact('Pancetta'), category: 'macelleria', carne: true },
+      ]);
+    });
+
+    it('sends the names in the prompt', async () => {
+      const { model, calls } = createRecordedModel([JSON.stringify({ ingredients: [fact('Olio')] })]);
+
+      await draftIngredientFacts(['Olio'], { model });
+
+      const callJson = JSON.stringify(calls[0]);
+      expect(callJson).toContain('Nel dubbio rispondi true');
+      expect(callJson).toContain('Descrivi questi 1 ingredienti.');
+    });
+
+    it('rejects an empty list and a list above PACK_DRAFT_BATCH_SIZE with RangeError without invoking the model', async () => {
+      const { model, calls } = createRecordedModel([]);
+      const tooMany = Array.from({ length: PACK_DRAFT_BATCH_SIZE + 1 }, (_, i) => `Ingrediente ${i + 1}`);
+
+      await expect(draftIngredientFacts([], { model })).rejects.toThrow(RangeError);
+      await expect(draftIngredientFacts(tooMany, { model })).rejects.toThrow(RangeError);
+
+      expect(calls).toHaveLength(0);
+    });
+
+    it('wraps an HTTP error of the provider into LlmError provider', async () => {
+      const apiError = new APICallError({
+        message: 'Service Unavailable',
+        url: 'https://example.test',
+        requestBodyValues: {},
+        statusCode: 503,
+        isRetryable: false,
+      });
+      const { model } = createRecordedModel([apiError]);
+
+      const error = await draftIngredientFacts(['Olio'], { model }).then(
+        () => null,
+        (err: unknown) => err,
+      );
+
+      expect(isLlmError(error)).toBe(true);
+      if (isLlmError(error)) {
+        expect(error.code).toBe('provider');
       }
     });
   });

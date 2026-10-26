@@ -2,8 +2,8 @@
 title: Repository Nucleo Domestico (household-repo)
 type: entity
 created: 2026-09-15
-updated: 2026-10-09
-tags: [database, repository, household, singleton, drizzle, onboarding, contract-u1, executor]
+updated: 2026-10-26
+tags: [database, repository, household, singleton, drizzle, onboarding, contract-u1, executor, recipe-pack]
 ---
 
 ## File e Responsabilità
@@ -23,6 +23,8 @@ Garantisce in modo **idempotente** che il nucleo familiare di default (`DEFAULT_
 1. Verifica preventivamente se il record esiste già.
 2. In caso di assenza, tenta l'inserimento con `.onConflictDoNothing()`, con `onboarded_at: null` (il singleton appena creato non ha completato l'onboarding) e `created_at`/`updated_at` fissi da `DEFAULT_HOUSEHOLD` (`2026-01-01T00:00:00Z`).
 3. Gestisce eventuali race-condition concorrenti recuperando il record appena creato.
+
+Dalla Feature 10 la chiama anche `loadRecipePack` all'avvio in produzione, quando il pacchetto non è vuoto: su un database nuovo il singleton nasce all'avvio, senza onboarding (`onboarded_at: null`), e riceve le ricette del pacchetto prima che l'utente apra l'app ([[recipe-pack]]). Scrive con il `db` globale, fuori dalla transazione del caricamento: in produzione il pool è un singleton (Feature 8).
 
 ### `getDefaultHousehold(): Promise<Household>`
 Metodo di comodo utilizzato dalle schermate e dai servizi in v1. Prova il recupero del singleton tramite `getHouseholdById` e, in caso di esito negativo, invoca `ensureDefaultHousehold()`.
@@ -71,3 +73,4 @@ Per modificare i vincoli dall'applicazione si passa da `saveSettings` ([[setting
 - [[shopping-service]] — Servizio della lista della spesa, che risolve l'household con `loadHousehold` in ogni funzione (Feature 6)
 - [[e5-impostazioni]] — Panoramica della Feature 3
 - [[e3-pianificatore]] — Panoramica della Feature 4
+- [[recipe-pack]] — `loadRecipePack`, che crea il singleton all'avvio (Feature 10)

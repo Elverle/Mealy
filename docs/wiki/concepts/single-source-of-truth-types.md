@@ -2,8 +2,8 @@
 title: Single Source of Truth dei Tipi di Dominio
 type: concept
 created: 2026-09-15
-updated: 2026-09-15
-tags: [domain, zod, types, contracts, single-source-of-truth]
+updated: 2026-10-26
+tags: [domain, zod, types, contracts, single-source-of-truth, lint, feature-10]
 ---
 
 ## Il Principio
@@ -33,6 +33,17 @@ Per garantire la massima prevedibilità nelle logiche di planning e consolidamen
 - **Origine Ricetta (`RECIPE_SOURCE_VALUES`)**: `['llm', 'manual']`.
 - **Preferenza Ingrediente (`INGREDIENT_PREF_VALUES`)**: `['like', 'dislike']`.
 
+## Confini controllati dal lint (Feature 10)
+
+Fino alla Feature 9 le regole di confine di `CLAUDE.md` valevano solo per attenzione di chi scrive e di chi rivede. Dalla Feature 10 due di esse sono regole di ESLint, in `.eslintrc.json` (`overrides` con `no-restricted-imports`; review architetturale R5 della Feature 10):
+
+| File | Import vietati | Messaggio |
+|---|---|---|
+| `lib/domain/**/*.ts` | `@/lib/db`, `@/lib/db/*`, `@/lib/llm`, `@/lib/llm/*` | `Il dominio non importa DB né LLM.` |
+| `lib/recipes/pack/**/*.ts` tranne `load.ts` | `@/lib/db`, `@/lib/db/*` | `Gli strumenti del pacchetto non aprono il DB (Feature 10, req. P7).` |
+
+La prima era già rispettata e non ha richiesto modifiche. La seconda impedisce che uno strumento di `pnpm recipes:pack`, importando anche solo un tipo da `@/lib/db`, apra il pool e lasci il comando appeso ([[recipe-pack-tools]]). Restano scritte ma non controllate le altre regole, per esempio "solo `lib/recipes` chiama `lib/llm/`". Il lint di `next lint` non guarda `tests/` e `scripts/` ([[e6-deploy]]).
+
 ## Il Singleton Household
 
 In versione v1, Mealy opera in modalità single-user/single-household, pur adottando uno schema DB con foreign key su `household_id` per non precludere future espansioni multi-utente o multi-dispositivo.
@@ -49,3 +60,4 @@ I repository e le Server Actions fanno riferimento a questa costante quando oper
 - [[database-schema]] — Corrispondenza delle entità nelle tabelle Drizzle
 - [[household-repo]] — Gestione della persistenza del singleton household
 - [[e0-fondamenta]] — Panoramica della Feature 1
+- [[diet-rules]] — Regole pure aggiunte a `lib/domain/` dalla Feature 10

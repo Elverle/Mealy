@@ -2,8 +2,8 @@
 title: E6 Deploy — Raspberry Pi, Immagine da GitHub Actions e Database che si Prepara da Solo
 type: topic
 created: 2026-10-11
-updated: 2026-10-21
-tags: [deploy, raspberry-pi, tailscale, docker, compose, ghcr, github-actions, bootstrap, migrations, backup, health, e6, feature-7]
+updated: 2026-10-26
+tags: [deploy, raspberry-pi, tailscale, docker, compose, ghcr, github-actions, bootstrap, migrations, backup, health, recipe-pack, e6, feature-7, feature-10]
 ---
 
 ## Panoramica
@@ -76,7 +76,7 @@ Tre regole tengono insieme il flusso:
 
 - **Il Raspberry non costruisce nulla e non esegue comandi `pnpm`.** Scarica l'immagine del commit che ha in `git` e la avvia. Migrazioni e alias li applica l'app.
 - **Tag dell'immagine = commit** (`sha-<sha completo>`), senza tag `latest` (requirements P9). Compose, script e immagine restano allineati; se il workflow `Image` non ha finito, il pull fallisce con un messaggio invece di avviare un'immagine vecchia; tornare indietro è un `git checkout`.
-- **Le ricette di esempio non entrano mai in produzione.** In produzione non gira nessun seed di ricette né di household (requirements P7): l'household di default lo crea `getDefaultHousehold()` alla prima lettura ([[household-repo]]) e la libreria parte vuota, quindi il primo *Genera piano* crea tutte le ricette con l'LLM.
+- **Le ricette di esempio non entrano mai in produzione.** In produzione non gira nessun seed di ricette né di household (requirements P7): l'household di default lo crea `getDefaultHousehold()` alla prima lettura ([[household-repo]]) e la libreria parte vuota, quindi il primo *Genera piano* crea tutte le ricette con l'LLM. *Nota (Feature 10): la regola sulle ricette d'esempio resta, ma la libreria non parte più vuota: all'avvio l'app carica il pacchetto iniziale di 200 ricette, crea l'household di default e di solito il primo piano non chiama il modello (v. "Sviluppi nella Feature 10").*
 
 ## Moduli e Componenti Introdotti
 
@@ -171,20 +171,27 @@ Non provati nemmeno in locale: l'esclusione delle immagini senza tag nella puliz
 - dalla 0.8 si torna a una versione precedente **solo ripristinando il dump `predeploy`**: le versioni vecchie non leggono le etichette e le portate nuove, e la Libreria non si aprirebbe (`DEPLOY §6`, review R3 della Feature 8). Il limite "Le migrazioni non tornano indietro" qui sotto vale quindi anche senza un cambio di schema;
 - su un database appena creato l'household di default nasce all'avvio, perché la classificazione lo legge ([[database-architecture]]).
 
+### Sviluppi nella Feature 10
+
+[[f10-pacchetto-ricette]] aggiunge un passo all'avvio, senza migrazioni né variabili nuove. Dopo il bootstrap `register()` **attende** `loadRecipePack()`, che inserisce le ricette del pacchetto con titolo nuovo e scrive `[pack] ricette del pacchetto inserite: N, già presenti o simili: M`; poi parte la classificazione come prima ([[recipe-pack]], [[db-bootstrap]]). Un errore del caricamento scrive `[pack] caricamento interrotto` e non ferma l'app: si ritenta al riavvio. `docs/DEPLOY.md` lo elenca in §5 (al primo avvio `N + M = 200`, poi `N = 0`) e §9; §1 e §4 non dicono più che la libreria parte vuota.
+- Lo smoke conta le ricette del pacchetto dopo il primo avvio e cerca `ricette del pacchetto inserite: 0` dopo il riavvio ([[deploy-scripts]]).
+- Il pacchetto si prepara sul PC con `pnpm recipes:pack` e arriva sul Raspberry nell'immagine, come gli alias: sul Raspberry resta vero che non si lancia nessun comando `pnpm` ([[recipe-pack-tools]]).
+- Nessun cambio di schema: il ritorno alla 0.8 resta possibile con il dump `predeploy` di `DEPLOY §6`, e le ricette del pacchetto sono righe normali, leggibili anche dalla 0.8.
+
 ## Punti Aperti e Limiti Noti
 
 - **Un alias tolto dal file non viene cancellato** dal database. La cancellazione è esclusa perché i test DB inseriscono alias propri nella stessa tabella (requirements U3).
 - **Le migrazioni non tornano indietro.** Tornare a una versione precedente dopo un cambio di schema richiede il `git checkout` e il ripristino del dump `predeploy` fatto prima dell'aggiornamento (`docs/DEPLOY.md §6`). `deploy.sh` non fa nessun ritorno indietro da solo: se un passo fallisce si ferma e lo dice.
 - **Il migratore decide per orario, non per elenco**: una voce del journal con un orario più vecchio dell'ultima applicata verrebbe saltata in silenzio. Lo copre un test sul journal ([[db-bootstrap]]).
 - **`GET /api/health` prova solo `select 1`**: un'app con lo schema indietro di una migrazione risulta sana ([[health-check]]).
-- **Il modulo delle ricette di esempio è nell'immagine di produzione.** `lib/db/bootstrap.ts` importa `seed-core.ts`, che contiene anche `seedDatabase` e importa le ricette di `fixtures/recipes.json`: vengono validate a ogni avvio, ma `seedDatabase` non viene chiamata. Lo smoke fallisce se trova ricette nel database ([[deploy-scripts]]).
+- **Il modulo delle ricette di esempio è nell'immagine di produzione.** `lib/db/bootstrap.ts` importa `seed-core.ts`, che contiene anche `seedDatabase` e importa le ricette di `fixtures/recipes.json`: vengono validate a ogni avvio, ma `seedDatabase` non viene chiamata. Lo smoke fallisce se trova ricette nel database ([[deploy-scripts]]). *Nota (Feature 10): lo smoke ora si aspetta le ricette del pacchetto iniziale; una ricetta d'esempio in più si vedrebbe solo come conteggio diverso.*
 - **Backup sulla stessa microSD del database**, di default: un guasto della scheda perde entrambi. La guida consiglia un disco USB o una copia su un altro computer (requirements P17).
 - **Sul Raspberry resta solo l'immagine in uso**: tornare indietro richiede la rete e un token GHCR valido. Il token ha una scadenza scelta dall'utente.
 - **Le immagini su GHCR si accumulano**: una per ogni push su `main`, cancellazione a mano (requirements P26).
 - **`DATABASE_URL` assente**: app e bootstrap ripiegano sull'URL di sviluppo (`localhost`) invece di fermarsi con un messaggio. Il compose di produzione la imposta sempre.
 - **`next lint` non guarda la radice, `tests/` e `scripts/`**: `instrumentation.ts` non passa dal lint, solo dal typecheck. Rinviato agli aggiornamenti di dipendenze (review architetturale, P5).
 - **Aggiornamenti di dipendenze e Dependabot**: fuori da questa feature per decisione dell'utente (requirements P25).
-- **Tempi sul Raspberry non misurati**: la durata del primo piano con libreria vuota, le letture complete di libreria e lista annotate in [[e2-libreria-preferenze]] ed [[e4-lista-spesa]].
+- **Tempi sul Raspberry non misurati**: la durata del primo piano con libreria vuota, le letture complete di libreria e lista annotate in [[e2-libreria-preferenze]] ed [[e4-lista-spesa]]. *Nota (Feature 10): con il pacchetto il primo piano di solito non chiama il modello; restano da misurare il caricamento del pacchetto al primo avvio (la spec chiede meno di 10 s sul Pi 4) e le letture complete su una libreria di oltre 200 ricette ([[recipe-repo]]).*
 
 ## Strategia di Test
 
@@ -211,6 +218,8 @@ I criteri di accettazione della spec che dipendono dal Raspberry (accesso da LAN
 - [[database-architecture]] — Ambienti del database e flusso delle migrazioni
 - [[database-schema]] — Tabelle e migrazioni `0000`–`0004` (dalla Feature 8 anche `0005`)
 - [[recipe-classification]] — Feature 8: classificazione in background dopo il bootstrap
+- [[recipe-pack]] — Feature 10: pacchetto iniziale caricato e atteso dopo il bootstrap
+- [[f10-pacchetto-ricette]] — Panoramica della Feature 10
 - [[household-repo]] — `getDefaultHousehold`, che crea l'household alla prima lettura
 - [[e4-lista-spesa]] — Feature 6: alias letti dalla lista della spesa e contratto per il deploy
 - [[e0-fondamenta]] — Feature 1: schema, migrazioni e Postgres di sviluppo

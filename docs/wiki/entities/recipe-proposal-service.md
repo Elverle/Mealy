@@ -2,8 +2,8 @@
 title: Ricette su Richiesta — Proposta, Salvataggio, Errori e Rotte (recipe-proposal-service)
 type: entity
 created: 2026-10-14
-updated: 2026-10-21
-tags: [recipes, llm, proposal, service, api-route, errors, advisory-lock, validation, courses, feature-8, feature-9]
+updated: 2026-10-26
+tags: [recipes, llm, proposal, service, api-route, errors, advisory-lock, validation, courses, feature-8, feature-9, feature-10]
 ---
 
 ## File e Responsabilità
@@ -73,6 +73,18 @@ export async function insertGeneratedRecipe(executor: DbExecutor, householdId: s
 
 Calcola lo slug con la funzione privata `uniqueSlug(executor, slugify(title))` (slug libero, poi suffissi `-2` … `-99`, poi 6 caratteri casuali; gli slug sono **globali**, quindi lo stesso titolo in due household ha due slug distinti) e chiama `insertRecipeWith` con `source: 'llm'`, `macros_est: null` e gli ingredienti mappati campo per campo; `insertRecipeWith` crea anche la riga di preferenze di default. Va chiamata dentro una transazione, dopo `acquireRecipeGenerationLock`. È il codice che prima della Feature 9 stava nel ciclo di `generateAndStoreRecipes`, estratto senza cambiarne il comportamento (requirements P3). Dalla Feature 8 scrive anche `courses` (`normalizeCourses`) e le etichette passate da `deriveStyleTags` ([[courses]], [[recipe-generation]]).
 
+**Dalla Feature 10** la firma ha un quarto parametro facoltativo:
+
+```ts
+export interface InsertGeneratedRecipeOptions {
+  source?: RecipeSource; // default 'llm'
+  createdAt?: Date;      // default adesso (insertRecipeWith fa `?? new Date()`)
+}
+export async function insertGeneratedRecipe(executor, householdId, recipe, options?: InsertGeneratedRecipeOptions): Promise<RecipeWithDetails>;
+```
+
+Generazione e proposta salvata non lo passano e scrivono come prima (`'llm'`, data di adesso). Il caricatore del pacchetto iniziale passa `{ source: 'manual', createdAt: RECIPE_PACK_CREATED_AT }`, così le 200 ricette hanno le stesse regole derivate di ogni altra ricetta e stanno in Libreria sotto quelle dell'utente ([[recipe-pack]]). Test in `tests/recipes/store.test.ts`: `'llm'` di default, la `source` passata, la `createdAt` passata.
+
 ## Errori (`errors.ts`)
 
 | Codice | HTTP | Messaggio |
@@ -106,7 +118,7 @@ Entrambe le rotte hanno `runtime = 'nodejs'` e `dynamic = 'force-dynamic'` e leg
 ## Limiti Noti
 
 - Non è verificato che Next in modalità standalone annulli `request.signal` quando il client chiude la connessione; la prova è una verifica manuale di chiusura ([[f9-ricette-su-richiesta]]).
-- `insertGeneratedRecipe` scrive sempre `source: 'llm'`: non va usata per il dataset della Feature 8 né, in futuro, per l'inserimento a mano. *Nota (Feature 8): il pacchetto iniziale di ricette è passato alla Feature 10. Il piano della Feature 8 indica invece `insertGeneratedRecipe` come via di scrittura del pacchetto, per avere le regole derivate: le due indicazioni vanno conciliate nella Feature 10, per esempio con un parametro `source` ([[f8-portate-etichette]]).*
+- `insertGeneratedRecipe` scrive sempre `source: 'llm'`: non va usata per il dataset della Feature 8 né, in futuro, per l'inserimento a mano. *Nota (Feature 8): il pacchetto iniziale di ricette è passato alla Feature 10. Il piano della Feature 8 indica invece `insertGeneratedRecipe` come via di scrittura del pacchetto, per avere le regole derivate: le due indicazioni vanno conciliate nella Feature 10, per esempio con un parametro `source` ([[f8-portate-etichette]]).* *Nota (Feature 10): conciliate con l'opzione `source` (spec D9 della Feature 10): il default resta `'llm'` e il pacchetto scrive `'manual'` (v. "Scrittura Condivisa").*
 - Il prompt riceve i titoli di `exclude_titles` fuori dai delimitatori della richiesta, ridotti a una riga e limitati a 10 × 120 caratteri (osservazione cosmetica della review architetturale, nessuna azione).
 
 ## Vedi anche
@@ -120,3 +132,4 @@ Entrambe le rotte hanno `runtime = 'nodejs'` e `dynamic = 'force-dynamic'` e leg
 - [[http-helpers]] — `readJsonBody`, `llmErrorResponse`
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[f8-portate-etichette]] — Feature 8: portate richieste dal Piano, etichette derivate nella proposta
+- [[recipe-pack]] — Feature 10: il pacchetto scritto con `insertGeneratedRecipe` e `source: 'manual'`

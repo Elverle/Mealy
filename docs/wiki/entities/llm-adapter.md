@@ -2,21 +2,21 @@
 title: Adapter LLM Multi-Provider (llm-adapter)
 type: entity
 created: 2026-09-17
-updated: 2026-10-21
-tags: [llm, ai-sdk, adapter, multi-provider, structured-output, repair-loop, errors, free-text-request, courses, classification, feature-8]
+updated: 2026-10-26
+tags: [llm, ai-sdk, adapter, multi-provider, structured-output, repair-loop, errors, free-text-request, courses, classification, recipe-pack, feature-8, feature-10]
 ---
 
 ## File e Responsabilità
 
 - **Percorsi file**:
-  - `lib/llm/adapter.ts`: funzione principale di generazione `generateRecipes`, loop di correzione e normalizzazione; dalla Feature 9 anche `generateRecipeFromRequest` (una ricetta da una richiesta in testo libero) e la funzione privata `runRecipeGeneration` che le due condividono; dalla Feature 8 `classifyRecipes` (portate ed etichette di ricette esistenti) e la funzione privata generica `runStructuredCall`.
+  - `lib/llm/adapter.ts`: funzione principale di generazione `generateRecipes`, loop di correzione e normalizzazione; dalla Feature 9 anche `generateRecipeFromRequest` (una ricetta da una richiesta in testo libero) e la funzione privata `runRecipeGeneration` che le due condividono; dalla Feature 8 `classifyRecipes` (portate ed etichette di ricette esistenti) e la funzione privata generica `runStructuredCall`; dalla Feature 10 `convertDatasetRecipe` e `draftIngredientFacts` (pacchetto iniziale di ricette).
   - `lib/llm/model.ts`: factory del modello linguistico `getModel`, lettura configurazione env e timeout.
   - `lib/llm/prompts.ts`: template per istruzioni di sistema, prompt utente con vincoli ed esclusioni, prompt di riparazione schema.
   - `lib/llm/errors.ts`: classe di errore tipizzato `LlmError` e type guard `isLlmError`.
   - `lib/llm/index.ts`: facciata pubblica che riesporta le funzioni e i tipi necessari.
   - `scripts/llm-record.ts`: script CLI per registrare risposte LLM reali per test offline.
 - **Scopo**: Incapsulare interamente l'integrazione con i modelli linguistici (LLM) tramite Vercel AI SDK 7, fornendo una superficie fortemente tipizzata, provider-agnostica e resiliente per la generazione strutturata di ricette culinarie casalinghe italiane.
-- **Regola di confine architetturale vincolante**: **solo** `lib/llm/` ha il permesso di importare i pacchetti `ai` e gli SDK dei fornitori (`@ai-sdk/google`, `@openrouter/ai-sdk-provider`, `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`). Nessun altro modulo dell'applicazione conosce o importa tali dipendenze. Il servizio `lib/recipes/` è l'unico consumatore applicativo dell'adapter (`generateRecipes`; dalla Feature 9 anche `generateRecipeFromRequest`, chiamata da `lib/recipes/propose.ts`, v. [[recipe-proposal-service]]; dalla Feature 8 `classifyRecipes` e `getModel`, chiamate da `lib/recipes/classify.ts`, v. [[recipe-classification]]). Dalla Feature 4 altri due moduli importano **solo** `lib/llm/errors.ts` (`LlmError`, `isLlmError`) per riconoscere gli errori che risalgono da `generateAndStoreRecipes`: `lib/plans/service.ts` ([[plan-service]]) e `lib/http/responses.ts` ([[http-helpers]]). Nessuno dei due chiama il modello.
+- **Regola di confine architetturale vincolante**: **solo** `lib/llm/` ha il permesso di importare i pacchetti `ai` e gli SDK dei fornitori (`@ai-sdk/google`, `@openrouter/ai-sdk-provider`, `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`). Nessun altro modulo dell'applicazione conosce o importa tali dipendenze. Il servizio `lib/recipes/` è l'unico consumatore applicativo dell'adapter (`generateRecipes`; dalla Feature 9 anche `generateRecipeFromRequest`, chiamata da `lib/recipes/propose.ts`, v. [[recipe-proposal-service]]; dalla Feature 8 `classifyRecipes` e `getModel`, chiamate da `lib/recipes/classify.ts`, v. [[recipe-classification]]; dalla Feature 10 `convertDatasetRecipe`, `draftIngredientFacts`, `getModel` e `readLlmConfig`, chiamate dagli strumenti di `lib/recipes/pack/`, v. [[recipe-pack-tools]]). Anche `scripts/recipe-pack.ts` importa solo `lib/llm/errors.ts`, per riconoscere un `LlmError` di tipo `config`. Dalla Feature 4 altri due moduli importano **solo** `lib/llm/errors.ts` (`LlmError`, `isLlmError`) per riconoscere gli errori che risalgono da `generateAndStoreRecipes`: `lib/plans/service.ts` ([[plan-service]]) e `lib/http/responses.ts` ([[http-helpers]]). Nessuno dei due chiama il modello.
 
 ## Architettura Multi-Provider
 
@@ -121,6 +121,37 @@ export async function classifyRecipes(
 - **`buildClassifyPrompt(items)`**: `Classifica queste N ricette.` e un blocco per ricetta: `[r1] Titolo`, `Descrizione:` (su una riga, tagliata a `CLASSIFY_DESCRIPTION_MAX` = 300 caratteri senza puntini, `nessuna` se vuota), `Pasti:`, `Etichette attuali:`, `Ingredienti:`. Titolo e descrizione passano da `toSingleLine` (requirements P15).
 - `lib/llm/index.ts` riesporta `classifyRecipes`, `buildClassifyInstructions`, `buildClassifyPrompt` e `CLASSIFY_DESCRIPTION_MAX`.
 
+## Pacchetto Iniziale di Ricette (Feature 10)
+
+Due funzioni nuove in `adapter.ts`, sul modello di `classifyRecipes` (`runStructuredCall`, una riparazione, `LlmError`); il provider resta configurazione: il modello della conversione si sceglie con `LLM_PROVIDER`/`LLM_MODEL` al lancio di `pnpm recipes:pack` (spec D5 della Feature 10). Le chiamano solo gli strumenti del pacchetto ([[recipe-pack-tools]]).
+
+```ts
+export interface PackConvertOptions extends GenerateRecipesOptions {
+  feedback?: readonly string[]; // motivi dello scarto del tentativo precedente
+}
+export async function convertDatasetRecipe(item: PackConvertItem, options?: PackConvertOptions): Promise<GeneratedRecipe>;
+export async function draftIngredientFacts(names: readonly string[], options?: GenerateRecipesOptions): Promise<PackIngredientFactDraft[]>;
+```
+
+- **`convertDatasetRecipe`**: valida la voce con `PackConvertItemSchema`, poi `runStructuredCall` con `buildPackConvertInstructions()`, `buildPackConvertPrompt(item, feedback)` e `GeneratedRecipeSchema`, temperatura **0,4** e riparazione **0,2** (testo riscritto ma fedele, requirements P18). Restituisce la ricetta passata da `normalizeGeneratedRecipe`. Messaggio di `invalid_output`: `Il modello non ha prodotto una ricetta valida dopo il tentativo di correzione.`
+- **`draftIngredientFacts`**: da 1 a `PACK_DRAFT_BATCH_SIZE` (40) nomi, altrimenti `RangeError` senza chiamare il modello. Schema `DraftIngredientFactsOutputSchema` (`{ ingredients: PackIngredientFactDraft[] }`), temperatura 0,2 in entrambe le chiamate. Restituisce le righe come le dà il modello: filtro e completamento li fa `runIngredients`. Messaggio di `invalid_output`: `Il modello non ha prodotto una tabella valida dopo il tentativo di correzione.`
+- Timeout `options.timeoutMs ?? getLlmTimeoutMs()`, modello `options.model ?? getModel()`.
+
+### Prompt di conversione (`prompts.ts`)
+
+- **Righe comuni**: le righe su reparti, portate, etichette, loro significato, elettrodomestici e kcal sono costanti private (`CATEGORY_LINE`, `COURSES_LINE`, `TAGS_LINE`, `TAGS_MEANING_LINE`, `APPLIANCES_REQUIRED_LINE`, `KCAL_EST_LINE`) condivise da `buildRecipeInstructions` e `buildPackConvertInstructions`: un solo testo per regola, con l'output di `buildRecipeInstructions` invariato (requirements P17; i test esistenti dei prompt sono rimasti verdi così come erano).
+- **`buildPackConvertInstructions()`**: scrittura obbligatoria (passi e descrizione **da capo, con parole proprie**, il procedimento solo per tecnica, ordine, tempi, temperature e dosi; passi brevi all'imperativo; titolo dell'originale con maiuscole e accenti sistemati, senza la parola "ricetta"); ingredienti (una riga per ingrediente dell'originale nello stesso ordine, nomi canonici da riusare, kg → g e l/dl/cl → ml, numero senza unità come pezzi o cucchiai: 1 cucchiaio = 15 ml o 10 g, 1 cucchiaino = 5 ml o 5 g); classificazione (`diet_flags` vuoto perché le calcola l'app, `servings_base` uguale alle persone).
+- **`buildPackConvertPrompt(item, feedback)`**: piatto, gruppo con la nota sulla portata (`(in courses metti "contorno")` per i contorni, una portata principale per gli altri), persone, una riga per ingrediente `- <nome>: <quantità grezza> → <lettura>` (`(vuota)`, `non letta`), il procedimento **tra `PACK_PROCEDURE_OPEN` (`<<<PROCEDIMENTO`) e `PACK_PROCEDURE_CLOSE` (`PROCEDIMENTO>>>`)**, trattato come dato come la richiesta della Feature 9, e i nomi canonici già in uso. Con `feedback` non vuoto aggiunge `Il tentativo precedente è stato scartato per questi motivi; correggili:` e un motivo per riga (requirements P19). Ogni testo del dataset passa da `toSingleLine`, che toglie i delimitatori e porta su una riga.
+
+### Prompt della tabella degli ingredienti
+
+- **`buildDraftFactsInstructions()`**: per ogni nome il reparto e sei attributi, con esempi prudenti (`carne` anche per salumi, strutto, brodo o dado di carne; `pesce` anche per colatura di alici; `latticini` anche per burro, panna e formaggi stagionati; `uova` anche per pasta all'uovo e maionese; `glutine` anche per dado, salsa di soia e farine non dichiarate senza glutine). «Nel dubbio rispondi true: questi valori decidono le diete, e sbagliare nell'altro senso è più grave.» Una voce per nome, nello stesso ordine, `name` copiato identico.
+- **`buildDraftFactsPrompt(names)`**: `Descrivi questi N ingredienti.` e un nome per riga.
+
+`lib/llm/index.ts` riesporta `convertDatasetRecipe`, `draftIngredientFacts`, `PackConvertOptions`, i quattro costruttori di prompt e i due delimitatori.
+
+Test: `tests/llm/prompts.test.ts` (riscrittura con parole proprie e divieto di copiare; righe di portate, reparti, etichette, elettrodomestici e kcal identiche a quelle di `buildRecipeInstructions`; delimitatori come costanti; titolo, gruppo e persone; quantità grezza e lettura, quantità vuota e lettura mancante; procedimento tra i delimitatori, con delimitatori e a capo tolti dal testo; nota della portata per gruppo; nomi in uso o «nessuno»; blocco degli errori assente senza motivi e in coda con un motivo per riga; istruzioni e prompt della tabella, nomi su una riga) e `tests/llm/adapter.test.ts` (`convertDatasetRecipe`: ricetta normalizzata con una chiamata, procedimento nel prompt, riparazione di un'unità non valida, `invalid_output` dopo due risposte non valide, `feedback` nel prompt, voce non valida rifiutata con `ZodError` senza chiamare il modello; `draftIngredientFacts`: righe restituite come le dà il modello, nomi nel prompt, `RangeError` per 0 o più di 40 nomi, errore HTTP come `provider`).
+
 ## Gestione Errori Tipizzata (`LlmError`)
 
 Il modulo `lib/llm/errors.ts` esporta la classe `LlmError` con codici standardizzati `LlmErrorCode`:
@@ -160,3 +191,5 @@ Test della Feature 8: `tests/llm/prompts.test.ts` (riga `courses` con i quattro 
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[recipe-classification]] — Feature 8: `classifyPendingRecipes`, chiamante di `classifyRecipes`
 - [[f8-portate-etichette]] — Panoramica della Feature 8
+- [[recipe-pack-tools]] — Feature 10: `runConvert` e `runIngredients`, chiamanti di `convertDatasetRecipe` e `draftIngredientFacts`
+- [[f10-pacchetto-ricette]] — Panoramica della Feature 10

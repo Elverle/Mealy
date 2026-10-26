@@ -1,6 +1,6 @@
 {
   "name": "mealy",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -17,7 +17,8 @@
     "db:seed": "tsx lib/db/seed.ts",
     "db:seed:aliases": "tsx lib/db/seed-aliases.ts",
     "llm:record": "tsx scripts/llm-record.ts",
-    "recipes:classify": "tsx scripts/classify-recipes.ts"
+    "recipes:classify": "tsx scripts/classify-recipes.ts",
+    "recipes:pack": "tsx scripts/recipe-pack.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.54",

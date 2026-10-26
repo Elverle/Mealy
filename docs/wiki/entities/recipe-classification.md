@@ -2,8 +2,8 @@
 title: Classificazione delle Ricette Esistenti — classifyPendingRecipes, Avvio e Script (recipe-classification)
 type: entity
 created: 2026-10-21
-updated: 2026-10-21
-tags: [recipes, llm, classification, courses, style-tags, startup, instrumentation, script, batches, feature-8]
+updated: 2026-10-26
+tags: [recipes, llm, classification, courses, style-tags, startup, instrumentation, script, batches, feature-8, feature-10]
 ---
 
 ## File e Responsabilità
@@ -70,7 +70,9 @@ Dentro `register()`, solo con `NEXT_RUNTIME === 'nodejs'` e `DB_BOOTSTRAP_ON_STA
 2. `import('./lib/recipes/classify')` dinamico, poi `void classifyPendingRecipes().catch(…)`: la partenza **non aspetta** la classificazione e il server accetta richieste subito;
 3. un errore della classificazione, o del suo import, scrive `[classify] classificazione interrotta` con l'errore e **non** chiama mai `process.exit`.
 
-Se il bootstrap fallisce, la classificazione non parte e il processo esce con codice 1 come prima. In sviluppo e nei test `register()` resta inerte: lì la classificazione si lancia con `pnpm recipes:classify` (spec FR-4.7).
+Se il bootstrap fallisce, la classificazione non parte e il processo esce con codice 1 come prima.
+
+**Dalla Feature 10** tra il passo 1 e il passo 2 c'è il caricamento del pacchetto iniziale di ricette, **atteso** (`await loadRecipePack()`, [[recipe-pack]]). La classificazione parte dopo, anche se il caricamento è fallito. Le ricette del pacchetto hanno sempre almeno una portata, quindi non sono mai tra quelle da classificare (spec FR-3.6 della Feature 10): su un'installazione nuova la classificazione scrive `[classify] nessuna ricetta da classificare`. In sviluppo e nei test `register()` resta inerte: lì la classificazione si lancia con `pnpm recipes:classify` (spec FR-4.7).
 
 Il servizio importa `@/lib/db`, quindi dalla Feature 8 l'hook di avvio carica il pool dell'app. Per non rischiare un secondo pool, nel caso in cui Next carichi il modulo da due grafi diversi, `lib/db/index.ts` salva il client in `globalThis` anche in produzione (proposta P4 della review). Prima lo faceva solo fuori dalla produzione, per l'HMR ([[database-architecture]]).
 
@@ -108,3 +110,4 @@ Non coperto dai test automatici: la classificazione con un modello reale e lo st
 - [[recipe-repo]] — `listUnclassifiedRecipes`, `setRecipeClassification`
 - [[db-bootstrap]] — Hook di avvio che lancia la classificazione
 - [[e6-deploy]] — Produzione sul Raspberry
+- [[recipe-pack]] — Feature 10: il pacchetto caricato prima della classificazione

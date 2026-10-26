@@ -862,3 +862,159 @@ export const ClassifyRecipesOutputSchema = z.object({
   recipes: z.array(RecipeClassificationSchema),
 });
 export type ClassifyRecipesOutput = z.infer<typeof ClassifyRecipesOutputSchema>;
+
+// ============================================================================
+// Recipe Pack (Feature 10)
+// ============================================================================
+
+// Gruppi di selezione del pacchetto: derivano dalla categoria del dataset, non dalla portata.
+export const PACK_GROUP_VALUES = ['primi', 'secondi', 'piatti-unici', 'contorni'] as const;
+export const PackGroupSchema = z.enum(PACK_GROUP_VALUES);
+export type PackGroup = z.infer<typeof PackGroupSchema>;
+
+export const PACK_GROUP_LABELS: Record<PackGroup, string> = {
+  primi: 'Primi',
+  secondi: 'Secondi',
+  'piatti-unici': 'Piatti unici',
+  contorni: 'Contorni',
+};
+export const PACK_GROUP_QUOTAS: Record<PackGroup, number> = {
+  primi: 50,
+  secondi: 50,
+  'piatti-unici': 40,
+  contorni: 60,
+};
+// Prima lettera dei codici dei candidati (P001, S001, U001, C001).
+export const PACK_GROUP_CODES: Record<PackGroup, string> = {
+  primi: 'P',
+  secondi: 'S',
+  'piatti-unici': 'U',
+  contorni: 'C',
+};
+export const RECIPE_PACK_SIZE = 200; // somma di PACK_GROUP_QUOTAS
+
+// Ingrediente principale di un candidato: serve solo a variare la selezione.
+export const PACK_MAIN_INGREDIENT_VALUES = ['carne', 'pesce', 'legumi', 'uova', 'formaggi', 'verdure'] as const;
+export const PackMainIngredientSchema = z.enum(PACK_MAIN_INGREDIENT_VALUES);
+export type PackMainIngredient = z.infer<typeof PackMainIngredientSchema>;
+
+// Riga grezza del dataset CSV (campi come testo).
+export const PackDatasetRowSchema = z.object({
+  index: z.string(),
+  title: z.string(),
+  category: z.string(),
+  link: z.string(),
+  servings: z.string(),
+  ingredients: z.string(),
+  steps: z.string(),
+});
+export type PackDatasetRow = z.infer<typeof PackDatasetRowSchema>;
+
+// Lettura di una quantità del dataset: g/ml/pz dopo le conversioni (kg → g, l/dl/cl → ml, numero solo → pz).
+export const PackQuantityReadingSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('qb') }),
+  z.object({
+    kind: z.literal('measure'),
+    qty: z.number().positive(),
+    unit: z.enum(['g', 'ml', 'pz']),
+    unitless: z.boolean(), // true: nel dataset c'era solo il numero
+  }),
+  z.object({ kind: z.literal('invalid') }),
+]);
+export type PackQuantityReading = z.infer<typeof PackQuantityReadingSchema>;
+
+// Candidato scelto da `select` (`.recipe-pack/candidates.json`).
+export const PackCandidateSchema = z.object({
+  code: z.string().regex(/^[PSUC]\d{3}$/),
+  group: PackGroupSchema,
+  main_ingredient: PackMainIngredientSchema,
+  dataset_index: z.string(),
+  link: z.string(),
+  title: z.string().min(1),
+  category: z.string(),
+  servings: z.number().int().min(1).max(12),
+  ingredients: z.array(z.tuple([z.string(), z.string()])).min(1), // [nome, quantità grezza]
+  procedure: z.string().min(1),
+  measured_count: z.number().int().min(0),
+  score: z.number().int().min(0),
+  checked: z.boolean(), // spunta iniziale in selection.md
+});
+export type PackCandidate = z.infer<typeof PackCandidateSchema>;
+export const PackCandidatesFileSchema = z.object({ candidates: z.array(PackCandidateSchema) });
+
+// Ricetta da convertire, come la riceve il modello.
+export const PackConvertItemSchema = z.object({
+  title: z.string().min(1),
+  group: PackGroupSchema,
+  servings: z.number().int().min(1).max(12),
+  ingredients: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        raw_qty: z.string(),
+        reading: z.string().nullable(), // es. "750 g", "2 senza unità", "q.b."; null se illeggibile
+      })
+    )
+    .min(1),
+  procedure: z.string().min(1),
+  known_names: z.array(z.string().min(1)),
+});
+export type PackConvertItem = z.infer<typeof PackConvertItemSchema>;
+
+// Esito salvato della conversione di un candidato (`.recipe-pack/converted/<codice>.json`).
+export const PackConversionRecordSchema = z.object({
+  code: z.string().regex(/^[PSUC]\d{3}$/),
+  status: z.enum(['accepted', 'rejected']),
+  recipe: GeneratedRecipeSchema.nullable(), // null se rejected
+  errors: z.array(z.string()),
+  warnings: z.array(z.string()),
+  model: z.string(),
+  converted_at: z.string().datetime(),
+});
+export type PackConversionRecord = z.infer<typeof PackConversionRecordSchema>;
+
+// Tabella degli ingredienti del pacchetto: bozza del modello, poi riveduta.
+export const PACK_DRAFT_BATCH_SIZE = 40;
+export const PackIngredientFactDraftSchema = z.object({
+  name: z.string().min(1),
+  category: CategorySchema,
+  carne: z.boolean(),
+  pesce: z.boolean(),
+  latticini: z.boolean(),
+  uova: z.boolean(),
+  miele: z.boolean(),
+  glutine: z.boolean(),
+});
+export type PackIngredientFactDraft = z.infer<typeof PackIngredientFactDraftSchema>;
+export const PackIngredientFactSchema = PackIngredientFactDraftSchema.extend({ reviewed: z.boolean() });
+export type PackIngredientFact = z.infer<typeof PackIngredientFactSchema>;
+export const PackIngredientsFileSchema = z.object({
+  ingredients: z
+    .array(PackIngredientFactSchema)
+    .refine((items) => new Set(items.map((i) => i.name)).size === items.length, {
+      message: 'Lo stesso ingrediente compare più di una volta.',
+    }),
+});
+// Output LLM della bozza.
+export const DraftIngredientFactsOutputSchema = z.object({
+  ingredients: z.array(PackIngredientFactDraftSchema),
+});
+
+// File del pacchetto (`fixtures/recipe-pack.json`). Unicità dei titoli: la controllano `build` e il test del file.
+export const RecipePackFileSchema = z.object({ recipes: z.array(SavedRecipeInputSchema) });
+
+// Statistiche del pacchetto nel report di `build`.
+export const PackStatsSchema = z.object({
+  total: z.number().int(),
+  by_course: z.record(CourseSchema, z.number().int()),
+  by_meal_type: z.record(MealTypeSchema, z.number().int()),
+  by_diet: z.record(DietFlagSchema, z.number().int()),
+  by_main_ingredient: z.record(PackMainIngredientSchema, z.number().int()),
+  prep_minutes: z.object({
+    up_to_30: z.number().int(),
+    up_to_60: z.number().int(),
+    up_to_120: z.number().int(),
+    over_120: z.number().int(),
+  }),
+});
+export type PackStats = z.infer<typeof PackStatsSchema>;

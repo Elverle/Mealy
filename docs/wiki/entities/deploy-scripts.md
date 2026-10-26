@@ -2,8 +2,8 @@
 title: Script Operativi — compose-prod.sh, deploy.sh e smoke-prod.sh (deploy-scripts)
 type: entity
 created: 2026-10-11
-updated: 2026-10-11
-tags: [scripts, bash, deploy, compose, smoke-test, backup, raspberry-pi, ghcr, production, feature-7]
+updated: 2026-10-26
+tags: [scripts, bash, deploy, compose, smoke-test, backup, raspberry-pi, ghcr, production, recipe-pack, feature-7, feature-10]
 ---
 
 ## File e Responsabilità
@@ -104,7 +104,13 @@ Controlli, nell'ordine. Al primo che fallisce: `SMOKE FALLITO: <motivo>`, ultime
 
 In fondo: `SMOKE OK`.
 
-Lo smoke **non prova l'LLM** (modello finto, nessuna chiave) né nulla che dipenda dal Raspberry o da Tailscale. Il controllo 5 è l'unica verifica, sul percorso di produzione, della regola "le ricette di esempio non entrano mai in produzione": il codice che le inserirebbe è nell'immagine, perché il bootstrap importa `seed-core.ts` ([[db-bootstrap]], [[fixtures-and-seed]]).
+**Dalla Feature 10** (pacchetto iniziale di ricette, [[recipe-pack]]) cambiano due controlli; la tabella sopra resta quella della Feature 7:
+- il **5** diventa: `recipes` ha **tante righe quante sono le ricette di `fixtures/recipe-pack.json`**. Il numero atteso lo legge lo script dal file con `node -e` (requirements P22 della Feature 10): lo smoke gira dalla copia del repository, dove Node c'è, e il controllo vale con qualunque versione del pacchetto. Se il file non si legge: `non riesco a leggere fixtures/recipe-pack.json`; se il conteggio non torna: `le ricette nel database non sono quelle del pacchetto (attese <n>)`. L'intestazione della sezione nel log è `[smoke] migrazioni, alias e pacchetto`;
+- il **9** controlla anche che nei log ci sia `ricette del pacchetto inserite: 0` e che dopo il riavvio il conteggio delle ricette sia lo stesso: anche il caricamento è idempotente.
+
+Con il pacchetto lo stack locale contiene 200 ricette dopo il primo avvio e, dopo l'onboarding, un piano completo esce senza il modello (prova manuale di chiusura della Feature 10).
+
+Lo smoke **non prova l'LLM** (modello finto, nessuna chiave) né nulla che dipenda dal Raspberry o da Tailscale. Il controllo 5 è l'unica verifica, sul percorso di produzione, della regola "le ricette di esempio non entrano mai in produzione": il codice che le inserirebbe è nell'immagine, perché il bootstrap importa `seed-core.ts` ([[db-bootstrap]], [[fixtures-and-seed]]). *Nota (Feature 10): con il pacchetto il controllo 5 conta le ricette del pacchetto. Una ricetta d'esempio in più farebbe comunque fallire il conteggio, ma solo se non è simile a una del pacchetto, che altrimenti salterebbe al suo posto: la regola non ha più un controllo dedicato.*
 
 Lo stesso script gira in tre posti: in locale, nel job `image` del gate (immagine amd64) e nel workflow `Image` prima del push (immagine arm64) ([[ci-workflows]]).
 
@@ -126,3 +132,4 @@ Gli script non hanno test Vitest: sono stati provati eseguendoli, in locale su D
 - [[health-check]] — `GET /api/health` e il suo corpo
 - [[db-bootstrap]] — Migrazioni e alias all'avvio, riga di log cercata dallo smoke
 - [[ci-workflows]] — Dove lo smoke gira in CI e dove nasce l'immagine
+- [[recipe-pack]] — Feature 10: il pacchetto che lo smoke si aspetta dopo il primo avvio

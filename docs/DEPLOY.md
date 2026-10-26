@@ -11,7 +11,7 @@ Guida operativa della v1. Mealy gira su un Raspberry Pi con Docker Compose ed è
 | `backup` | Ogni notte alle 03:00 scrive un dump compresso in `backups/` e tiene gli ultimi 7 |
 
 - **Il Raspberry non costruisce nulla.** A ogni push su `main` GitHub Actions (workflow **Image**) costruisce l'immagine arm64 e la pubblica come `ghcr.io/elverle/mealy:sha-<commit>`. Il Raspberry scarica l'immagine del commit che ha in `git`.
-- **Nessun comando `pnpm` sul Raspberry.** Migrazioni e alias li applica l'app da sola. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione: la libreria parte vuota.
+- **Nessun comando `pnpm` sul Raspberry.** Migrazioni e alias li applica l'app da sola. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione: la libreria parte dal pacchetto iniziale di ricette (`fixtures/recipe-pack.json`), che l'app carica all'avvio.
 - **Nessuna porta aperta su Internet.** Fuori casa si entra solo con Tailscale. L'app però ascolta su tutte le interfacce di rete del Raspberry, e le porte pubblicate da Docker non passano da `ufw`: in IPv4 la protegge il router di casa. Se la tua rete assegna indirizzi IPv6 pubblici, controlla che il firewall IPv6 del router blocchi le connessioni in ingresso.
 
 ## 2. Cosa serve
@@ -118,7 +118,7 @@ L'ultima riga deve essere `[deploy] fatto: Mealy risponde sulla porta 3000`.
 
 3. Da un dispositivo in casa apri `http://<ip-del-raspberry>:3000`: parte la configurazione iniziale.
 
-La libreria è vuota: il primo **Genera piano** crea tutte le ricette con l'LLM e può richiedere qualche minuto. Dal secondo piano in poi le ricette vengono dalla libreria.
+La libreria contiene già le ricette del pacchetto iniziale: di solito il primo **Genera piano** le prende da lì, senza chiamare l'LLM. Il modello interviene solo quando la libreria non basta, per esempio con preferenze molto restrittive.
 
 ## 5. Verifica
 
@@ -129,6 +129,7 @@ La libreria è vuota: il primo **Genera piano** crea tutte le ricette con l'LLM 
 | Accesso fuori casa | Telefono su rete mobile (Wi-Fi spento) con Tailscale attivo: `http://mealy:3000` oppure `http://100.x.y.z:3000`. Scrivi `http://` per esteso: il browser potrebbe provare `https` da solo. Spunta qualche riga della lista |
 | Generazione ricette | **Genera piano** arriva in fondo senza errori |
 | Classificazione delle ricette | Dopo l'avvio, `bash scripts/compose-prod.sh logs app` mostra `[classify] ricette da classificare: N` e poi `[classify] classificate: X, rimaste: Y`, oppure `[classify] nessuna ricetta da classificare`. Le rimaste si riprovano al riavvio |
+| Pacchetto di ricette | Al primo avvio dopo l'aggiornamento, `bash scripts/compose-prod.sh logs app` mostra `[pack] ricette del pacchetto inserite: N, già presenti o simili: M`, con N + M = 200. Ai riavvii successivi N è 0 |
 | Backup | `bash scripts/compose-prod.sh exec backup sh /opt/backup/backup.sh manual`, poi `ls -l backups/`: c'è un file `mealy-manual-….sql.gz` |
 | Backup notturno | La mattina dopo: `ls -l backups/` mostra un file `mealy-daily-….sql.gz` e `bash scripts/compose-prod.sh logs backup` contiene una riga `[backup] scritto` |
 | Riavvio | `sudo reboot`; dopo un paio di minuti l'app risponde di nuovo e i dati ci sono |
@@ -257,6 +258,7 @@ Tutti da `/opt/mealy`. `scripts/compose-prod.sh` è `docker compose` con il file
 | Fuori casa non risponde | Tailscale spento sul telefono, o chiave del Raspberry scaduta | Apri l'app Tailscale; sul Raspberry `tailscale status` |
 | `[classify] modello non configurato (…): N ricette restano senza portata` nei log dell'app | Mancano le variabili `LLM_*` o la chiave del provider in `.env.production` | Nessun danno: l'app funziona e le ricette restano ammesse nel piano. Compila le variabili (§3.5), poi `bash scripts/deploy.sh --no-pull`: la classificazione riparte all'avvio |
 | `[classify] lotto i/n non classificato: …` nei log dell'app | Rete, timeout o risposta non valida del provider LLM | Le ricette di quel lotto restano senza portata e si riprovano al riavvio dell'app. Se si ripete, controlla la chiave API e `LLM_TIMEOUT_MS` |
+| `[pack] caricamento interrotto` nei log dell'app | Errore del database durante l'inserimento | Nessuna ricetta del pacchetto è entrata e l'app funziona. Il caricamento si ritenta al riavvio (`bash scripts/deploy.sh --no-pull`); se si ripete, leggi l'errore nei log |
 
 ## 10. Note per chi sviluppa
 

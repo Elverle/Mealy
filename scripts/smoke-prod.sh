@@ -56,15 +56,18 @@ echo "[smoke] /api/health"
 [ "$(curl -sS --max-time 10 "${BASE_URL}/api/health")" = '{"status":"ok"}' ] \
   || fail "/api/health non ha risposto {\"status\":\"ok\"}"
 
-echo "[smoke] migrazioni e alias"
+echo "[smoke] migrazioni, alias e pacchetto"
 [ "$(query "select to_regclass('public.recipes') is not null")" = "t" ] \
   || fail "la tabella recipes non esiste: migrazioni non applicate"
 [ "$(query "select count(*) > 0 from drizzle.__drizzle_migrations")" = "t" ] \
   || fail "nessuna migrazione registrata"
 [ "$(query "select count(*) > 0 from ingredient_aliases")" = "t" ] \
   || fail "nessun alias caricato"
-[ "$(query "select count(*) from recipes")" = "0" ] \
-  || fail "ci sono ricette nel database: il bootstrap non deve inserirne"
+# Ricette attese dopo il primo avvio: quelle del pacchetto iniziale (Feature 10).
+expected_recipes="$(node -e 'process.stdout.write(String(require("./fixtures/recipe-pack.json").recipes.length))')" \
+  || fail "non riesco a leggere fixtures/recipe-pack.json"
+[ "$(query "select count(*) from recipes")" = "${expected_recipes}" ] \
+  || fail "le ricette nel database non sono quelle del pacchetto (attese ${expected_recipes})"
 
 echo "[smoke] pagina iniziale"
 [ "$(curl -sS -L --max-time 20 -o /dev/null -w '%{http_code}' "${BASE_URL}/")" = "200" ] \
@@ -91,5 +94,9 @@ compose up -d --wait --wait-timeout 180 || fail "l'app non è tornata sana dopo 
 # su una pipe già chiusa farebbe fallire il controllo.
 compose logs --no-log-prefix app | grep "alias inseriti o aggiornati: 0" > /dev/null \
   || fail "al secondo avvio il bootstrap ha riscritto degli alias"
+compose logs --no-log-prefix app | grep "ricette del pacchetto inserite: 0" > /dev/null \
+  || fail "al secondo avvio il caricamento del pacchetto ha inserito delle ricette"
+[ "$(query "select count(*) from recipes")" = "${expected_recipes}" ] \
+  || fail "dopo il riavvio le ricette non sono più quelle del pacchetto"
 
 echo "SMOKE OK"

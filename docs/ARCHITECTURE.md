@@ -29,6 +29,8 @@ App web personale di meal planning che risponde alla domanda "cosa mangio oggi?"
 
 > **Le ricette generate non sono usa-e-getta: sono la libreria.** Il piano settimanale è una *selezione pesata* dalla libreria, non una generazione da zero. L'LLM interviene solo per popolare la libreria quando il pool di candidate è insufficiente. Questo rende possibili le preferenze, abbatte i costi LLM e rende il piano deterministico e testabile.
 
+Dalla Feature 10 la libreria parte da un **pacchetto iniziale** di 200 ricette (`fixtures/recipe-pack.json`: 50 primi, 50 secondi, 40 piatti unici, 60 contorni), riscritte da un dataset di ricette italiane e caricate all'avvio. Il modello completa la libreria quando il pool non basta, con lo swap e con le richieste dell'utente: con il pacchetto la generazione automatica diventa rara.
+
 ---
 
 ## 2. Stack
@@ -327,6 +329,13 @@ Tutte le request/response validate con gli stessi schemi Zod del dominio. Gli er
 - **Timeout**: la generazione può richiedere 10–30 s → la UI mostra stato di progresso (vedi `DESIGN.md`); su Vercel usare route con `maxDuration` adeguata
 - **Dedup**: titolo normalizzato + `pg_trgm`; l'exclude-list dei titoli è nel prompt
 - **Chiavi API**: una variabile server-side per provider (`OPENROUTER_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `ANTHROPIC_API_KEY`), mai esposte al client; serve solo quella del provider attivo
+- **Pacchetto iniziale**: all'avvio in produzione, dopo migrazioni e alias e prima della classificazione, `instrumentation.ts` → `lib/recipes/pack/load.ts` (`loadRecipePack`) inserisce le ricette del pacchetto. La partenza aspetta il caricamento.
+  - entrano le ricette il cui titolo non è già in libreria, né uguale (`normalizeTitle`) né simile (`pg_trgm` > 0,6), con origine `manual`, data di creazione fissa (in Libreria sotto le ricette dell'utente) e le regole derivate di §4.2. Le ricette già presenti non si toccano;
+  - tutto in una transazione con il lock di generazione. Un errore annulla il caricamento, logga `[pack] caricamento interrotto` e non ferma l'app: si ritenta al riavvio;
+  - il pacchetto si prepara una volta sola sul PC con `pnpm recipes:pack` (`select` → `convert` → `ingredients` → `build`), a partire dal dataset `docs/recipe.csv`, che non è nel repository;
+  - le diete delle ricette si ricavano per regola da `fixtures/recipe-pack-ingredients.json` (`lib/domain/diet-rules.ts`), una tabella degli ingredienti rivista a mano;
+  - passi e descrizioni li scrive da capo il modello, e un controllo scarta i testi con 8 parole consecutive uguali all'originale;
+  - limite: non c'è un segno di "pacchetto caricato". Se un giorno le ricette si potranno cancellare, quelle del pacchetto torneranno al riavvio.
 - **Classificazione delle ricette esistenti**: le ricette con portate vuote (salvate prima della portata) si classificano in background all'avvio dell'app in produzione, dopo il bootstrap (`instrumentation.ts` → `lib/recipes/classify.ts`, `classifyPendingRecipes`). Il modello assegna portate ed etichette di stile a lotti di `CLASSIFY_BATCH_SIZE` (10) ricette, in sequenza; le regole derivate di §4.2 si applicano comunque. La partenza dell'app non aspetta la classificazione. Un lotto che fallisce (rete, timeout, risposta non valida) si salta: le sue ricette restano senza portata e si riprovano al riavvio successivo. Senza modello configurato le ricette restano senza portata e sono ammesse nel piano. Stesso procedimento a mano: `pnpm recipes:classify`, sul database di `DATABASE_URL`.
 
 ---
