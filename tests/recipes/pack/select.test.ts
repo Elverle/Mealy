@@ -166,6 +166,14 @@ describe('lib/recipes/pack/select', () => {
       expect(mainIngredientOf(['Petto di pollo'])).toBe('carne');
     });
 
+    it('recognizes less common cuts, fish and cheeses', () => {
+      expect(mainIngredientOf(['Abbacchio'])).toBe('carne');
+      expect(mainIngredientOf(['Cappello del prete'])).toBe('carne');
+      expect(mainIngredientOf(['Gamberoni'])).toBe('pesce');
+      expect(mainIngredientOf(['Coda di rospo'])).toBe('pesce');
+      expect(mainIngredientOf(['Montasio'])).toBe('formaggi');
+    });
+
     it('matches the words of the names regardless of accents and case', () => {
       expect(mainIngredientOf(['BACCALÀ'])).toBe('pesce');
     });
