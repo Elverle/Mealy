@@ -5,9 +5,14 @@ import rawPack from '@/fixtures/recipe-pack.json';
 import rawIngredients from '@/fixtures/recipe-pack-ingredients.json';
 import { FIXTURE_INGREDIENT_ALIASES } from '@/fixtures';
 import { RECIPE_PACK_INGREDIENTS, RECIPE_PACK_RECIPES } from '@/fixtures/recipe-pack';
-import { PackIngredientsFileSchema, RecipePackFileSchema } from '@/lib/domain/types';
+import {
+  PACK_GROUP_QUOTAS,
+  PackIngredientsFileSchema,
+  RECIPE_PACK_SIZE,
+  RecipePackFileSchema,
+} from '@/lib/domain/types';
 import { normalizeCanonicalName, normalizeTitle } from '@/lib/domain/recipe-text';
-import { deriveStyleTags } from '@/lib/domain/courses';
+import { deriveStyleTags, isMainDish } from '@/lib/domain/courses';
 import { deriveDietFlags, toIngredientFactsMap } from '@/lib/domain/diet-rules';
 import { areTitlesSimilar } from '@/lib/domain/title-similarity';
 
@@ -70,6 +75,16 @@ describe('Recipe pack fixtures', () => {
         expect(areTitlesSimilar(a.title, b.title), `${a.title} / ${b.title}`).toBe(false);
       }
     }
+  });
+
+  it('contains the full pack: 200 recipes, at least 60 side dishes and 140 main dishes', () => {
+    expect(RECIPE_PACK_RECIPES).toHaveLength(RECIPE_PACK_SIZE);
+    expect(RECIPE_PACK_RECIPES.filter((r) => r.courses.includes('contorno')).length).toBeGreaterThanOrEqual(
+      PACK_GROUP_QUOTAS.contorni
+    );
+    expect(RECIPE_PACK_RECIPES.filter((r) => isMainDish(r.courses)).length).toBeGreaterThanOrEqual(
+      RECIPE_PACK_SIZE - PACK_GROUP_QUOTAS.contorni
+    );
   });
 
   it('contains no URL or source-site name', () => {
