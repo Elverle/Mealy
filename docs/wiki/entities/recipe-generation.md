@@ -2,8 +2,8 @@
 title: Servizio di Generazione e Route API (recipe-generation)
 type: entity
 created: 2026-09-17
-updated: 2026-10-21
-tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches, ingredient-prefs, courses, derived-tags, feature-8]
+updated: 2026-10-26
+tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches, ingredient-prefs, courses, derived-tags, feature-8, feature-10]
 ---
 
 ## File e Responsabilità
@@ -121,7 +121,7 @@ All'interno della transazione, ogni ricetta generata attraversa una sequenza a 4
 
 Dalla Feature 9 i passi 4 e 5 non sono più scritti nel ciclo: la chiamata è `insertGeneratedRecipe(tx, household.id, recipe)` di `lib/recipes/store.ts`, dove è stata spostata anche la funzione privata `uniqueSlug`. Il comportamento della generazione a lotti è invariato (stessi campi, `source: 'llm'`, `macros_est: null`); la stessa funzione scrive le ricette chieste dall'utente ([[recipe-proposal-service]]), che però saltano il livello 3: per loro la somiglianza trigram non conta (spec D11).
 
-**Dalla Feature 8** `insertGeneratedRecipe` scrive anche le portate (`normalizeCourses`) e applica `deriveStyleTags` alle etichette prima di scrivere: `pochi-ingredienti` segue il numero di ingredienti misurati, `piatto-unico` segue la portata ([[courses]]). È il punto unico di scrittura per generazione, proposta salvata e, con la Feature 10, il pacchetto iniziale; la regola non sta in `normalizeGeneratedRecipe`, quindi l'output dell'adapter non cambia (requirements P5 della Feature 8). Test in `tests/recipes/generate.test.ts`: contorno scartato e secondo salvato; portate salvate in ordine canonico e senza doppioni; etichette derivate aggiunte e tolte.
+**Dalla Feature 8** `insertGeneratedRecipe` scrive anche le portate (`normalizeCourses`) e applica `deriveStyleTags` alle etichette prima di scrivere: `pochi-ingredienti` segue il numero di ingredienti misurati, `piatto-unico` segue la portata ([[courses]]). È il punto unico di scrittura per generazione, proposta salvata e, con la Feature 10, il pacchetto iniziale; la regola non sta in `normalizeGeneratedRecipe`, quindi l'output dell'adapter non cambia (requirements P5 della Feature 8). **Dalla Feature 10** accetta le opzioni facoltative `source` (default `'llm'`) e `createdAt` (default adesso), che usa solo il caricatore del pacchetto ([[recipe-pack]]); la generazione a lotti non le passa e il suo comportamento non cambia ([[recipe-proposal-service]]). Test in `tests/recipes/generate.test.ts`: contorno scartato e secondo salvato; portate salvate in ordine canonico e senza doppioni; etichette derivate aggiunte e tolte.
 
 L'oggetto finale restituito (`GenerateAndStoreResult`) riassume:
 - `requested`: numero di ricette richieste.
@@ -177,3 +177,4 @@ Dalla Feature 4 la rotta costruisce queste risposte con gli helper condivisi di 
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[courses]] — `coursesAllowed`, `normalizeCourses`, `deriveStyleTags` (Feature 8)
 - [[f8-portate-etichette]] — Panoramica della Feature 8
+- [[recipe-pack]] — Feature 10: caricamento del pacchetto con lo stesso schema transazione + lock + titoli noti

@@ -2,8 +2,8 @@
 title: E3 Pianificatore — Piano Settimanale, Swap e Navigatore di Settimane
 type: topic
 created: 2026-09-29
-updated: 2026-10-21
-tags: [planner, meal-plans, weighted-selection, swap, repeat, week-navigator, api, ui, e3, feature-4]
+updated: 2026-10-26
+tags: [planner, meal-plans, weighted-selection, swap, repeat, week-navigator, api, ui, e3, feature-4, feature-10]
 ---
 
 ## Panoramica
@@ -110,6 +110,7 @@ Le regole di concorrenza sono descritte in [[plan-concurrency-pattern]].
   - **Esito nella Feature 6** ([[e4-lista-spesa]]): `needs_regeneration` è azzerato da `markShoppingListGenerated` a ogni creazione o aggiornamento della lista ([[shopping-repo]]). La lista resta legata a un piano esplicito: tutte le rotte hanno il piano o l'articolo nell'URL, e `/lista?piano={plan.id}` continua a valere. Sono cambiate due cose rispetto a quanto scritto qui sopra: il footer del Piano non è più un link fisso, ma un **pulsante** `Crea lista della spesa` che crea la lista e poi apre `/lista?piano=…`, oppure un link `Vai alla lista della spesa` / `Lista della spesa da aggiornare` se la lista esiste ([[plan-screen]]); e il piano di default di `/lista` **non** si sceglie con `target_plan_status` e `current_plan_id`, ma con `getShoppingScreen` e `pickDefaultShoppingPlan`: tra i piani confermati e non chiusi, quello più avanti che ha già una lista, altrimenti il più avanti ([[shopping-service]]). La lista si crea solo su piani confermati: `markShoppingListStale` nella rigenerazione di una bozza (fix m2) resta innocuo. `isPlanClosed` è stata spostata in `lib/domain/plan-status.ts` ([[plan-service]]).
 - **Sviluppi nella Feature 9** ([[f9-ricette-su-richiesta]]): accanto allo swap, che non cambia, la **scelta a mano**. La card ha tre azioni (*Cambia* · *Scegli* · ★, `DESIGN.md §3` aggiornato) e la riga di revisione `Tieni` · 🔍 · `Cambia ancora`; *Scegli* apre il selettore delle ricette adatte al pasto ([[slot-recipe-picker]]) e `assignSlotRecipe` mette nello slot la ricetta scelta, sotto il lock dei piani e con gli stessi effetti dello swap (uso contato sul piano confermato, lista da aggiornare), ma senza sorteggio né LLM ([[plan-service]]). La regola di idoneità è `manualChoiceExclusionReason` ([[planner]]): come `exclusionReason` ma senza gli ingredienti scartati e senza escludere le ricette già in un altro pasto. Il protocollo di sorteggio, *Ripeti* e generazione sono invariati.
 - **Sviluppi nella Feature 8** ([[f8-portate-etichette]]): un motivo di esclusione in più, `course`, per le ricette *solo contorno* (`isMainDish`, [[courses]]). Vale per sorteggio, *Rigenera*, *Ripeti*, swap, candidate e assegnazione a mano, e le ricette escluse non contano tra le fresche di `needMore` ([[planner]]). Le ricette non classificate restano ammesse; i piani esistenti non cambiano. Algoritmo e pesi sono invariati; `lib/plans/` non è cambiato. La Feature 11 trasformerà il motivo in "ha la portata dello slot".
+- **Sviluppi nella Feature 10** ([[f10-pacchetto-ricette]]): nessuna modifica a planner, pesi, soglia di generazione o servizio. Cambia la libreria su cui lavorano: all'avvio in produzione entrano fino a 200 ricette del pacchetto iniziale, di cui 140 da pasto ([[recipe-pack]]). Con queste `needMore` è quasi sempre falso, quindi il primo piano di un'installazione nuova esce dalla libreria: su uno stack di produzione locale senza chiave del modello, dopo l'onboarding, *Genera piano* ha prodotto un piano completo di 14 slot con zero giri di generazione. È voluto (spec D10 della Feature 10): la generazione automatica diventa rara, e le ricette nuove arrivano con lo swap e la richiesta della Feature 9. I 60 contorni del pacchetto restano fuori dal piano per il motivo `course` fino alla Feature 11.
 - **Punti aperti di F3 chiusi qui**: R1 (le preferenze ingredienti non rendono "superato" un piano: accettato), R2 (la pagina Piano è `app/(app)/page.tsx`), Q1 (`React.cache()` su `getSettings` **non adottato**: due letture dell'household per richiesta su una LAN domestica non ne giustificano il costo).
 
 ## Strategia di Test
@@ -138,3 +139,4 @@ Adeguati: `tests/home.test.tsx` (pagina server), `tests/ui/shell.test.tsx` (rend
 - [[e4-lista-spesa]] — Feature 6: lista della spesa creata dal piano confermato
 - [[f9-ricette-su-richiesta]] — Feature 9: *Scegli* e scelta a mano di una ricetta per lo slot
 - [[f8-portate-etichette]] — Feature 8: nessun contorno da solo nel piano
+- [[f10-pacchetto-ricette]] — Feature 10: libreria di partenza di 200 ricette, primo piano senza il modello

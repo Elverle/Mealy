@@ -2,8 +2,8 @@
 title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-10-21
-tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list, recipe-requests, courses, classification]
+updated: 2026-10-26
+tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list, recipe-requests, courses, classification, recipe-pack]
 ---
 
 ## File e Responsabilità
@@ -16,6 +16,7 @@ tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, r
   - Dalla Feature 6 contiene anche le regole pure della lista della spesa (`shopping-list.ts`) e la regola "piano chiuso" (`plan-status.ts`), documentate in [[shopping-list]].
   - Dalla Feature 9 `planner.ts` ha anche `manualChoiceExclusionReason` ([[planner]]) e `library.ts` anche `recipeRequestText` e `appendProposedTitle` ([[library-service]]).
   - Dalla Feature 8 contiene anche le regole pure di portate ed etichette derivate (`courses.ts`, documentato in [[courses]]).
+  - Dalla Feature 10 contiene anche le diete per regola (`diet-rules.ts`) e la similarità dei titoli offline (`title-similarity.ts`), documentate in [[diet-rules]]. Da questa feature il lint vieta a `lib/domain/**` di importare `@/lib/db` e `@/lib/llm` ([[single-source-of-truth-types]]).
 - **Scopo**: Costituire la **single source of truth** del modello dati dell'intera applicazione (`CLAUDE.md § Regole di architettura`). Nessun tipo di dominio viene ridefinito localmente nei moduli applicativi.
 
 ## Costanti Enum Chiuse
@@ -299,6 +300,32 @@ Sezione `// Recipe Classification (Feature 8)` in coda a `types.ts`, usata da [[
 
 Attenzione per chi tocca gli elenchi chiusi: le letture dal DB (`toRecipeWithDetails`, `HouseholdSchema.parse`) rifiutano i valori sconosciuti. Aggiungere valori rompe le versioni precedenti che rileggono i dati (da qui la regola di `docs/DEPLOY.md §6` sul ritorno indietro); togliere un valore, come farà la Feature 11 con l'etichetta `piatto-unico`, richiede nello stesso rilascio una migrazione che lo tolga dai dati (review P2 e R3 della Feature 8).
 
+## Pacchetto Iniziale di Ricette (Feature 10)
+
+Sezione `// Recipe Pack (Feature 10)` in coda a `types.ts`. Nessun campo nuovo su `RecipeSchema` né sullo schema del DB. Quasi tutti gli schemi servono solo agli strumenti di `pnpm recipes:pack` ([[recipe-pack-tools]]), ma stanno qui per la regola della fonte unica, con il precedente di `ClassifyRecipeItem` (requirements P2; la review architetturale P4 lo nota come costo accettato: `types.ts` supera le 1.000 righe).
+
+| Costante / Schema / Tipo | Forma | Uso |
+|---|---|---|
+| `PACK_GROUP_VALUES`, `PackGroupSchema` / `PackGroup` | `['primi', 'secondi', 'piatti-unici', 'contorni']` | Gruppi di selezione: derivano dalla categoria del dataset, **non** dalla portata |
+| `PACK_GROUP_LABELS` | Primi, Secondi, Piatti unici, Contorni | Etichette di `selection.md`, report e messaggi |
+| `PACK_GROUP_QUOTAS` | 50, 50, 40, 60 | Ricette del gruppo nel pacchetto |
+| `PACK_GROUP_CODES` | P, S, U, C | Prima lettera dei codici dei candidati (`P001`) |
+| `RECIPE_PACK_SIZE` | `200` | Somma delle quote; la usa il test del file |
+| `PACK_MAIN_INGREDIENT_VALUES`, `PackMainIngredientSchema` / `PackMainIngredient` | `carne`, `pesce`, `legumi`, `uova`, `formaggi`, `verdure` | Ingrediente principale di un candidato: serve solo a variare la selezione |
+| `PackDatasetRowSchema` / `PackDatasetRow` | `index`, `title`, `category`, `link`, `servings`, `ingredients`, `steps` (testo) | Riga grezza del CSV |
+| `PackQuantityReadingSchema` / `PackQuantityReading` | unione su `kind`: `qb`; `measure` con `qty`, `unit` (`g`, `ml`, `pz`) e `unitless`; `invalid` | Lettura di una quantità del dataset dopo le conversioni |
+| `PackCandidateSchema` / `PackCandidate`, `PackCandidatesFileSchema` | codice `^[PSUC]\d{3}$`, gruppo, ingrediente principale, indice e link del dataset, titolo, persone, coppie `[nome, quantità]`, procedimento, misurati, punteggio, `checked` | `.recipe-pack/candidates.json` |
+| `PackConvertItemSchema` / `PackConvertItem` | titolo, gruppo, persone, ingredienti con `raw_qty` e `reading`, procedimento, `known_names` | Una ricetta come la riceve il modello ([[llm-adapter]]) |
+| `PackConversionRecordSchema` / `PackConversionRecord` | `code`, `status` (`accepted`/`rejected`), `recipe` (`GeneratedRecipe` o `null`), `errors`, `warnings`, `model`, `converted_at` | `.recipe-pack/converted/<codice>.json` |
+| `PACK_DRAFT_BATCH_SIZE` | `40` | Nomi per chiamata nella bozza della tabella |
+| `PackIngredientFactDraftSchema` / `PackIngredientFactDraft` | `name`, `category`, `carne`, `pesce`, `latticini`, `uova`, `miele`, `glutine` | Voce della tabella come la scrive il modello; la usa `deriveDietFlags` |
+| `PackIngredientFactSchema` / `PackIngredientFact`, `PackIngredientsFileSchema` | la voce più `reviewed`; il file rifiuta i nomi ripetuti | `fixtures/recipe-pack-ingredients.json` |
+| `DraftIngredientFactsOutputSchema` | `{ ingredients: PackIngredientFactDraft[] }` | Output LLM della bozza |
+| `RecipePackFileSchema` | `{ recipes: SavedRecipeInput[] }` | `fixtures/recipe-pack.json`, con i tetti di una ricetta salvata. **Non** controlla l'unicità dei titoli: `normalizeTitle` sta in `recipe-text.ts`, che importa `types.ts`, e importarla qui creerebbe un ciclo (requirements P3). La controllano `build` e il test del file |
+| `PackStatsSchema` / `PackStats` | totale e conteggi per portata, pasto, dieta, ingrediente principale, fasce di minuti | Statistiche del report di `build` |
+
+Le chiavi di `z.record` con un enum sono facoltative nel tipo inferito di zod 3: `build` incrementa i contatori con un `?? 0`.
+
 ## Funzioni Pure di Normalizzazione Testo (`recipe-text.ts`)
 
 Il modulo `lib/domain/recipe-text.ts` fornisce funzioni pure senza effetti collaterali:
@@ -386,3 +413,6 @@ Questi valori sono quelli con cui il wizard di primo avvio si presenta precompil
 - [[courses]] — Regole pure di portate ed etichette derivate in `lib/domain/courses.ts` (Feature 8)
 - [[recipe-classification]] — Uso dei contratti di classificazione (Feature 8)
 - [[f8-portate-etichette]] — Panoramica della Feature 8
+- [[diet-rules]] — `deriveDietFlags` e similarità dei titoli in `lib/domain/` (Feature 10)
+- [[recipe-pack-tools]] — Uso degli schemi `Pack*` negli strumenti del pacchetto (Feature 10)
+- [[f10-pacchetto-ricette]] — Panoramica della Feature 10

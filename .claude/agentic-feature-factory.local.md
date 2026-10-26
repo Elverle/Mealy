@@ -15,7 +15,7 @@ git:
 models:
   claude:
     orchestrator: opus
-    implementer: sonnet
+    implementer: haiku
     reviewer: opus
 ---
 
