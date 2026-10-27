@@ -145,7 +145,9 @@ Il 12 ottobre 2026 il branch è stato pubblicato e la pull request #13 aperta: i
 | Gate completo: `lint`, `typecheck`, `build`, `test` con **84 file e 1143 test** | Verde in locale |
 | Workflow `Image`: runner arm64, build e prova dell'immagine arm64, login e push su GHCR | Verde su GitHub: runner `ubuntu-24.04-arm`, `SMOKE OK` sull'immagine arm64, immagine pubblicata con il tag del commit |
 | Job `gate` e `image` del gate su GitHub | Verdi sulla pull request #13 |
-| Tutto ciò che gira sul Raspberry: preparazione, `git pull` e pull dell'immagine, accesso da LAN e da Tailscale, generazione LLM dal Raspberry, backup notturno alle 03:00, riavvio dell'host | **Non verificato** (a carico dell'utente, `docs/DEPLOY.md §5`) |
+| Preparazione del Raspberry, `git pull` e pull dell'immagine con `scripts/deploy.sh` | Verificato sul Raspberry: deploy della Feature 8 (22 ottobre 2026) e della 10 (27 ottobre 2026), app in uso |
+| Accesso da LAN e da fuori casa via Tailscale, generazione LLM dal Raspberry | Verificati dall'utente (27 ottobre 2026) |
+| Backup notturno alle 03:00, dump `predeploy` e pulizia delle immagini dopo un deploy, riavvio dell'host | **Non ancora verificati** (`docs/production-readiness.md` §1) |
 
 Non provati nemmeno in locale: l'esclusione delle immagini senza tag nella pulizia di `deploy.sh`, il ramo d'errore dello smoke quando nel database ci sono ricette, il ramo d'errore di `tests/db/bootstrap.test.ts` quando il database di sviluppo è indietro di una migrazione.
 

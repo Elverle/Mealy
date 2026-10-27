@@ -6,17 +6,17 @@ Stato al 12 ottobre 2026: `main` al commit `22e02f2`, versione 0.6.0, repository
 
 ## 1. Prove sul Raspberry
 
-Nulla di ciò che dipende dal Raspberry e da Tailscale è stato ancora verificato. I passi sono in `DEPLOY.md §5`.
+L'app gira sul Raspberry dalla Feature 8 ed è in uso. Aggiornato il 27 ottobre 2026 con le prove confermate dall'utente; i passi sono in `DEPLOY.md §5`.
 
-- [ ] Primo deploy con `bash scripts/deploy.sh` (percorso con `git pull` e download dell'immagine da GHCR: in locale è stato provato solo `--no-pull`)
-- [ ] Accesso dalla rete di casa
-- [ ] Accesso da fuori casa con Tailscale
-- [ ] Generazione di un piano dal Raspberry (chiamata al provider LLM)
+- [x] Primo deploy con `bash scripts/deploy.sh` (percorso con `git pull` e download dell'immagine da GHCR: in locale è stato provato solo `--no-pull`)
+- [x] Accesso dalla rete di casa
+- [x] Accesso da fuori casa con Tailscale
+- [x] Generazione di un piano dal Raspberry (chiamata al provider LLM)
 - [ ] Riavvio del Raspberry: l'app riparte da sola
 - [ ] Backup notturno: la mattina dopo c'è un file `mealy-daily-…` nella cartella dei backup
-- [ ] Un secondo deploy dopo un commit nuovo: dump `predeploy` e pulizia delle immagini vecchie (comprese quelle senza tag)
+- [ ] Un secondo deploy dopo un commit nuovo: dump `predeploy` e pulizia delle immagini vecchie (comprese quelle senza tag). I deploy successivi sono avvenuti (Feature 8, 10); restano da guardare il dump e la pulizia
 
-Dopo le prove: portare la Feature 7 a `done` in `planning/feature-index.md` e aggiornare lo "Stato delle verifiche" nella wiki con le misure reali.
+La Feature 7 è `done` dal 27 ottobre 2026: le verifiche che la chiudevano (rete di casa e Tailscale) sono fatte. Le tre voci ancora aperte sono verifiche operative: quando sono fatte, spuntarle qui e nello "Stato delle verifiche" di `wiki/topics/e6-deploy.md`.
 
 ## 2. Aggiornamento delle dipendenze
 
