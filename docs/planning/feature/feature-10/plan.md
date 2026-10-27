@@ -1,6 +1,6 @@
 # Feature 10 — Pacchetto iniziale di ricette · Piano di implementazione
 
-**Data:** 2026-10-23 · **Stato:** planned · **Input di:** `/arch-review 10` → `/feature-dev 10`
+**Data:** 2026-10-23 · **Stato:** done (sviluppata il 23–26 ottobre 2026, release 0.9.0, sul Raspberry dal 27 ottobre 2026) · **Input di:** `/arch-review 10` → `/feature-dev 10`
 **Spec:** [`spec.md`](spec.md) (FR-1 … FR-5, D1–D12)
 **Decisioni motivate:** [`requirements.md`](requirements.md) (U1–U6 dell'utente, P1–P25 di planning), recepite qui come definitive.
 

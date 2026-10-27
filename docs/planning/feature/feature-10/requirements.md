@@ -64,4 +64,4 @@ Memoria del "perché" dietro `plan.md`. Spec: `spec.md` di questa cartella (brai
 2. Controllo a campione di 10 ricette.
 3. `docker build` + `scripts/smoke-prod.sh`.
 4. Stack di produzione locale senza chiave del modello: primo piano completo con `generation.rounds` = 0.
-5. Raspberry dopo il deploy e prova da telefono a 360 px.
+5. Raspberry dopo il deploy e prova da telefono a 360 px. **Fatta il 27 ottobre 2026** dall'utente, dopo il deploy di `f991e6e` (merge della PR #17): tutto confermato.
