@@ -185,7 +185,7 @@ describe('runBuild: pacchetto scritto', () => {
     expect(risotto.diet_flags).not.toContain('senza-glutine');
   });
 
-  it('derives the style tags: pochi-ingredienti for few ingredients, piatto-unico from the course', async () => {
+  it('derives the style tags: pochi-ingredienti for few ingredients, and the course stays a course', async () => {
     await prepareState(standardFixtures());
 
     await runBuild(buildOptions());
@@ -193,7 +193,8 @@ describe('runBuild: pacchetto scritto', () => {
     const recipes = readPackFile().recipes;
     expect(recipes[0].tags).toEqual(['pochi-ingredienti']);
     const frittata = recipes.find((recipe) => recipe.title === 'Frittata di cipolle');
-    expect(frittata?.tags).toEqual(expect.arrayContaining(['pochi-ingredienti', 'piatto-unico']));
+    expect(frittata?.courses).toEqual(['piatto-unico']);
+    expect(frittata?.tags).toEqual(['pochi-ingredienti']);
   });
 });
 

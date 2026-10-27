@@ -55,7 +55,7 @@ describe.skipIf(!dbUp)('Database Seeding', () => {
   it('completes an existing fixture recipe without courses', async () => {
     const fixture = FIXTURE_RECIPES[0];
     const expectedCourses = normalizeCourses(fixture.courses);
-    const expectedTags = deriveStyleTags(fixture.tags, fixture.courses, fixture.ingredients);
+    const expectedTags = deriveStyleTags(fixture.tags, fixture.ingredients);
     try {
       // Si azzera solo `courses`: `tags` resta com'è nel DB e il seed lo allinea da sé.
       await db.update(recipes).set({ courses: [] }).where(eq(recipes.id, fixture.id));

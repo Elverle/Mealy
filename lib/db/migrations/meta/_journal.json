@@ -43,6 +43,13 @@
       "when": 1792613824311,
       "tag": "0005_add_recipe_courses",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793094185880,
+      "tag": "0006_remove_piatto_unico_tag",
+      "breakpoints": true
     }
   ]
 }

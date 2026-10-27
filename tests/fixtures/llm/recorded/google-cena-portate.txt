@@ -131,7 +131,7 @@
       "description": "Piatto unico estivo, perfetto da preparare in anticipo.",
       "meal_types": ["cena"],
       "courses": ["piatto-unico"],
-      "tags": ["piatto-unico", "in-anticipo", "piatto-freddo"],
+      "tags": ["in-anticipo", "piatto-freddo"],
       "diet_flags": ["senza-glutine", "pescetariano"],
       "appliances_required": ["fornelli"],
       "servings_base": 2,

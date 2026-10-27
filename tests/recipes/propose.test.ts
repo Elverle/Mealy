@@ -328,11 +328,11 @@ describe.skipIf(!dbUp)('proposeRecipe and saveProposedRecipe', () => {
 
     it('returns the proposal with the style tags derived from the rules', async () => {
       const householdId = await createHousehold();
-      // Tre ingredienti misurati: pochi-ingredienti; portata secondo: piatto-unico va tolto.
+      // Tre ingredienti misurati: pochi-ingredienti si aggiunge alle etichette del modello.
       const recipe = makeGeneratedRecipe({
         title: 'Ceci saltati',
         courses: ['secondo'],
-        tags: ['piatto-unico'],
+        tags: ['comfort-food'],
       });
 
       const proposal = await proposeRecipe(
@@ -340,7 +340,7 @@ describe.skipIf(!dbUp)('proposeRecipe and saveProposedRecipe', () => {
         { generate: vi.fn().mockResolvedValue(recipe) }
       );
 
-      expect(proposal.recipe.tags).toEqual(['pochi-ingredienti']);
+      expect(proposal.recipe.tags).toEqual(['comfort-food', 'pochi-ingredienti']);
     });
   });
 

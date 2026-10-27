@@ -50,7 +50,7 @@ export async function seedDatabase(): Promise<SeedReport> {
 
   for (const r of FIXTURE_RECIPES) {
     const courses = normalizeCourses(r.courses);
-    const tags = deriveStyleTags(r.tags, r.courses, r.ingredients);
+    const tags = deriveStyleTags(r.tags, r.ingredients);
     const existingById = await getRecipeById(r.id);
     const existingBySlug = await getRecipeBySlug(r.slug);
     if (existingById) {

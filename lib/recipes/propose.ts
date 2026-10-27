@@ -88,7 +88,7 @@ export async function proposeRecipe(
   // Le etichette derivate sono quelle che la ricetta avrà salvata (stessa regola di store).
   const proposed: GeneratedRecipe = {
     ...recipe,
-    tags: deriveStyleTags(recipe.tags, recipe.courses, recipe.ingredients),
+    tags: deriveStyleTags(recipe.tags, recipe.ingredients),
   };
 
   const key = normalizeTitle(proposed.title);

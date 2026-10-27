@@ -133,11 +133,7 @@ export async function classifyPendingRecipes(deps: ClassifyDeps = {}): Promise<C
       const courses = normalizeCourses(row.courses);
       if (courses.length === 0) continue;
 
-      const tags = deriveStyleTags(
-        [...recipe.tags, ...row.style_tags],
-        courses,
-        recipe.ingredients
-      );
+      const tags = deriveStyleTags([...recipe.tags, ...row.style_tags], recipe.ingredients);
       if (await setRecipeClassification(db, recipe.id, courses, tags)) classified += 1;
     }
   }

@@ -54,8 +54,8 @@ describe('Recipe pack fixtures', () => {
         expect(recipe.diet_flags).toEqual(deriveDietFlags(recipe.ingredients, factsMap));
       });
 
-      it('has style tags derived from courses and ingredients', () => {
-        expect(recipe.tags).toEqual(deriveStyleTags(recipe.tags, recipe.courses, recipe.ingredients));
+      it('has style tags derived from the ingredients', () => {
+        expect(recipe.tags).toEqual(deriveStyleTags(recipe.tags, recipe.ingredients));
       });
 
       it('has no ingredient name that is an alias of another ingredient', () => {

@@ -111,38 +111,18 @@ describe('lib/domain/courses', () => {
   describe('deriveStyleTags', () => {
     it('adds pochi-ingredienti when there are at most FEW_INGREDIENTS_MAX measured ingredients', () => {
       expect(FEW_INGREDIENTS_MAX).toBe(6);
-      const tags = deriveStyleTags([], [], withQb(6, 3));
+      const tags = deriveStyleTags([], withQb(6, 3));
       expect(tags).toContain('pochi-ingredienti');
     });
 
     it('removes pochi-ingredienti from the model tags when there are more than FEW_INGREDIENTS_MAX measured ingredients', () => {
-      const tags = deriveStyleTags(['pochi-ingredienti'], [], measured(7));
+      const tags = deriveStyleTags(['pochi-ingredienti'], measured(7));
       expect(tags).not.toContain('pochi-ingredienti');
-    });
-
-    it('adds piatto-unico when the courses include it, even if the model did not tag it', () => {
-      const tags = deriveStyleTags([], ['piatto-unico'], measured(8));
-      expect(tags).toContain('piatto-unico');
-    });
-
-    it('removes piatto-unico when the courses are classified and do not include it', () => {
-      const tags = deriveStyleTags(['piatto-unico'], ['primo'], measured(8));
-      expect(tags).not.toContain('piatto-unico');
-    });
-
-    it('keeps piatto-unico from the model when the recipe is unclassified', () => {
-      const tags = deriveStyleTags(['piatto-unico'], [], measured(8));
-      expect(tags).toContain('piatto-unico');
-    });
-
-    it('does not add piatto-unico when the recipe is unclassified and the model did not tag it', () => {
-      const tags = deriveStyleTags([], [], measured(8));
-      expect(tags).not.toContain('piatto-unico');
     });
 
     it('returns tags without duplicates in MEAL_STYLE_TAG_VALUES order', () => {
       const tags: MealStyleTag[] = ['piatto-freddo', 'veloce', 'veloce'];
-      expect(deriveStyleTags(tags, [], measured(8))).toEqual(['veloce', 'piatto-freddo']);
+      expect(deriveStyleTags(tags, measured(8))).toEqual(['veloce', 'piatto-freddo']);
     });
   });
 });

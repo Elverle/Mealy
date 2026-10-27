@@ -60,7 +60,7 @@ export async function insertGeneratedRecipe(
       steps: recipe.steps,
       meal_types: recipe.meal_types,
       courses,
-      tags: deriveStyleTags(recipe.tags, courses, recipe.ingredients),
+      tags: deriveStyleTags(recipe.tags, recipe.ingredients),
       diet_flags: recipe.diet_flags,
       appliances_required: recipe.appliances_required,
       servings_base: recipe.servings_base,

@@ -358,13 +358,13 @@ describe.skipIf(!dbUp)('generateAndStoreRecipes', () => {
     expect(result.created[0].courses).toEqual(['primo', 'secondo']);
   });
 
-  it('saves the style tags derived from the rules: pochi-ingredienti added, piatto-unico dropped without that course', async () => {
+  it('saves the style tags derived from the rules: pochi-ingredienti added to the model tags', async () => {
     const householdId = await createHousehold();
-    // Tre ingredienti misurati (default): pochi-ingredienti; portata secondo: niente piatto-unico.
+    // Tre ingredienti misurati (default): pochi-ingredienti si aggiunge alle etichette del modello.
     const recipe = makeGeneratedRecipe({
       title: 'Pollo al limone',
       courses: ['secondo'],
-      tags: ['piatto-unico'],
+      tags: ['comfort-food'],
     });
 
     const result = await generateAndStoreRecipes(
@@ -372,10 +372,10 @@ describe.skipIf(!dbUp)('generateAndStoreRecipes', () => {
       { generate: vi.fn().mockResolvedValue([recipe]) }
     );
 
-    expect(result.created[0].tags).toEqual(['pochi-ingredienti']);
+    expect(result.created[0].tags).toEqual(['comfort-food', 'pochi-ingredienti']);
   });
 
-  it('drops pochi-ingredienti above six measured ingredients and keeps piatto-unico for that course', async () => {
+  it('drops pochi-ingredienti above six measured ingredients and keeps the course', async () => {
     const householdId = await createHousehold();
     const ingredients: GeneratedIngredient[] = Array.from({ length: 7 }, (_, i) => ({
       canonical_name: `ingrediente ${i}`,
@@ -388,7 +388,7 @@ describe.skipIf(!dbUp)('generateAndStoreRecipes', () => {
     const recipe = makeGeneratedRecipe({
       title: 'Piatto ricco',
       courses: ['piatto-unico'],
-      tags: ['pochi-ingredienti'],
+      tags: ['pochi-ingredienti', 'comfort-food'],
       ingredients,
     });
 
@@ -397,7 +397,7 @@ describe.skipIf(!dbUp)('generateAndStoreRecipes', () => {
       { generate: vi.fn().mockResolvedValue([recipe]) }
     );
 
-    expect(result.created[0].tags).toEqual(['piatto-unico']);
+    expect(result.created[0].tags).toEqual(['comfort-food']);
     expect(result.created[0].courses).toEqual(['piatto-unico']);
   });
 });

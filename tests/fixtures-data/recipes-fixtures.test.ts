@@ -69,7 +69,7 @@ describe('Fixtures Data & Validation', () => {
     for (const r of FIXTURE_RECIPES) {
       expect(r.courses.length).toBeGreaterThanOrEqual(1);
       expect(normalizeCourses(r.courses)).toEqual(r.courses);
-      expect(new Set(deriveStyleTags(r.tags, r.courses, r.ingredients))).toEqual(new Set(r.tags));
+      expect(new Set(deriveStyleTags(r.tags, r.ingredients))).toEqual(new Set(r.tags));
     }
   });
 

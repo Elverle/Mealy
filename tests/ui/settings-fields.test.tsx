@@ -163,11 +163,12 @@ describe("MealStyleField", () => {
     );
   });
 
-  it("shows the twelve style chips, including the new ones", () => {
+  it("shows the eleven style chips, including the new ones and no Piatto unico", () => {
     render(<MealStyleField value={[]} onChange={vi.fn()} />);
 
     const chips = within(screen.getByRole("group", { name: "Tipo di pasti" })).getAllByRole("checkbox");
-    expect(chips).toHaveLength(12);
+    expect(chips).toHaveLength(11);
+    expect(screen.queryByRole("checkbox", { name: "Piatto unico" })).toBeNull();
     expect(screen.getByRole("checkbox", { name: "Si prepara in anticipo" })).toHaveAttribute(
       "aria-checked",
       "false"

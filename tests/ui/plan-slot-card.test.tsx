@@ -576,7 +576,7 @@ describe("PlanSlotCard — course badge", () => {
     render(
       <Harness
         initial={makeSlot(
-          makeRecipe({ courses: ["piatto-unico"], tags: ["piatto-unico", "veloce"] })
+          makeRecipe({ courses: ["piatto-unico"], tags: ["comfort-food", "veloce"] })
         )}
       />
     );

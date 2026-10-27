@@ -69,7 +69,6 @@ describe('WP2 Domain Types & Zod Schemas', () => {
       'leggero',
       'comfort-food',
       'economico',
-      'piatto-unico',
       'tradizionale',
       'dal-mondo',
       'pochi-ingredienti',

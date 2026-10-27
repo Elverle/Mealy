@@ -69,7 +69,6 @@ export const MEAL_STYLE_TAG_VALUES = [
   'leggero',
   'comfort-food',
   'economico',
-  'piatto-unico',
   'tradizionale',
   'dal-mondo',
   'pochi-ingredienti',
@@ -87,7 +86,6 @@ export const MEAL_STYLE_TAG_LABELS: Record<MealStyleTag, string> = {
   leggero: 'Leggero',
   'comfort-food': 'Comfort food',
   economico: 'Economico',
-  'piatto-unico': 'Piatto unico',
   tradizionale: 'Tradizionale',
   'dal-mondo': 'Dal mondo',
   'pochi-ingredienti': 'Pochi ingredienti',
@@ -108,8 +106,45 @@ export const COURSE_LABELS: Record<Course, string> = {
   contorno: 'Contorno',
 };
 
-// Portate che da sole fanno un pasto (fino alla Feature 11: le sole ammesse nel piano).
+// Portate che da sole fanno un pasto: il principale di ogni composizione.
 export const MAIN_COURSE_VALUES: readonly Course[] = ['piatto-unico', 'primo', 'secondo'];
+
+// Filtro di portata di uno slot: una portata precisa, oppure una qualsiasi principale.
+export type CourseFilter = Course | 'any-main';
+
+// Composizione di un pasto: un principale, con o senza contorno (Feature 11).
+export const MEAL_COMPOSITION_VALUES = [
+  'piatto-unico',
+  'primo',
+  'primo-contorno',
+  'secondo',
+  'secondo-contorno',
+] as const;
+export const MEAL_COMPOSITION_ENUM = MEAL_COMPOSITION_VALUES;
+export const MealCompositionSchema = z.enum(MEAL_COMPOSITION_VALUES);
+export type MealComposition = z.infer<typeof MealCompositionSchema>;
+
+export const MEAL_COMPOSITION_LABELS: Record<MealComposition, string> = {
+  'piatto-unico': 'Piatto unico',
+  primo: 'Primo',
+  'primo-contorno': 'Primo + contorno',
+  secondo: 'Secondo',
+  'secondo-contorno': 'Secondo + contorno',
+};
+
+// Composizioni ammesse per pasto: almeno una per pranzo e una per cena.
+export const MealCompositionsSchema = z
+  .object({
+    pranzo: z.array(MealCompositionSchema).min(1),
+    cena: z.array(MealCompositionSchema).min(1),
+  })
+  .strict();
+export type MealCompositions = z.infer<typeof MealCompositionsSchema>;
+
+export const DEFAULT_MEAL_COMPOSITIONS: MealCompositions = {
+  pranzo: [...MEAL_COMPOSITION_VALUES],
+  cena: [...MEAL_COMPOSITION_VALUES],
+};
 
 export const APPLIANCE_VALUES = [
   'fornelli',
