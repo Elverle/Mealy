@@ -67,6 +67,7 @@ const SLOT: PlanSlotView = {
   id: SLOT_ID,
   day: "2026-10-01",
   meal: "cena",
+  course: "piatto-unico",
   servings: 2,
   locked: false,
   recipe: RECIPE_A,

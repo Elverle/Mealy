@@ -20,7 +20,7 @@ import { ShoppingScreen } from "@/components/shopping/shopping-screen";
 import { LibraryScreen } from "@/components/library/library-screen";
 import { toLibraryCard } from "@/lib/domain/library";
 import { SettingsEditor } from "@/components/settings/settings-editor";
-import { DEFAULT_HOUSEHOLD, type PlanScreenView, type SettingsView } from "@/lib/domain/types";
+import { DEFAULT_HOUSEHOLD, DEFAULT_MEAL_COMPOSITIONS, type PlanScreenView, type SettingsView } from "@/lib/domain/types";
 import { fixtureRecipesAsDomain } from "@/fixtures";
 
 // Mock next/navigation for BottomNav
@@ -52,6 +52,7 @@ const PLAN_SCREEN_FIXTURE: PlanScreenView = {
         id: `22222222-2222-4222-8222-22222222222${index}`,
         day: "2026-09-30",
         meal: index === 0 ? ("pranzo" as const) : ("cena" as const),
+        course: "piatto-unico",
         servings: 2,
         locked: false,
         recipe,
@@ -71,6 +72,7 @@ const PLAN_SCREEN_FIXTURE: PlanScreenView = {
 const SETTINGS_FIXTURE: SettingsView = {
   persons: DEFAULT_HOUSEHOLD.persons,
   meals: DEFAULT_HOUSEHOLD.meals,
+  meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
   meal_style_tags: DEFAULT_HOUSEHOLD.meal_style_tags,
   diet_tags: DEFAULT_HOUSEHOLD.diet_tags,
   appliances: DEFAULT_HOUSEHOLD.appliances,

@@ -2,7 +2,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET, PUT, runtime, dynamic } from '@/app/api/settings/route';
-import type { SaveSettingsResult, SettingsView } from '@/lib/domain/types';
+import { DEFAULT_MEAL_COMPOSITIONS, type SaveSettingsResult, type SettingsView } from '@/lib/domain/types';
 
 vi.mock('@/lib/settings/service', () => ({
   getSettings: vi.fn(),
@@ -24,6 +24,7 @@ describe('GET /api/settings', () => {
     const mockSettings: SettingsView = {
       persons: 2,
       meals: ['pranzo', 'cena'],
+      meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
       meal_style_tags: ['veloce'],
       diet_tags: [],
       appliances: ['fornelli'],
@@ -90,6 +91,7 @@ describe('PUT /api/settings', () => {
       body: JSON.stringify({
         persons: 0,
         meals: ['pranzo'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: [],
         diet_tags: [],
         appliances: [],
@@ -127,6 +129,7 @@ describe('PUT /api/settings', () => {
       settings: {
         persons: 2,
         meals: ['pranzo', 'cena'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ['veloce'],
         diet_tags: [],
         appliances: ['fornelli'],
@@ -142,6 +145,7 @@ describe('PUT /api/settings', () => {
       body: JSON.stringify({
         persons: 2,
         meals: ['pranzo', 'cena'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ['veloce'],
         diet_tags: [],
         appliances: ['fornelli'],
@@ -155,6 +159,7 @@ describe('PUT /api/settings', () => {
     expect(saveSettings).toHaveBeenCalledWith({
       persons: 2,
       meals: ['pranzo', 'cena'],
+      meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
       meal_style_tags: ['veloce'],
       diet_tags: [],
       appliances: ['fornelli'],
@@ -171,6 +176,7 @@ describe('PUT /api/settings', () => {
       settings: {
         persons: 2,
         meals: ['pranzo', 'cena'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ['veloce'],
         diet_tags: [],
         appliances: ['fornelli'],
@@ -186,6 +192,7 @@ describe('PUT /api/settings', () => {
       body: JSON.stringify({
         persons: 2,
         meals: ['pranzo', 'cena'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ['veloce'],
         diet_tags: [],
         appliances: ['fornelli'],
@@ -200,6 +207,7 @@ describe('PUT /api/settings', () => {
     expect(saveSettings).toHaveBeenCalledWith({
       persons: 2,
       meals: ['pranzo', 'cena'],
+      meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
       meal_style_tags: ['veloce'],
       diet_tags: [],
       appliances: ['fornelli'],
@@ -216,6 +224,7 @@ describe('PUT /api/settings', () => {
       settings: {
         persons: 2,
         meals: ['pranzo', 'cena'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ['tradizionale', 'piatto-freddo'],
         diet_tags: [],
         appliances: ['fornelli'],
@@ -231,6 +240,7 @@ describe('PUT /api/settings', () => {
       body: JSON.stringify({
         persons: 2,
         meals: ['pranzo', 'cena'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ['tradizionale', 'piatto-freddo'],
         diet_tags: [],
         appliances: ['fornelli'],
@@ -254,6 +264,7 @@ describe('PUT /api/settings', () => {
       body: JSON.stringify({
         persons: 2,
         meals: ['pranzo'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ['brunch'],
         diet_tags: [],
         appliances: [],
@@ -280,6 +291,7 @@ describe('PUT /api/settings', () => {
       body: JSON.stringify({
         persons: 2,
         meals: ['pranzo'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: [],
         diet_tags: [],
         appliances: [],

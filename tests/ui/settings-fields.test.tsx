@@ -12,11 +12,12 @@ import {
   SETTINGS_FIELD_ORDER,
   isSettingsFieldValid,
 } from "@/components/settings/settings-fields";
-import type { HouseholdSettings } from "@/lib/domain/types";
+import { DEFAULT_MEAL_COMPOSITIONS, type HouseholdSettings } from "@/lib/domain/types";
 
 const BASE_SETTINGS: HouseholdSettings = {
   persons: 2,
   meals: ["pranzo", "cena"],
+  meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
   meal_style_tags: ["veloce"],
   diet_tags: [],
   appliances: ["fornelli"],

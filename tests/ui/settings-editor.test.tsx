@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import { SettingsEditor } from "@/components/settings/settings-editor";
 import { SETTINGS_FIELD_COPY } from "@/components/settings/settings-fields";
-import { DEFAULT_HOUSEHOLD, type SettingsView, type SaveSettingsResult } from "@/lib/domain/types";
+import { DEFAULT_HOUSEHOLD, DEFAULT_MEAL_COMPOSITIONS, type SettingsView, type SaveSettingsResult } from "@/lib/domain/types";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -21,6 +21,7 @@ import { putSettings } from "@/lib/settings/client";
 const FIXTURE: SettingsView = {
   persons: DEFAULT_HOUSEHOLD.persons,
   meals: DEFAULT_HOUSEHOLD.meals,
+  meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
   meal_style_tags: DEFAULT_HOUSEHOLD.meal_style_tags,
   diet_tags: DEFAULT_HOUSEHOLD.diet_tags,
   appliances: DEFAULT_HOUSEHOLD.appliances,
@@ -112,6 +113,7 @@ describe("SettingsEditor", () => {
     expect(putSettings).toHaveBeenCalledWith({
       persons: FIXTURE.persons,
       meals: FIXTURE.meals,
+      meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
       meal_style_tags: FIXTURE.meal_style_tags,
       diet_tags: ["vegano"],
       appliances: FIXTURE.appliances,

@@ -50,6 +50,13 @@
       "when": 1793094185880,
       "tag": "0006_remove_piatto_unico_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793095039140,
+      "tag": "0007_add_meal_compositions",
+      "breakpoints": true
     }
   ]
 }

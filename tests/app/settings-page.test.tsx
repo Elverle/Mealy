@@ -6,7 +6,7 @@ import { getSettings } from "@/lib/settings/service";
 import { listIngredientPrefs } from "@/lib/prefs/service";
 import { SettingsEditor } from "@/components/settings/settings-editor";
 import SettingsPage from "@/app/(app)/impostazioni/page";
-import type { IngredientPrefsView, SettingsView } from "@/lib/domain/types";
+import { DEFAULT_MEAL_COMPOSITIONS, type IngredientPrefsView, type SettingsView } from "@/lib/domain/types";
 
 vi.mock("next/server", () => ({ connection: vi.fn() }));
 vi.mock("@/lib/settings/service", () => ({ getSettings: vi.fn() }));
@@ -16,6 +16,7 @@ function makeSettings(): SettingsView {
   return {
     persons: 3,
     meals: ["pranzo", "cena"],
+    meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
     meal_style_tags: ["veloce"],
     diet_tags: ["vegetariano"],
     appliances: ["fornelli", "forno"],

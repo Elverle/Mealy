@@ -1,6 +1,12 @@
 import { client, db, households } from '@/lib/db';
 import { eq } from 'drizzle-orm';
-import { DEFAULT_HOUSEHOLD, Household } from '@/lib/domain/types';
+import { DEFAULT_HOUSEHOLD, Household, type MealCompositions } from '@/lib/domain/types';
+
+// Un piatto per pasto, come prima della Feature 11: i test della composizione passano le loro.
+export const TEST_MEAL_COMPOSITIONS: MealCompositions = {
+  pranzo: ['piatto-unico'],
+  cena: ['piatto-unico'],
+};
 
 /**
  * Checks if the PostgreSQL database is reachable within 1000ms.
@@ -37,9 +43,12 @@ export async function assertDbMigrated(): Promise<void> {
  * Returns the generated household UUID.
  */
 export async function createTestHousehold(
-  overrides?: Partial<Pick<Household, 'persons' | 'meals' | 'diet_tags' | 'meal_style_tags' | 'appliances'>>
+  overrides?: Partial<
+    Pick<Household, 'persons' | 'meals' | 'diet_tags' | 'meal_style_tags' | 'appliances' | 'meal_compositions'>
+  >
 ): Promise<string> {
   const id = crypto.randomUUID();
+  const mealCompositions = overrides?.meal_compositions ?? TEST_MEAL_COMPOSITIONS;
   // created_at/updated_at non impostati: valgono i defaultNow() del DB, così
   // i test che confrontano istanti (es. tests/settings/service.test.ts) usano
   // lo stesso orologio di updateHousehold (v. household-repo.ts).
@@ -49,6 +58,10 @@ export async function createTestHousehold(
     meals: [...(overrides?.meals ?? DEFAULT_HOUSEHOLD.meals)],
     diet_tags: [...(overrides?.diet_tags ?? DEFAULT_HOUSEHOLD.diet_tags)],
     meal_style_tags: [...(overrides?.meal_style_tags ?? DEFAULT_HOUSEHOLD.meal_style_tags)],
+    meal_compositions: {
+      pranzo: [...mealCompositions.pranzo],
+      cena: [...mealCompositions.cena],
+    },
     appliances: [...(overrides?.appliances ?? DEFAULT_HOUSEHOLD.appliances)],
   });
   return id;

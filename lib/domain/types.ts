@@ -249,6 +249,7 @@ export const HouseholdSchema = z.object({
   meals: z.array(MealTypeSchema),
   diet_tags: z.array(DietFlagSchema).default([]),
   meal_style_tags: z.array(MealStyleTagSchema).default([]),
+  meal_compositions: MealCompositionsSchema.default(DEFAULT_MEAL_COMPOSITIONS),
   appliances: z.array(ApplianceSchema).default([]),
   onboarded_at: z.coerce.date().nullable().default(null),
   created_at: z.coerce.date().default(() => new Date()),
@@ -270,6 +271,7 @@ export const PlanSlotSchema = z.object({
   plan_id: z.string().uuid(),
   day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   meal: MealTypeSchema,
+  course: CourseSchema,
   recipe_id: z.string().uuid().nullable().optional(),
   servings: z.number().int().min(1),
   locked: z.boolean().default(false),
@@ -314,6 +316,7 @@ export const DEFAULT_HOUSEHOLD: Household = {
   meals: ['pranzo', 'cena'],
   diet_tags: [],
   meal_style_tags: ['veloce', 'salutare'],
+  meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
   appliances: ['fornelli', 'forno', 'microonde', 'friggitrice-ad-aria'],
   onboarded_at: null,
   created_at: new Date('2026-01-01T00:00:00Z'),
@@ -433,6 +436,7 @@ export const HouseholdSettingsSchema = z
   .object({
     persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
     meals: z.array(MealTypeSchema).min(1),
+    meal_compositions: MealCompositionsSchema,
     meal_style_tags: z.array(MealStyleTagSchema),
     diet_tags: z.array(DietFlagSchema),
     appliances: z.array(ApplianceSchema),
@@ -451,6 +455,7 @@ export type UpdateSettingsRequest = z.input<typeof UpdateSettingsRequestSchema>;
 export const SettingsViewSchema = z.object({
   persons: z.number().int(),
   meals: z.array(MealTypeSchema),
+  meal_compositions: MealCompositionsSchema,
   meal_style_tags: z.array(MealStyleTagSchema),
   diet_tags: z.array(DietFlagSchema),
   appliances: z.array(ApplianceSchema),
@@ -484,6 +489,7 @@ export const PlanSlotViewSchema = z.object({
   id: z.string().uuid(),
   day: IsoDateSchema,
   meal: MealTypeSchema,
+  course: CourseSchema,
   servings: z.number().int().min(1),
   locked: z.boolean(),
   recipe: RecipeSchema.nullable(), // ricetta completa (ingredienti + prefs); null se eliminata
@@ -503,7 +509,7 @@ export const PlanViewSchema = z.object({
   created_at: z.string().datetime(),
   generated_at: z.string().datetime(),
   superseded: z.boolean(), // households.updated_at > generated_at
-  slots: z.array(PlanSlotViewSchema), // ordinati per giorno, poi pranzo → cena
+  slots: z.array(PlanSlotViewSchema), // ordinati per giorno, poi pranzo → cena, poi principale → contorno
   shopping_list: PlanShoppingListStateSchema,
 });
 export type PlanView = z.infer<typeof PlanViewSchema>;

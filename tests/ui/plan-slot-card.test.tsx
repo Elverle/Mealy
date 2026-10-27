@@ -41,7 +41,7 @@ const SLOT_ID = "22222222-2222-4222-8222-222222222222";
 const [RECIPE_A, RECIPE_B, RECIPE_C] = fixtureRecipesAsDomain();
 
 function makeSlot(recipe: Recipe | null, locked = false): PlanSlotView {
-  return { id: SLOT_ID, day: "2026-10-01", meal: "cena", servings: 2, locked, recipe };
+  return { id: SLOT_ID, day: "2026-10-01", meal: "cena", course: "piatto-unico", servings: 2, locked, recipe };
 }
 
 function makeResult(recipe: Recipe): PlanMutationResult {

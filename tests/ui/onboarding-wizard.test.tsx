@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 import { OnboardingWizard } from "@/components/settings/onboarding-wizard";
 import { putSettings } from "@/lib/settings/client";
-import { DEFAULT_HOUSEHOLD, type SettingsView } from "@/lib/domain/types";
+import { DEFAULT_HOUSEHOLD, DEFAULT_MEAL_COMPOSITIONS, type SettingsView } from "@/lib/domain/types";
 
 let callOrder: string[] = [];
 const replace = vi.fn(() => {
@@ -25,6 +25,7 @@ vi.mock("@/lib/settings/client", async (importOriginal) => ({
 const INITIAL_SETTINGS: SettingsView = {
   persons: DEFAULT_HOUSEHOLD.persons,
   meals: DEFAULT_HOUSEHOLD.meals,
+  meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
   meal_style_tags: DEFAULT_HOUSEHOLD.meal_style_tags,
   diet_tags: DEFAULT_HOUSEHOLD.diet_tags,
   appliances: DEFAULT_HOUSEHOLD.appliances,
@@ -118,6 +119,7 @@ describe("OnboardingWizard", () => {
     expect(putSettings).toHaveBeenCalledWith({
       persons: 3,
       meals: DEFAULT_HOUSEHOLD.meals,
+      meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
       meal_style_tags: DEFAULT_HOUSEHOLD.meal_style_tags,
       diet_tags: DEFAULT_HOUSEHOLD.diet_tags,
       appliances: DEFAULT_HOUSEHOLD.appliances,

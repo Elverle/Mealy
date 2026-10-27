@@ -558,7 +558,7 @@ describe.skipIf(!dbUp)('plan service', () => {
     // Un piano senza ricette non è ripetibile.
     const empty = await insertPlan(db, householdId, '2026-09-21');
     await insertSlots(db, empty.id, [
-      { day: '2026-09-21', meal: 'cena', recipe_id: null, servings: 2, locked: false },
+      { day: '2026-09-21', meal: 'cena', course: 'piatto-unico', recipe_id: null, servings: 2, locked: false },
     ]);
     const emptyScreen = await getPlanScreen({ ...opts(householdId, WED), week: '2026-09-21' });
     expect(emptyScreen.view.can_repeat).toBe(false);
@@ -569,7 +569,7 @@ describe.skipIf(!dbUp)('plan service', () => {
     const past = await insertPlan(db, householdId, '2026-09-21');
     const [recipe] = await insertTestRecipes(householdId, 1, { meal_types: ['cena'] });
     await insertSlots(db, past.id, [
-      { day: '2026-09-21', meal: 'cena', recipe_id: recipe.id, servings: 2, locked: false },
+      { day: '2026-09-21', meal: 'cena', course: 'piatto-unico', recipe_id: recipe.id, servings: 2, locked: false },
     ]);
 
     const screen = await getPlanScreen({ ...opts(householdId, WED), week: '2026-09-21' });

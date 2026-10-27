@@ -14,6 +14,7 @@ import {
   insertSlots,
   listPlanWeeks,
   markShoppingListStale,
+  setMealLocked,
   setSlotLocked,
   touchPlanGeneratedAt,
   updateSlotRecipe,
@@ -83,9 +84,9 @@ describe.skipIf(!dbUp)('plan-repo', () => {
     const plan = await insertPlan(db, householdId, '2026-09-28');
 
     await insertSlots(db, plan.id, [
-      { day: '2026-10-01', meal: 'cena', recipe_id: recipe.id, servings: 2, locked: false },
-      { day: '2026-10-01', meal: 'pranzo', recipe_id: null, servings: 2, locked: true },
-      { day: '2026-09-30', meal: 'cena', recipe_id: recipe.id, servings: 3, locked: false },
+      { day: '2026-10-01', meal: 'cena', course: 'piatto-unico', recipe_id: recipe.id, servings: 2, locked: false },
+      { day: '2026-10-01', meal: 'pranzo', course: 'piatto-unico', recipe_id: null, servings: 2, locked: true },
+      { day: '2026-09-30', meal: 'cena', course: 'piatto-unico', recipe_id: recipe.id, servings: 3, locked: false },
     ]);
 
     const found = await findPlanByWeek(db, householdId, '2026-09-28');
@@ -198,7 +199,7 @@ describe.skipIf(!dbUp)('plan-repo', () => {
     const householdId = await newHousehold();
     const plan = await insertPlan(db, householdId, '2026-09-28');
     await insertSlots(db, plan.id, [
-      { day: '2026-09-28', meal: 'pranzo', recipe_id: null, servings: 2, locked: false },
+      { day: '2026-09-28', meal: 'pranzo', course: 'piatto-unico', recipe_id: null, servings: 2, locked: false },
     ]);
     const slotId = (await getPlanById(db, plan.id))!.slots[0].id;
 
@@ -245,9 +246,9 @@ describe.skipIf(!dbUp)('plan-repo', () => {
     const plan = await insertPlan(db, householdId, '2026-09-28');
     await insertSlots(db, plan.id, []);
     await insertSlots(db, plan.id, [
-      { day: '2026-09-28', meal: 'pranzo', recipe_id: r1.id, servings: 2, locked: false },
-      { day: '2026-09-28', meal: 'cena', recipe_id: r1.id, servings: 2, locked: false },
-      { day: '2026-09-29', meal: 'pranzo', recipe_id: r1.id, servings: 2, locked: false },
+      { day: '2026-09-28', meal: 'pranzo', course: 'piatto-unico', recipe_id: r1.id, servings: 2, locked: false },
+      { day: '2026-09-28', meal: 'cena', course: 'piatto-unico', recipe_id: r1.id, servings: 2, locked: false },
+      { day: '2026-09-29', meal: 'pranzo', course: 'piatto-unico', recipe_id: r1.id, servings: 2, locked: false },
     ]);
     const [s1, s2, s3] = (await getPlanById(db, plan.id))!.slots;
 
@@ -271,7 +272,7 @@ describe.skipIf(!dbUp)('plan-repo', () => {
     const recipe = await insertTestRecipe(householdId, { meal_types: ['pranzo'] });
     const plan = await insertPlan(db, householdId, '2026-09-28');
     await insertSlots(db, plan.id, [
-      { day: '2026-09-28', meal: 'pranzo', recipe_id: recipe.id, servings: 2, locked: false },
+      { day: '2026-09-28', meal: 'pranzo', course: 'piatto-unico', recipe_id: recipe.id, servings: 2, locked: false },
     ]);
     await deleteRecipe(recipe.id);
 
@@ -280,11 +281,71 @@ describe.skipIf(!dbUp)('plan-repo', () => {
     expect(slot.recipe).toBeNull();
   });
 
+  it('setMealLocked locks and unlocks every slot of one meal and leaves the other meal alone', async () => {
+    const householdId = await newHousehold();
+    const plan = await insertPlan(db, householdId, '2026-09-28');
+    await insertSlots(db, plan.id, [
+      { day: '2026-09-28', meal: 'pranzo', course: 'piatto-unico', recipe_id: null, servings: 2, locked: false },
+      { day: '2026-09-28', meal: 'pranzo', course: 'contorno', recipe_id: null, servings: 2, locked: false },
+      { day: '2026-09-28', meal: 'cena', course: 'piatto-unico', recipe_id: null, servings: 2, locked: false },
+    ]);
+
+    expect(await setMealLocked(db, plan.id, '2026-09-28', 'pranzo', true)).toBe(2);
+    const locked = (await getPlanById(db, plan.id))!.slots;
+    expect(locked.map((slot) => [slot.meal, slot.course, slot.locked])).toEqual([
+      ['pranzo', 'piatto-unico', true],
+      ['pranzo', 'contorno', true],
+      ['cena', 'piatto-unico', false],
+    ]);
+
+    expect(await setMealLocked(db, plan.id, '2026-09-28', 'pranzo', false)).toBe(2);
+    const unlocked = (await getPlanById(db, plan.id))!.slots;
+    expect(unlocked.every((slot) => !slot.locked)).toBe(true);
+  });
+
+  it('updateSlotRecipe with a course changes the slot course, without a course it keeps it', async () => {
+    const householdId = await newHousehold();
+    const [r1, r2] = await insertTestRecipes(householdId, 2, { meal_types: ['pranzo'] });
+    const plan = await insertPlan(db, householdId, '2026-09-28');
+    await insertSlots(db, plan.id, [
+      { day: '2026-09-28', meal: 'pranzo', course: 'piatto-unico', recipe_id: r1.id, servings: 2, locked: false },
+    ]);
+    const slotId = (await getPlanById(db, plan.id))!.slots[0].id;
+
+    await updateSlotRecipe(db, slotId, r2.id, 'secondo');
+    const changed = (await getPlanById(db, plan.id))!.slots[0];
+    expect(changed.course).toBe('secondo');
+    expect(changed.recipe?.id).toBe(r2.id);
+
+    await updateSlotRecipe(db, slotId, r1.id);
+    const kept = (await getPlanById(db, plan.id))!.slots[0];
+    expect(kept.course).toBe('secondo');
+    expect(kept.recipe?.id).toBe(r1.id);
+  });
+
+  it('reads the main course before its side dish even when the side was inserted first', async () => {
+    const householdId = await newHousehold();
+    const plan = await insertPlan(db, householdId, '2026-09-28');
+    await insertSlots(db, plan.id, [
+      { day: '2026-09-28', meal: 'pranzo', course: 'contorno', recipe_id: null, servings: 2, locked: false },
+      { day: '2026-09-28', meal: 'pranzo', course: 'secondo', recipe_id: null, servings: 2, locked: false },
+      { day: '2026-09-28', meal: 'cena', course: 'piatto-unico', recipe_id: null, servings: 2, locked: false },
+    ]);
+
+    const slots = (await getPlanById(db, plan.id))!.slots;
+
+    expect(slots.map((slot) => `${slot.meal} ${slot.course}`)).toEqual([
+      'pranzo secondo',
+      'pranzo contorno',
+      'cena piatto-unico',
+    ]);
+  });
+
   it('cascade: deleting the plan row removes its slots', async () => {
     const householdId = await newHousehold();
     const plan = await insertPlan(db, householdId, '2026-09-28');
     await insertSlots(db, plan.id, [
-      { day: '2026-09-28', meal: 'pranzo', recipe_id: null, servings: 2, locked: false },
+      { day: '2026-09-28', meal: 'pranzo', course: 'piatto-unico', recipe_id: null, servings: 2, locked: false },
     ]);
     await db.delete(meal_plans).where(eq(meal_plans.id, plan.id));
     expect(await getPlanById(db, plan.id)).toBeNull();

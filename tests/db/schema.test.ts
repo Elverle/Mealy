@@ -203,11 +203,13 @@ describe('WP2 Domain Types & Zod Schemas', () => {
       plan_id: planId,
       day: '2026-09-21',
       meal: 'pranzo',
+      course: 'piatto-unico',
       recipe_id: 'a0000000-0000-0000-0000-000000000001',
       servings: 2,
       locked: false,
     };
     expect(PlanSlotSchema.safeParse(slot).success).toBe(true);
+    expect(PlanSlotSchema.safeParse({ ...slot, course: undefined }).success).toBe(false);
 
     const listId = 'd0000000-0000-0000-0000-000000000001';
     const shoppingList = {

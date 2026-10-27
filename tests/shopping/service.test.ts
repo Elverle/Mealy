@@ -169,6 +169,7 @@ describe.skipIf(!dbUp)('lista della spesa: servizio', () => {
         (slot): NewSlotInput => ({
           day: slot.day,
           meal: 'cena',
+          course: 'piatto-unico',
           recipe_id: slot.recipeId,
           servings: slot.servings,
           locked: false,
@@ -240,7 +241,7 @@ describe.skipIf(!dbUp)('lista della spesa: servizio', () => {
       ingredients: [ing('zucca', 500, 'g', 'ortofrutta')],
     });
     await insertSlots(db, planId, [
-      { day: DAY_TUE_BEFORE, meal: 'cena', recipe_id: zucchini.id, servings: 2, locked: false },
+      { day: DAY_TUE_BEFORE, meal: 'cena', course: 'piatto-unico', recipe_id: zucchini.id, servings: 2, locked: false },
     ]);
 
     const list = requireList(await buildPlanShoppingList(planId, at(householdId, WED)));

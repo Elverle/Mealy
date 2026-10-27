@@ -305,6 +305,7 @@ describe.skipIf(!dbUp)('repeatPlan', { timeout: DB_TEST_TIMEOUT_MS }, () => {
         BOTH_MEALS.map((meal) => ({
           day,
           meal,
+          course: 'piatto-unico',
           recipe_id: pastRecipes[meal][index].id,
           servings: 2,
           locked: false,

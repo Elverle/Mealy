@@ -56,6 +56,7 @@ import {
 } from '@/lib/domain/types';
 import { addDays, isoWeekday, listDays, mondayOf, resolveTargetWeek, todayInTimeZone } from '@/lib/domain/week';
 import { isLlmError, type LlmError } from '@/lib/llm/errors';
+import { mainCourseOf } from '@/lib/domain/compositions';
 import { loadIngredientPreferences } from '@/lib/prefs/ingredient-prefs';
 import {
   generateAndStoreRecipes,
@@ -102,6 +103,7 @@ export function toPlanView(plan: PlanWithSlots, household: Household): PlanView 
       id: slot.id,
       day: slot.day,
       meal: slot.meal,
+      course: slot.course,
       servings: slot.servings,
       locked: slot.locked,
       recipe: slot.recipe,
@@ -450,13 +452,10 @@ async function buildTargetPlan(
     const finalCtx: PlanContext = { ...ctx, ...constraints };
     const persons = constraints.household.persons;
 
-    const finalSelection = computeSelection(
-      finalCtx,
-      current,
-      await loadLibrary(tx),
-      build.preassigned
-    );
+    const library = await loadLibrary(tx);
+    const finalSelection = computeSelection(finalCtx, current, library, build.preassigned);
     if (hasGap(finalSelection)) throw llmError ?? new PlanError('insufficient_recipes');
+    const libraryById = new Map(library.map((recipe) => [recipe.id, recipe]));
 
     let planId: string;
     if (current === null) {
@@ -480,12 +479,16 @@ async function buildTargetPlan(
       );
     }
 
+    // Fino alla composizione dei pasti: un piatto per pasto, con la portata della ricetta.
     await insertSlots(
       tx,
       planId,
       finalSelection.fills.map(({ slot, recipeId }) => ({
         day: slot.day,
         meal: slot.meal,
+        course: mainCourseOf(
+          recipeId === null ? [] : (libraryById.get(recipeId)?.courses ?? [])
+        ),
         recipe_id: recipeId,
         servings: persons,
         locked: false,

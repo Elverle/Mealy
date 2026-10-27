@@ -31,6 +31,7 @@ export function OnboardingWizard({
   const [draft, setDraft] = React.useState<HouseholdSettings>(() => ({
     persons: initialSettings.persons,
     meals: initialSettings.meals,
+    meal_compositions: initialSettings.meal_compositions,
     meal_style_tags: initialSettings.meal_style_tags,
     diet_tags: initialSettings.diet_tags,
     appliances: initialSettings.appliances,

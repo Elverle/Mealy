@@ -32,6 +32,7 @@ function toHouseholdSettings(view: SettingsView): HouseholdSettings {
   return {
     persons: view.persons,
     meals: view.meals,
+    meal_compositions: view.meal_compositions,
     meal_style_tags: view.meal_style_tags,
     diet_tags: view.diet_tags,
     appliances: view.appliances,

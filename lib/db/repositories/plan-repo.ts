@@ -3,9 +3,11 @@ import type { DbExecutor } from '../index';
 import { meal_plans, plan_slots, recipe_prefs, shopping_lists } from '../schema';
 import { type RecipeWithDetails, toRecipeWithDetails } from './recipe-repo';
 import {
+  CourseSchema,
   MEAL_TYPE_VALUES,
   MealTypeSchema,
   PlanStatusSchema,
+  type Course,
   type MealType,
   type PlanStatus,
 } from '@/lib/domain/types';
@@ -24,6 +26,7 @@ export interface PlanSlotRecord {
   plan_id: string;
   day: string; // YYYY-MM-DD
   meal: MealType;
+  course: Course;
   recipe_id: string | null;
   servings: number;
   locked: boolean;
@@ -31,7 +34,7 @@ export interface PlanSlotRecord {
 }
 
 export interface PlanWithSlots extends PlanRecord {
-  /** Ordinati per giorno, poi per indice del pasto in MEAL_TYPE_VALUES. */
+  /** Ordinati per giorno, poi per indice del pasto in MEAL_TYPE_VALUES, poi principale → contorno. */
   slots: PlanSlotRecord[];
   shopping_list: { exists: boolean; needs_regeneration: boolean };
 }
@@ -39,6 +42,7 @@ export interface PlanWithSlots extends PlanRecord {
 export interface NewSlotInput {
   day: string;
   meal: MealType;
+  course: Course;
   recipe_id: string | null;
   servings: number;
   locked: boolean;
@@ -74,7 +78,8 @@ function toPlanRecord(row: PlanRow): PlanRecord {
 
 function compareSlots(a: PlanSlotRecord, b: PlanSlotRecord): number {
   if (a.day !== b.day) return a.day < b.day ? -1 : 1;
-  return MEAL_TYPE_VALUES.indexOf(a.meal) - MEAL_TYPE_VALUES.indexOf(b.meal);
+  if (a.meal !== b.meal) return MEAL_TYPE_VALUES.indexOf(a.meal) - MEAL_TYPE_VALUES.indexOf(b.meal);
+  return (a.course === 'contorno' ? 1 : 0) - (b.course === 'contorno' ? 1 : 0);
 }
 
 function mapPlanWithSlots(
@@ -89,6 +94,7 @@ function mapPlanWithSlots(
       plan_id: slot.plan_id,
       day: slot.day,
       meal: MealTypeSchema.parse(slot.meal),
+      course: CourseSchema.parse(slot.course),
       recipe_id: slot.recipe_id,
       servings: slot.servings,
       locked: slot.locked,
@@ -229,6 +235,7 @@ export async function insertSlots(
       plan_id: planId,
       day: slot.day,
       meal: slot.meal,
+      course: slot.course,
       recipe_id: slot.recipe_id,
       servings: slot.servings,
       locked: slot.locked,
@@ -250,12 +257,19 @@ export async function updateSlotsServings(
   await executor.update(plan_slots).set({ servings }).where(inArray(plan_slots.id, slotIds));
 }
 
+/**
+ * Assegna una ricetta a uno slot. Con `course` definito cambia anche la portata dello slot.
+ */
 export async function updateSlotRecipe(
   executor: DbExecutor,
   slotId: string,
-  recipeId: string
+  recipeId: string,
+  course?: Course
 ): Promise<void> {
-  await executor.update(plan_slots).set({ recipe_id: recipeId }).where(eq(plan_slots.id, slotId));
+  await executor
+    .update(plan_slots)
+    .set(course === undefined ? { recipe_id: recipeId } : { recipe_id: recipeId, course })
+    .where(eq(plan_slots.id, slotId));
 }
 
 /**
@@ -272,6 +286,22 @@ export async function setSlotLocked(
     .where(eq(plan_slots.id, slotId))
     .returning({ id: plan_slots.id });
   return rows.length > 0;
+}
+
+/** Blocca/sblocca tutti gli slot di un pasto. Restituisce il numero di slot aggiornati. */
+export async function setMealLocked(
+  executor: DbExecutor,
+  planId: string,
+  day: string,
+  meal: MealType,
+  locked: boolean
+): Promise<number> {
+  const rows = await executor
+    .update(plan_slots)
+    .set({ locked })
+    .where(and(eq(plan_slots.plan_id, planId), eq(plan_slots.day, day), eq(plan_slots.meal, meal)))
+    .returning({ id: plan_slots.id });
+  return rows.length;
 }
 
 /**
