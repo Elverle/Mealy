@@ -247,7 +247,7 @@ describe("RecipeSheet placeholder, notice and footer", () => {
 
   it("renders the notice and the footer below the header and at the end of the sheet", () => {
     renderSheet({
-      notice: <p>Questa ce l'hai già: «Pasta al pomodoro»</p>,
+      notice: <p>{"Questa ce l'hai già: «Pasta al pomodoro»"}</p>,
       footer: <button type="button">Metti nel piano</button>,
     });
     expect(screen.getByText("Questa ce l'hai già: «Pasta al pomodoro»")).toBeInTheDocument();

@@ -25,7 +25,7 @@ tags: [recipes, recipe-pack, dataset, csv, selection, llm, conversion, checks, i
   - Il caricatore `load.ts` sta nella stessa cartella ma ha una pagina sua: [[recipe-pack]].
 - **Scopo**: preparare **una volta sola, sul PC**, il pacchetto iniziale di ricette a partire dal dataset `docs/recipe.csv`, che non è nel repository (spec D12). Il risultato sono i due file di `fixtures/` committati ([[recipe-pack]]).
 - **Confini** (requirements P7, P23; review R5):
-  - nessun modulo di `lib/recipes/pack/` tranne `load.ts` importa `@/lib/db`: gli strumenti non aprono connessioni. Lo controlla il lint (`.eslintrc.json`, `overrides` con `no-restricted-imports`, messaggio «Gli strumenti del pacchetto non aprono il DB (Feature 10, req. P7).»);
+  - nessun modulo di `lib/recipes/pack/` tranne `load.ts` importa `@/lib/db`: gli strumenti non aprono connessioni. Lo controlla il lint (`eslint.config.mjs`, `no-restricted-imports`, messaggio «Gli strumenti del pacchetto non aprono il DB (Feature 10, req. P7).»);
   - solo il modulo `recipes` chiama `lib/llm/`: `convert.ts` e `ingredients.ts` usano `convertDatasetRecipe` e `draftIngredientFacts` ([[llm-adapter]]);
   - `lib/recipes/index.ts` non esporta il modulo `pack`: il barrel è importato dalle rotte, e il pacchetto deve entrare solo dove serve.
 - **Tipi**: tutti gli schemi (candidato, record, voce per il modello, tabella, statistiche) stanno in `lib/domain/types.ts`, blocco `Recipe Pack (Feature 10)` ([[domain-types]]). Le interfacce `XxxOptions`/`XxxReport` dei servizi stanno nei loro moduli, come `ClassifyReport` in `classify.ts`.

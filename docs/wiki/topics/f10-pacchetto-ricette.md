@@ -106,7 +106,7 @@ All'avvio in produzione (instrumentation.ts, DB_BOOTSTRAP_ON_START=true)
 - [[fixtures-and-seed]]: i due file nuovi stanno in `fixtures/`, ma `pnpm db:seed` non carica il pacchetto (FR-4.2).
 - [[deploy-scripts]]: lo smoke si aspetta dopo il primo avvio tante ricette quante ne ha il pacchetto, e al riavvio `ricette del pacchetto inserite: 0`.
 - [[production-stack]]: `.recipe-pack` fuori dal contesto di build Docker.
-- Configurazione: `package.json` (`recipes:pack`), `.gitignore` (`.recipe-pack/`), `.eslintrc.json` (due `overrides` con `no-restricted-imports`).
+- Configurazione: `package.json` (`recipes:pack`), `.gitignore` (`.recipe-pack/`), `.eslintrc.json` (due `overrides` con `no-restricted-imports`; dal 2026-10-27 in `eslint.config.mjs`).
 
 ## Regole di Dominio Principali
 

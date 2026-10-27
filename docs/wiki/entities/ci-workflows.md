@@ -18,7 +18,7 @@ tags: [ci, github-actions, gate, docker, ghcr, arm64, image, smoke-test, deploy,
 Parte su `pull_request`. Un solo giro per ramo: `concurrency` con `cancel-in-progress` annulla quello precedente. Permessi: `contents: read`.
 
 ### Job `gate` — lint, typecheck, test, build
-`ubuntu-latest`, limite 20 minuti, con un servizio `postgres:16-alpine` (utente `mealy`, database `mealy_dev`, porta 5432) e `DATABASE_URL` che lo punta. Passi: checkout, pnpm 11, Node 24 con cache pnpm, `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, **`pnpm db:migrate`**, `pnpm test`, `pnpm build`.
+`ubuntu-latest`, limite 20 minuti, con un servizio `postgres:16-alpine` (utente `mealy`, database `mealy_dev`, porta 5432) e `DATABASE_URL` che lo punta. Passi: checkout, pnpm 11, Node con cache pnpm (la versione la legge dal `Dockerfile`, passo `node`), `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, **`pnpm db:migrate`**, `pnpm test`, `pnpm build`.
 
 La migrazione prima dei test non è decorativa: i test DB si saltano da soli se Postgres non risponde, e senza quel passo il gate potrebbe uscire verde senza averli eseguiti.
 
