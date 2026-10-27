@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_HOUSEHOLD,
+  DEFAULT_MEAL_COMPOSITIONS,
   MEAL_TYPE_VALUES,
   HouseholdSchema,
   UpdateSettingsRequestSchema,
@@ -22,6 +23,7 @@ describe('normalizeSettings', () => {
     const settings: HouseholdSettings = {
       persons: 2,
       meals: ['cena', 'pranzo', 'cena'],
+      meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
       meal_style_tags: ['economico', 'veloce', 'economico'],
       diet_tags: [],
       appliances: [],
@@ -33,12 +35,34 @@ describe('normalizeSettings', () => {
     expect(normalized.meal_style_tags).toEqual(['veloce', 'economico']);
     expect(normalized.persons).toBe(2);
   });
+
+  it('orders each meal composition list by enum order, removing duplicates', () => {
+    const settings: HouseholdSettings = {
+      persons: 2,
+      meals: ['pranzo', 'cena'],
+      meal_compositions: {
+        pranzo: ['secondo-contorno', 'primo', 'secondo-contorno'],
+        cena: ['piatto-unico', 'primo-contorno', 'piatto-unico'],
+      },
+      meal_style_tags: [],
+      diet_tags: [],
+      appliances: [],
+    };
+
+    const normalized = normalizeSettings(settings);
+
+    expect(normalized.meal_compositions).toEqual({
+      pranzo: ['primo', 'secondo-contorno'],
+      cena: ['piatto-unico', 'primo-contorno'],
+    });
+  });
 });
 
 describe('settingsEqual', () => {
   const base: HouseholdSettings = {
     persons: 2,
     meals: ['pranzo', 'cena'],
+    meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
     meal_style_tags: ['veloce', 'salutare'],
     diet_tags: ['vegetariano'],
     appliances: ['fornelli'],
@@ -48,6 +72,7 @@ describe('settingsEqual', () => {
     const other: HouseholdSettings = {
       ...base,
       meals: ['cena', 'pranzo'],
+      meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
       meal_style_tags: ['salutare', 'veloce'],
     };
 
@@ -58,6 +83,36 @@ describe('settingsEqual', () => {
     const other: HouseholdSettings = { ...base, persons: 4 };
 
     expect(settingsEqual(base, other)).toBe(false);
+  });
+
+  it('returns false when only one lunch composition changes', () => {
+    const other: HouseholdSettings = {
+      ...base,
+      meal_compositions: { ...base.meal_compositions, pranzo: ['piatto-unico'] },
+    };
+
+    expect(settingsEqual(base, other)).toBe(false);
+  });
+
+  it('returns false when only one dinner composition changes', () => {
+    const other: HouseholdSettings = {
+      ...base,
+      meal_compositions: { ...base.meal_compositions, cena: ['primo', 'secondo'] },
+    };
+
+    expect(settingsEqual(base, other)).toBe(false);
+  });
+
+  it('returns true when the composition lists are given in a different order', () => {
+    const other: HouseholdSettings = {
+      ...base,
+      meal_compositions: {
+        pranzo: [...DEFAULT_MEAL_COMPOSITIONS.pranzo].reverse(),
+        cena: [...DEFAULT_MEAL_COMPOSITIONS.cena].reverse(),
+      },
+    };
+
+    expect(settingsEqual(base, other)).toBe(true);
   });
 });
 
@@ -116,6 +171,7 @@ describe('UpdateSettingsRequestSchema', () => {
   const validBody = {
     persons: 2,
     meals: ['pranzo', 'cena'],
+    meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
     meal_style_tags: ['veloce'],
     diet_tags: [],
     appliances: ['fornelli'],

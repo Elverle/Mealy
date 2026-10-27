@@ -2,8 +2,8 @@
 title: Strumenti del Pacchetto di Ricette — pnpm recipes:pack (recipe-pack-tools)
 type: entity
 created: 2026-10-26
-updated: 2026-10-26
-tags: [recipes, recipe-pack, dataset, csv, selection, llm, conversion, checks, ingredients, build, cli, script, feature-10]
+updated: 2026-10-27
+tags: [recipes, recipe-pack, dataset, csv, selection, llm, conversion, checks, ingredients, build, cli, script, feature-10, feature-11]
 ---
 
 ## File e Responsabilità
@@ -146,7 +146,7 @@ Codice: lettera del gruppo (`PACK_GROUP_CODES`: P, S, U, C) più tre cifre nell'
 - nomi canonici che sono alias in `fixtures/ingredient-aliases.json`;
 - dopo la costruzione: coppie di titoli uguali o simili, testo con `http`, `www.` o `giallozafferano`, ricetta che non rispetta `RecipePackFileSchema`.
 
-Per ogni ricetta: `category` di ogni ingrediente dalla tabella, `diet_flags = deriveDietFlags(...)` ([[diet-rules]]), portate normalizzate e `tags = deriveStyleTags(...)` ([[courses]]). Scrive `fixtures/recipe-pack.json` (ordine primi, secondi, piatti unici, contorni e, nel gruppo, quello di `selection.md`), riscrive la tabella tenendo solo i nomi usati e aggiunge le statistiche (`computePackStats`) al report.
+Per ogni ricetta: `category` di ogni ingrediente dalla tabella, `diet_flags = deriveDietFlags(...)` ([[diet-rules]]), portate normalizzate e `tags = deriveStyleTags(...)` ([[courses]]; dalla Feature 11 `deriveStyleTags(recipe.tags, ingredients)`, senza la regola su `piatto-unico`). Scrive `fixtures/recipe-pack.json` (ordine primi, secondi, piatti unici, contorni e, nel gruppo, quello di `selection.md`), riscrive la tabella tenendo solo i nomi usati e aggiunge le statistiche (`computePackStats`) al report.
 
 Dopo `build` va lanciato `pnpm test tests/recipes/pack/load.test.ts`: carica il pacchetto vero sul Postgres e nomina i titoli che `pg_trgm` giudica simili mentre la misura offline no (review R1, [[recipe-pack]]).
 
@@ -186,3 +186,4 @@ Non coperto da test: `scripts/recipe-pack.ts` (le righe stampate), la conversion
 - [[courses]] — `deriveStyleTags`, `normalizeCourses`, `MAIN_COURSE_VALUES`
 - [[fixtures-and-seed]] — Alias e ricette d'esempio usati come nomi noti
 - [[recipe-classification]] — `pnpm recipes:classify`, il comando su cui è modellato questo
+- [[f11-composizione-pasto]] — Feature 11: `deriveStyleTags` con due parametri

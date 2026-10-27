@@ -107,3 +107,25 @@ export function requestAssignSlotRecipe(
     PlanResultSchema
   );
 }
+
+/** POST /api/plans/{planId}/slots/{mainSlotId}/side: aggiunge un contorno al pasto. */
+export function requestAddSideDish(
+  planId: string,
+  mainSlotId: string,
+  excludeRecipeIds: string[]
+): Promise<PlanMutationResult> {
+  return request(
+    `${planPath(planId)}/slots/${encodeURIComponent(mainSlotId)}/side`,
+    { method: 'POST', body: JSON.stringify({ exclude_recipe_ids: excludeRecipeIds }) },
+    PlanMutationResultSchema
+  );
+}
+
+/** DELETE /api/plans/{planId}/slots/{sideSlotId}: toglie il contorno. */
+export function requestRemoveSideDish(planId: string, sideSlotId: string): Promise<PlanResult> {
+  return request(
+    `${planPath(planId)}/slots/${encodeURIComponent(sideSlotId)}`,
+    { method: 'DELETE' },
+    PlanResultSchema
+  );
+}

@@ -2,8 +2,8 @@
 title: Pacchetto Iniziale di Ricette — File del Pacchetto e loadRecipePack (recipe-pack)
 type: entity
 created: 2026-10-26
-updated: 2026-10-26
-tags: [recipes, recipe-pack, fixtures, diet-flags, ingredients, startup, instrumentation, transaction, advisory-lock, pg-trgm, feature-10]
+updated: 2026-10-27
+tags: [recipes, recipe-pack, fixtures, diet-flags, ingredients, startup, instrumentation, transaction, advisory-lock, pg-trgm, feature-10, feature-11]
 ---
 
 ## File e Responsabilità
@@ -149,3 +149,4 @@ Stessa funzione e stessa regola, sul DB di `DATABASE_URL`: serve a provare il pa
 - [[recipe-proposal-service]] — `insertGeneratedRecipe`
 - [[library-service]] — Ordine della Libreria e data di creazione
 - [[fixtures-and-seed]] — Le altre fixture: ricette d'esempio e alias
+- [[f11-composizione-pasto]] — Feature 11: i 60 contorni nel piano, etichetta `piatto-unico` tolta dal file

@@ -25,6 +25,7 @@ export async function POST(request: Request): Promise<Response> {
         request: parsed.data.request,
         mealType: parsed.data.meal_type,
         excludeTitles: parsed.data.exclude_titles,
+        sideDish: parsed.data.side_dish,
       },
       { abortSignal: request.signal }
     );

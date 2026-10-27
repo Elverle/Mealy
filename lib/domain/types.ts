@@ -69,7 +69,6 @@ export const MEAL_STYLE_TAG_VALUES = [
   'leggero',
   'comfort-food',
   'economico',
-  'piatto-unico',
   'tradizionale',
   'dal-mondo',
   'pochi-ingredienti',
@@ -87,7 +86,6 @@ export const MEAL_STYLE_TAG_LABELS: Record<MealStyleTag, string> = {
   leggero: 'Leggero',
   'comfort-food': 'Comfort food',
   economico: 'Economico',
-  'piatto-unico': 'Piatto unico',
   tradizionale: 'Tradizionale',
   'dal-mondo': 'Dal mondo',
   'pochi-ingredienti': 'Pochi ingredienti',
@@ -108,8 +106,45 @@ export const COURSE_LABELS: Record<Course, string> = {
   contorno: 'Contorno',
 };
 
-// Portate che da sole fanno un pasto (fino alla Feature 11: le sole ammesse nel piano).
+// Portate che da sole fanno un pasto: il principale di ogni composizione.
 export const MAIN_COURSE_VALUES: readonly Course[] = ['piatto-unico', 'primo', 'secondo'];
+
+// Filtro di portata di uno slot: una portata precisa, oppure una qualsiasi principale.
+export type CourseFilter = Course | 'any-main';
+
+// Composizione di un pasto: un principale, con o senza contorno (Feature 11).
+export const MEAL_COMPOSITION_VALUES = [
+  'piatto-unico',
+  'primo',
+  'primo-contorno',
+  'secondo',
+  'secondo-contorno',
+] as const;
+export const MEAL_COMPOSITION_ENUM = MEAL_COMPOSITION_VALUES;
+export const MealCompositionSchema = z.enum(MEAL_COMPOSITION_VALUES);
+export type MealComposition = z.infer<typeof MealCompositionSchema>;
+
+export const MEAL_COMPOSITION_LABELS: Record<MealComposition, string> = {
+  'piatto-unico': 'Piatto unico',
+  primo: 'Primo',
+  'primo-contorno': 'Primo + contorno',
+  secondo: 'Secondo',
+  'secondo-contorno': 'Secondo + contorno',
+};
+
+// Composizioni ammesse per pasto: almeno una per pranzo e una per cena.
+export const MealCompositionsSchema = z
+  .object({
+    pranzo: z.array(MealCompositionSchema).min(1),
+    cena: z.array(MealCompositionSchema).min(1),
+  })
+  .strict();
+export type MealCompositions = z.infer<typeof MealCompositionsSchema>;
+
+export const DEFAULT_MEAL_COMPOSITIONS: MealCompositions = {
+  pranzo: [...MEAL_COMPOSITION_VALUES],
+  cena: [...MEAL_COMPOSITION_VALUES],
+};
 
 export const APPLIANCE_VALUES = [
   'fornelli',
@@ -214,6 +249,7 @@ export const HouseholdSchema = z.object({
   meals: z.array(MealTypeSchema),
   diet_tags: z.array(DietFlagSchema).default([]),
   meal_style_tags: z.array(MealStyleTagSchema).default([]),
+  meal_compositions: MealCompositionsSchema.default(DEFAULT_MEAL_COMPOSITIONS),
   appliances: z.array(ApplianceSchema).default([]),
   onboarded_at: z.coerce.date().nullable().default(null),
   created_at: z.coerce.date().default(() => new Date()),
@@ -235,6 +271,7 @@ export const PlanSlotSchema = z.object({
   plan_id: z.string().uuid(),
   day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   meal: MealTypeSchema,
+  course: CourseSchema,
   recipe_id: z.string().uuid().nullable().optional(),
   servings: z.number().int().min(1),
   locked: z.boolean().default(false),
@@ -279,6 +316,7 @@ export const DEFAULT_HOUSEHOLD: Household = {
   meals: ['pranzo', 'cena'],
   diet_tags: [],
   meal_style_tags: ['veloce', 'salutare'],
+  meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
   appliances: ['fornelli', 'forno', 'microonde', 'friggitrice-ad-aria'],
   onboarded_at: null,
   created_at: new Date('2026-01-01T00:00:00Z'),
@@ -398,6 +436,7 @@ export const HouseholdSettingsSchema = z
   .object({
     persons: z.number().int().min(PERSONS_MIN).max(PERSONS_MAX),
     meals: z.array(MealTypeSchema).min(1),
+    meal_compositions: MealCompositionsSchema,
     meal_style_tags: z.array(MealStyleTagSchema),
     diet_tags: z.array(DietFlagSchema),
     appliances: z.array(ApplianceSchema),
@@ -416,6 +455,7 @@ export type UpdateSettingsRequest = z.input<typeof UpdateSettingsRequestSchema>;
 export const SettingsViewSchema = z.object({
   persons: z.number().int(),
   meals: z.array(MealTypeSchema),
+  meal_compositions: MealCompositionsSchema,
   meal_style_tags: z.array(MealStyleTagSchema),
   diet_tags: z.array(DietFlagSchema),
   appliances: z.array(ApplianceSchema),
@@ -449,6 +489,7 @@ export const PlanSlotViewSchema = z.object({
   id: z.string().uuid(),
   day: IsoDateSchema,
   meal: MealTypeSchema,
+  course: CourseSchema,
   servings: z.number().int().min(1),
   locked: z.boolean(),
   recipe: RecipeSchema.nullable(), // ricetta completa (ingredienti + prefs); null se eliminata
@@ -468,7 +509,7 @@ export const PlanViewSchema = z.object({
   created_at: z.string().datetime(),
   generated_at: z.string().datetime(),
   superseded: z.boolean(), // households.updated_at > generated_at
-  slots: z.array(PlanSlotViewSchema), // ordinati per giorno, poi pranzo → cena
+  slots: z.array(PlanSlotViewSchema), // ordinati per giorno, poi pranzo → cena, poi principale → contorno
   shopping_list: PlanShoppingListStateSchema,
 });
 export type PlanView = z.infer<typeof PlanViewSchema>;
@@ -751,6 +792,7 @@ export const ProposeRecipeRequestSchema = z
   .object({
     request: z.string().trim().min(RECIPE_REQUEST_MIN).max(LIBRARY_QUERY_MAX),
     meal_type: MealTypeSchema.nullable().default(null),
+    side_dish: z.boolean().default(false), // true: dal selettore del contorno, si chiede un contorno
     exclude_titles: z
       .array(z.string().trim().min(1).max(PROPOSAL_TITLE_MAX))
       .max(PROPOSAL_EXCLUDE_MAX)

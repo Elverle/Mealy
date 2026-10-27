@@ -15,7 +15,7 @@ const CATEGORY_LINE =
   '- category: una tra ortofrutta, pane, macelleria, pescheria, banco-frigo, dispensa, surgelati, bevande, altro.';
 const COURSES_LINE =
   '- courses: le portate in cui il piatto si serve davvero, di solito una e al massimo due, tra piatto-unico (basta da solo come pasto), primo (pasta, riso, zuppe), secondo (carne, pesce, uova, formaggi o legumi come portata principale) e contorno (verdure o patate che accompagnano un secondo).';
-const TAGS_LINE = `- tags: solo tra ${MEAL_STYLE_TAG_VALUES.join(', ')} ("veloce" solo se prep_minutes è al massimo 30; "pochi-ingredienti" e "piatto-unico" li calcola l'app, puoi ometterli).`;
+const TAGS_LINE = `- tags: solo tra ${MEAL_STYLE_TAG_VALUES.join(', ')} ("veloce" solo se prep_minutes è al massimo 30; "pochi-ingredienti" lo calcola l'app, puoi ometterlo).`;
 const TAGS_MEANING_LINE =
   '  Significati: tradizionale = classico della cucina italiana; dal-mondo = di una cucina non italiana; in-anticipo = si prepara prima e si conserva bene, adatto alla schiscetta; piatto-freddo = si mangia freddo o è estivo.';
 const APPLIANCES_REQUIRED_LINE =

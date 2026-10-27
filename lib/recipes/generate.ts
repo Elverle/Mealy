@@ -8,6 +8,7 @@ import {
 } from '@/lib/db/repositories/recipe-repo';
 import {
   type ConstraintOverrides,
+  type Course,
   type GenerationSkip,
   type MealType,
   MAIN_COURSE_VALUES,
@@ -25,6 +26,8 @@ export interface GenerateAndStoreInput {
   count: number;
   mealType: MealType | null;
   overrides?: ConstraintOverrides;
+  /** Portate ammesse. Default: MAIN_COURSE_VALUES (ricette che fanno da pasto). */
+  courses?: readonly Course[];
 }
 
 export interface GenerateAndStoreResult {
@@ -54,13 +57,13 @@ export async function generateAndStoreRecipes(
 
   const ingredientPrefs = await loadIngredientPreferences(household.id);
 
-  // Piano, swap e /api/recipes/generate: solo ricette che fanno da pasto.
+  // Default: ricette che fanno da pasto. Il piano chiede anche una portata precisa, contorni compresi.
   const constraints = buildConstraints(
     household,
     input.mealType,
     input.overrides ?? {},
     ingredientPrefs,
-    MAIN_COURSE_VALUES
+    input.courses ?? MAIN_COURSE_VALUES
   );
 
   const excludeTitles = await listRecipeTitles(db, household.id, {

@@ -2,8 +2,8 @@
 title: Schermata Libreria — LibraryScreen, LibraryFilters e RecipeCard (library-screen)
 type: entity
 created: 2026-10-05
-updated: 2026-10-21
-tags: [ui, components, library, page, search, filters, favorites, accessibility, recipe-requests, courses, feature-5, feature-8, feature-9]
+updated: 2026-10-27
+tags: [ui, components, library, page, search, filters, favorites, accessibility, recipe-requests, courses, feature-5, feature-8, feature-9, feature-11]
 ---
 
 ## File e Responsabilità
@@ -93,9 +93,9 @@ export interface LibraryFiltersProps {
 
 **Dalla Feature 8**:
 - Il pannello ha un quarto gruppo, **`Portata`**, per **primo**: quattro chip da `COURSE_VALUES` con le etichette di `COURSE_LABELS` (*Piatto unico*, *Primo*, *Secondo*, *Contorno*). Dentro il gruppo i chip valgono in OR, con gli altri gruppi in AND ([[library-service]]). Sta nel pannello e non nella riga rapida: a 360 px la riga rapida non regge altri quattro chip (requirements P22 della Feature 8).
-- Il gruppo `Tipo di pasti` mostra i **12** valori di `MEAL_STYLE_TAG_VALUES`.
+- Il gruppo `Tipo di pasti` mostra i **12** valori di `MEAL_STYLE_TAG_VALUES` (dalla Feature 11 gli **11**: *Piatto unico* resta solo nel gruppo *Portata*, spec FR-8.5).
 - `Filtri · n` conta anche le portate: `n` = portate + tag + diete + *Bloccate*.
-- Ogni gruppo è un `role="group"` con `aria-labelledby` sul proprio titolo (id da `React.useId()`: `-courses`, `-tags`, `-diets`, `-other`). Così i due chip *Piatto unico*, quello della portata e quello dell'etichetta di stile, si distinguono con il lettore di schermo (fix della code review, commit `bfbb3a4`).
+- Ogni gruppo è un `role="group"` con `aria-labelledby` sul proprio titolo (id da `React.useId()`: `-courses`, `-tags`, `-diets`, `-other`). Così i due chip *Piatto unico*, quello della portata e quello dell'etichetta di stile, si distinguono con il lettore di schermo (fix della code review, commit `bfbb3a4`). Dalla Feature 11 il chip *Piatto unico* è uno solo, nel gruppo *Portata*; i gruppi etichettati restano.
 
 ## `RecipeCard`
 
@@ -120,7 +120,7 @@ Dalla Feature 8 (decisione U1):
 - **Badge di portata**: `courseLabel(recipe.courses)` ([[courses]]) in un `Badge` `basil-subtle`, subito dopo il tempo e prima dell'eventuale `badge`. Le portate sono in ordine canonico (es. `Piatto unico · Primo`); su una ricetta non classificata il badge non c'è. Il testo viene sempre dai dati, mai scritto a mano.
 - Il suo id (`…-course`) entra nell'`aria-labelledby` del pulsante di apertura tra il tempo e il titolo.
 - Tempo, portata ed eventuale `badge` stanno in una riga `flex flex-wrap gap-1.5`: se la riga va a capo i badge non restano rientrati (fix della code review, commit `bfbb3a4`; prima i badge erano in linea, con un margine sinistro sul secondo).
-- La riga dei chip usa `recipeChips`, che su una ricetta classificata non ripete *Piatto unico* (decisione U2, [[recipe-sheet]]).
+- La riga dei chip usa `recipeChips`, che su una ricetta classificata non ripete *Piatto unico* (decisione U2, [[recipe-sheet]]). Dalla Feature 11 non c'è più nulla da filtrare: l'etichetta di stile non esiste.
 - La stessa card serve il selettore del Piano, quindi il badge compare anche nell'elenco di *Scegli* ([[slot-recipe-picker]]).
 
 Limite noto: la sovrapposizione tra il pulsante esteso, la ★ e l'etichetta `Bloccata` è verificata solo in jsdom, che non ha layout; va controllata su un telefono ([[e2-libreria-preferenze]]).
@@ -150,3 +150,4 @@ Limite noto: la sovrapposizione tra il pulsante esteso, la ★ e l'etichetta `Bl
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[courses]] — `courseLabel`, testo del badge di portata (Feature 8)
 - [[f8-portate-etichette]] — Panoramica della Feature 8
+- [[f11-composizione-pasto]] — Feature 11: chip *Piatto unico* solo nel gruppo *Portata*

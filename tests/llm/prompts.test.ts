@@ -46,14 +46,15 @@ describe('lib/llm/prompts', () => {
       expect(lines[coursesIndex]).toContain('contorno (verdure o patate che accompagnano un secondo)');
     });
 
-    it('lists all the twelve style tags in the tags rule', () => {
+    it('lists all the eleven style tags in the tags rule, without piatto-unico', () => {
       const instructions = buildRecipeInstructions();
 
       expect(instructions).toContain(`- tags: solo tra ${MEAL_STYLE_TAG_VALUES.join(', ')}`);
       for (const tag of MEAL_STYLE_TAG_VALUES) {
         expect(instructions).toContain(tag);
       }
-      expect(MEAL_STYLE_TAG_VALUES).toHaveLength(12);
+      expect(MEAL_STYLE_TAG_VALUES).toHaveLength(11);
+      expect(MEAL_STYLE_TAG_VALUES).not.toContain('piatto-unico');
     });
 
     it('explains the meaning of the four new style tags', () => {

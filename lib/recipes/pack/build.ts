@@ -155,7 +155,7 @@ function buildRecipe(recipe: GeneratedRecipe, facts: IngredientFactsMap): Genera
     ingredients,
     courses,
     diet_flags: deriveDietFlags(ingredients, facts),
-    tags: deriveStyleTags(recipe.tags, courses, ingredients),
+    tags: deriveStyleTags(recipe.tags, ingredients),
   };
 }
 

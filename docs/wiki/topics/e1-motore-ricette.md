@@ -2,8 +2,8 @@
 title: E1 Motore Ricette — Generazione, Adapter LLM e Libreria Persistente
 type: topic
 created: 2026-09-17
-updated: 2026-10-26
-tags: [recipes, llm, generation, fixtures, seed, architecture, recipe-pack, e1, feature-2, feature-10]
+updated: 2026-10-27
+tags: [recipes, llm, generation, fixtures, seed, architecture, recipe-pack, e1, feature-2, feature-10, feature-11]
 ---
 
 ## Panoramica
@@ -25,6 +25,8 @@ In Mealy l'LLM non viene invocato a ogni calcolo del piano settimanale; intervie
 **Dalla Feature 8** ([[f8-portate-etichette]]) l'LLM ha un terzo compito, che non aggiunge ricette: all'avvio in produzione **classifica** una volta le ricette salvate prima della portata, a lotti di 10 ([[recipe-classification]]). Nella generazione ogni ricetta arriva con almeno una portata; piano e swap chiedono portate principali e scartano un contorno come violazione di vincolo. La scrittura (`insertGeneratedRecipe`) applica le etichette derivate `pochi-ingredienti` e `piatto-unico` ([[courses]]).
 
 **Dalla Feature 10** ([[f10-pacchetto-ricette]]) la libreria non parte più vuota: all'avvio in produzione l'app carica un **pacchetto di 200 ricette** riscritte da un dataset di ricette italiane ([[recipe-pack]]), con la stessa scrittura di questa feature (`insertGeneratedRecipe`, con origine `manual` e data fissa) e lo stesso controllo dei titoli uguali o simili. Il principio guida resta e si rafforza (`ARCHITECTURE §1.3`): la libreria parte dal pacchetto e il modello la completa. Con 140 piatti da pasto in più la soglia del planner è quasi sempre superata, quindi la generazione automatica diventa rara (spec D10 della Feature 10): le ricette nuove arrivano con lo swap e con le richieste della Feature 9. Il modello lavora anche **fuori dall'app**, sul PC, per convertire le ricette del dataset e per la bozza della tabella degli ingredienti, sempre attraverso questo adapter ([[recipe-pack-tools]], [[llm-adapter]]); le diete delle ricette del pacchetto però non le decide il modello, ma una regola sulla tabella rivista dall'utente ([[diet-rules]]).
+
+**Dalla Feature 11** ([[f11-composizione-pasto]]) la generazione chiede anche **contorni**: il servizio dei piani passa a `generateAndStoreRecipes` la portata del piatto da riempire (`GenerateAndStoreInput.courses`, default le portate principali), e la richiesta dal selettore del contorno chiede un contorno (`side_dish`). Le carenze sono per (pasto, portata), con al più 10 ricette per tipo di pasto a giro ([[recipe-generation]], [[planner]]). L'etichetta di stile `piatto-unico` esce da prompt, fixture e registrazioni.
 
 ## Architettura della Pipeline di Generazione
 
@@ -131,3 +133,4 @@ In piena osservanza delle regole architetturali di progetto (`CLAUDE.md § Regol
 - [[f9-ricette-su-richiesta]] — Feature 9: ricette chieste dall'utente con un testo libero
 - [[f8-portate-etichette]] — Feature 8: portate nella generazione, etichette derivate, classificazione delle ricette esistenti
 - [[f10-pacchetto-ricette]] — Feature 10: pacchetto iniziale di 200 ricette, convertito con l'adapter e caricato all'avvio
+- [[f11-composizione-pasto]] — Feature 11: generazione per portata, contorni compresi

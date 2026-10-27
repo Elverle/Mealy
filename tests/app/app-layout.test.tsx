@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { getSettings } from "@/lib/settings/service";
 import AppLayout from "@/app/(app)/layout";
-import type { SettingsView } from "@/lib/domain/types";
+import { DEFAULT_MEAL_COMPOSITIONS, type SettingsView } from "@/lib/domain/types";
 
 vi.mock("next/server", () => ({ connection: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -20,6 +20,7 @@ function makeSettings(onboarded: boolean): SettingsView {
   return {
     persons: 2,
     meals: ["pranzo", "cena"],
+    meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
     meal_style_tags: [],
     diet_tags: [],
     appliances: [],

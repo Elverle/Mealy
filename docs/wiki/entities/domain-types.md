@@ -2,8 +2,8 @@
 title: Modello di Dominio, Schemi Zod e Normalizzazione (domain/types)
 type: entity
 created: 2026-09-15
-updated: 2026-10-26
-tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list, recipe-requests, courses, classification, recipe-pack]
+updated: 2026-10-27
+tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, recipe-text, normalization, settings, meal-plans, library, preferences, shopping-list, recipe-requests, courses, classification, recipe-pack, compositions]
 ---
 
 ## File e Responsabilità
@@ -17,6 +17,7 @@ tags: [domain, zod, types, schemas, enums, single-source-of-truth, generation, r
   - Dalla Feature 9 `planner.ts` ha anche `manualChoiceExclusionReason` ([[planner]]) e `library.ts` anche `recipeRequestText` e `appendProposedTitle` ([[library-service]]).
   - Dalla Feature 8 contiene anche le regole pure di portate ed etichette derivate (`courses.ts`, documentato in [[courses]]).
   - Dalla Feature 10 contiene anche le diete per regola (`diet-rules.ts`) e la similarità dei titoli offline (`title-similarity.ts`), documentate in [[diet-rules]]. Da questa feature il lint vieta a `lib/domain/**` di importare `@/lib/db` e `@/lib/llm` ([[single-source-of-truth-types]]).
+  - Dalla Feature 11 contiene anche le regole pure delle composizioni del pasto (`compositions.ts`, documentato in [[compositions]]).
 - **Scopo**: Costituire la **single source of truth** del modello dati dell'intera applicazione (`CLAUDE.md § Regole di architettura`). Nessun tipo di dominio viene ridefinito localmente nei moduli applicativi.
 
 ## Costanti Enum Chiuse
@@ -29,8 +30,9 @@ Ogni dominio controllato dispone di una costante `as const`, di uno schema Zod `
 | `CATEGORY_VALUES` | `['ortofrutta', 'pane', 'macelleria', 'pescheria', 'banco-frigo', 'dispensa', 'surgelati', 'bevande', 'altro']` | `CategorySchema` | `Category` |
 | `MEAL_TYPE_VALUES` | `['pranzo', 'cena']` | `MealTypeSchema` | `MealType` |
 | `DIET_FLAG_VALUES` | `['vegetariano', 'vegano', 'senza-glutine', 'senza-lattosio', 'pescetariano']` | `DietFlagSchema` | `DietFlag` |
-| `MEAL_STYLE_TAG_VALUES` | `['veloce', 'salutare', 'proteico', 'leggero', 'comfort-food', 'economico', 'piatto-unico']`; dalla Feature 8 anche `'tradizionale', 'dal-mondo', 'pochi-ingredienti', 'in-anticipo', 'piatto-freddo'` in coda (12 valori) | `MealStyleTagSchema` | `MealStyleTag` |
+| `MEAL_STYLE_TAG_VALUES` | `['veloce', 'salutare', 'proteico', 'leggero', 'comfort-food', 'economico', 'piatto-unico']`; dalla Feature 8 anche `'tradizionale', 'dal-mondo', 'pochi-ingredienti', 'in-anticipo', 'piatto-freddo'` in coda (12 valori); dalla Feature 11 senza `'piatto-unico'` (11 valori) | `MealStyleTagSchema` | `MealStyleTag` |
 | `COURSE_VALUES` (Feature 8) | `['piatto-unico', 'primo', 'secondo', 'contorno']` | `CourseSchema` | `Course` |
+| `MEAL_COMPOSITION_VALUES` (Feature 11), alias `MEAL_COMPOSITION_ENUM` | `['piatto-unico', 'primo', 'primo-contorno', 'secondo', 'secondo-contorno']` | `MealCompositionSchema` | `MealComposition` |
 | `APPLIANCE_VALUES` | `['fornelli', 'forno', 'microonde', 'friggitrice-ad-aria', 'frullatore']` | `ApplianceSchema` | `Appliance` |
 | `PLAN_STATUS_VALUES` | `['draft', 'active', 'archived']` | `PlanStatusSchema` | `PlanStatus` |
 | `RECIPE_SOURCE_VALUES` | `['llm', 'manual']` | `RecipeSourceSchema` | `RecipeSource` |
@@ -47,8 +49,9 @@ Le etichette mostrate nell'interfaccia sono mappe `Record<Enum, string>` accanto
 | `MEAL_TYPE_LABELS` | `MealType` (`Pranzo`, `Cena`) | Feature 3 |
 | `MEAL_STYLE_TAG_LABELS` | `MealStyleTag` (`Veloce`, `Salutare`, `Proteico`, `Leggero`, `Comfort food`, `Economico`, `Piatto unico`; dalla Feature 8 anche `Tradizionale`, `Dal mondo`, `Pochi ingredienti`, `Si prepara in anticipo`, `Piatto freddo`) | Feature 3 |
 | `COURSE_LABELS` | `Course` (`Piatto unico`, `Primo`, `Secondo`, `Contorno`) | Feature 8 |
+| `MEAL_COMPOSITION_LABELS` | `MealComposition` (`Piatto unico`, `Primo`, `Primo + contorno`, `Secondo`, `Secondo + contorno`) | Feature 11 |
 
-Accanto alle portate, `MAIN_COURSE_VALUES: readonly Course[] = ['piatto-unico', 'primo', 'secondo']` (Feature 8): le portate che da sole fanno un pasto, fino alla Feature 11 le sole ammesse nel piano ([[courses]]). Le etichette nuove compaiono da sole in Impostazioni, onboarding, filtro della Libreria e prompt, perché quei punti iterano `MEAL_STYLE_TAG_VALUES` ([[settings-fields]]).
+Accanto alle portate, `MAIN_COURSE_VALUES: readonly Course[] = ['piatto-unico', 'primo', 'secondo']` (Feature 8): le portate che da sole fanno un pasto, fino alla Feature 11 le sole ammesse nel piano ([[courses]]); dalla Feature 11 il principale di ogni composizione (il commento nel codice è cambiato di conseguenza). Le etichette nuove compaiono da sole in Impostazioni, onboarding, filtro della Libreria e prompt, perché quei punti iterano `MEAL_STYLE_TAG_VALUES` ([[settings-fields]]).
 
 ### Limiti di `persons` (Feature 3)
 
@@ -106,13 +109,14 @@ Configurazione del nucleo domestico.
 - `diet_tags`: `z.array(DietFlagSchema)`
 - `meal_style_tags`: `z.array(MealStyleTagSchema)`
 - `appliances`: `z.array(ApplianceSchema)`
+- `meal_compositions`: `MealCompositionsSchema.default(DEFAULT_MEAL_COMPOSITIONS)` (Feature 11) — composizioni ammesse per pranzo e per cena; un oggetto senza il campo prende tutte e cinque
 - `onboarded_at`: `z.coerce.date().nullable().default(null)` (Feature 3) — istante di completamento del wizard; `null` finché l'onboarding non è completato. Un oggetto senza il campo viene parsato con `null`.
 - `created_at`: `z.coerce.date()`
 - `updated_at`: `z.coerce.date()` — ultimo cambio dei vincoli o dell'onboarding (contratto U1, v. [[household-repo]])
 
 ### 5. MealPlan (`MealPlanSchema`) & PlanSlot (`PlanSlotSchema`)
 - **MealPlan**: rappresenta un piano settimanale (`id`, `household_id`, `week_start: YYYY-MM-DD`, `status: draft | active | archived`, `created_at`). Lo schema non è stato esteso dalla Feature 4: la colonna `generated_at` e le viste del piano esposte dalle API sono nei contratti `Meal Plans (Feature 4)` più sotto.
-- **PlanSlot**: rappresenta uno specifico slot pasto del piano (`id`, `plan_id`, `day: YYYY-MM-DD`, `meal: pranzo | cena`, `recipe_id: uuid | null`, `servings: number`, `locked: boolean`).
+- **PlanSlot**: rappresenta uno specifico slot pasto del piano (`id`, `plan_id`, `day: YYYY-MM-DD`, `meal: pranzo | cena`, `recipe_id: uuid | null`, `servings: number`, `locked: boolean`). Dalla Feature 11 anche `course: Course`: uno slot è un **piatto** del pasto, e il pasto è il gruppo di slot con lo stesso `(day, meal)` ([[compositions]]).
 
 ### 6. ShoppingList (`ShoppingListSchema`) & ShoppingItem (`ShoppingItemSchema`)
 - **ShoppingList**: lista della spesa collegata 1:1 a un piano (`id`, `plan_id`, `generated_at`).
@@ -326,6 +330,30 @@ Sezione `// Recipe Pack (Feature 10)` in coda a `types.ts`. Nessun campo nuovo s
 
 Le chiavi di `z.record` con un enum sono facoltative nel tipo inferito di zod 3: `build` incrementa i contatori con un `?? 0`.
 
+## Composizioni del Pasto (Feature 11)
+
+Costanti e schemi accanto alle portate, dopo `MAIN_COURSE_VALUES`; le regole che li usano sono in [[compositions]].
+
+| Costante / Schema / Tipo | Forma | Uso |
+|---|---|---|
+| `CourseFilter` | `Course \| 'any-main'` | Filtro di portata di uno slot del planner: una portata precisa oppure una qualsiasi principale (requirements P3) |
+| `MEAL_COMPOSITION_VALUES` / `MealCompositionSchema` / `MealComposition`, `MEAL_COMPOSITION_LABELS` | le cinque composizioni, in ordine fisso | Campo «Pasti da pianificare», distribuzione nel piano |
+| `MealCompositionsSchema` / `MealCompositions` | strict: `{ pranzo: MealComposition[] (min 1), cena: MealComposition[] (min 1) }` | Composizioni ammesse per pasto: `households.meal_compositions` |
+| `DEFAULT_MEAL_COMPOSITIONS` | tutte e cinque per pranzo e per cena | Default dell'household nuovo e di quello esistente (spec D4), anche in `DEFAULT_HOUSEHOLD` |
+
+Campi aggiunti a schemi esistenti:
+
+| Schema | Campo |
+|---|---|
+| `HouseholdSchema` | `meal_compositions`, con il default (v. sopra) |
+| `HouseholdSettingsSchema` | `meal_compositions: MealCompositionsSchema`, obbligatorio: `PUT /api/settings` rifiuta con 400 una composizione sconosciuta o un pasto con l'elenco vuoto. Le composizioni si salvano per entrambi i pasti anche se uno non è pianificato (spec FR-2.4) |
+| `SettingsViewSchema` | `meal_compositions` |
+| `PlanSlotSchema`, `PlanSlotViewSchema` | `course: Course` |
+| `PlanViewSchema.slots` | ordine: giorno, poi pranzo → cena, poi principale → contorno (solo il commento è cambiato; l'ordine lo dà `compareSlots`, [[plan-repo]]) |
+| `ProposeRecipeRequestSchema` | `side_dish: boolean`, default `false`: con `true` la proposta deve essere un contorno ([[recipe-proposal-service]]) |
+
+`MEAL_STYLE_TAG_VALUES` e `MEAL_STYLE_TAG_LABELS` perdono `piatto-unico` (spec D12). Come annunciava la nota della Feature 8 qui sopra, togliere il valore ha richiesto nello stesso rilascio la migrazione `0006`, che lo toglie da `households.meal_style_tags` e `recipes.tags` ([[database-schema]]). `MealCompositionsSchema` è un elenco chiuso con la stessa avvertenza: `HouseholdSchema.parse` rifiuta una composizione sconosciuta letta dal DB.
+
 ## Funzioni Pure di Normalizzazione Testo (`recipe-text.ts`)
 
 Il modulo `lib/domain/recipe-text.ts` fornisce funzioni pure senza effetti collaterali:
@@ -380,6 +408,7 @@ export const DEFAULT_HOUSEHOLD: Household = {
   meals: ['pranzo', 'cena'],
   diet_tags: [],
   meal_style_tags: ['veloce', 'salutare'],
+  meal_compositions: DEFAULT_MEAL_COMPOSITIONS,   // Feature 11: tutte e cinque per pranzo e per cena
   appliances: ['fornelli', 'forno', 'microonde', 'friggitrice-ad-aria'],
   onboarded_at: null,
   created_at: new Date('2026-01-01T00:00:00Z'),
@@ -387,7 +416,7 @@ export const DEFAULT_HOUSEHOLD: Household = {
 };
 ```
 
-Questi valori sono quelli con cui il wizard di primo avvio si presenta precompilato ([[onboarding-wizard]]).
+Questi valori sono quelli con cui il wizard di primo avvio si presenta precompilato ([[onboarding-wizard]]): dalla Feature 11 anche le cinque composizioni preselezionate sotto Pranzo e Cena.
 
 ## Vedi anche
 
@@ -416,3 +445,5 @@ Questi valori sono quelli con cui il wizard di primo avvio si presenta precompil
 - [[diet-rules]] — `deriveDietFlags` e similarità dei titoli in `lib/domain/` (Feature 10)
 - [[recipe-pack-tools]] — Uso degli schemi `Pack*` negli strumenti del pacchetto (Feature 10)
 - [[f10-pacchetto-ricette]] — Panoramica della Feature 10
+- [[compositions]] — Regole pure delle composizioni in `lib/domain/compositions.ts` (Feature 11)
+- [[f11-composizione-pasto]] — Panoramica della Feature 11

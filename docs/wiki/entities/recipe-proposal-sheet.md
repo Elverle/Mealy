@@ -2,8 +2,8 @@
 title: Riquadro di Richiesta e Sheet di Proposta — RecipeRequestBox e RecipeProposalSheet (recipe-proposal-sheet)
 type: entity
 created: 2026-10-14
-updated: 2026-10-21
-tags: [ui, components, recipes, llm, proposal, sheet, abort-controller, accessibility, courses, feature-8, feature-9]
+updated: 2026-10-27
+tags: [ui, components, recipes, llm, proposal, sheet, abort-controller, accessibility, courses, side-dish, feature-8, feature-9, feature-11]
 ---
 
 ## File e Responsabilità
@@ -35,12 +35,15 @@ export interface RecipeRequestBoxProps {
 export interface RecipeProposalSheetProps {
   request: string | null;      // testo della richiesta; null = sheet chiusa. Un testo nuovo fa ripartire la sequenza
   mealType: MealType | null;   // imposto dal Piano; null = lo decide il modello (Libreria)
+  sideDish?: boolean;          // Feature 11: true dal selettore del contorno, si chiede un contorno (default false)
   servings: number;            // porzioni su cui mostrare le quantità
   acceptLabel: string;         // «Aggiungi alla libreria» oppure «Metti nel piano»
   onAccept: (recipe: GeneratedRecipe) => Promise<void>;
   onClose: () => void;
 }
 ```
+
+**Dalla Feature 11** la prop `sideDish` (default `false`) segue `mealType`: è letta da un ref aggiornato a ogni render (`sideDishRef`) e passata a `requestRecipeProposal` come `sideDish`, che la manda al server come `side_dish: true` solo quando è vera ([[library-service]]). La passa solo il selettore del contorno ([[slot-recipe-picker]]); la Libreria e il selettore del principale non cambiano.
 
 **Dalla Feature 8** (senza modifiche al componente): la proposta mostra il badge di portata, perché `proposalToRecipeDetail` valorizza `course` ([[recipe-sheet]]), e le etichette sono già quelle derivate dal servizio ([[recipe-proposal-service]]). Con `mealType` indicato (dal Piano) un contorno non arriva mai: il server risponde `proposal_unsuitable` e la sheet mostra l'errore come per le altre proposte non adatte.
 
@@ -87,3 +90,4 @@ Con una proposta il `footer` contiene `Un'altra` (`outline`) e, se non è un dop
 - [[sheet-primitive]] — Pila delle sheet: la proposta si apre sopra il selettore
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[f8-portate-etichette]] — Feature 8: portata nella proposta
+- [[f11-composizione-pasto]] — Feature 11: proposta di un contorno dal selettore del contorno

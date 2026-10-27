@@ -2,8 +2,8 @@
 title: Regole Pure di Portate ed Etichette Derivate (courses)
 type: entity
 created: 2026-10-21
-updated: 2026-10-21
-tags: [domain, pure-functions, courses, style-tags, derived-tags, planner, constraints, feature-8]
+updated: 2026-10-27
+tags: [domain, pure-functions, courses, style-tags, derived-tags, planner, constraints, feature-8, feature-11]
 ---
 
 ## File e Responsabilità
@@ -35,7 +35,7 @@ Le etichette mostrate sono in `COURSE_LABELS`: «Piatto unico», «Primo», «Se
 | `isMainDish(courses)` | `coursesAllowed(courses, MAIN_COURSE_VALUES)` |
 | `courseLabel(courses)` | Etichette nell'ordine di `COURSE_VALUES`, unite da `" · "` (es. «Piatto unico · Secondo»); `null` se `courses` è vuoto |
 | `countMeasuredIngredients(ingredients)` | Numero di righe con `unit !== 'qb'` |
-| `deriveStyleTags(tags, courses, ingredients)` | Applica le due regole derivate e restituisce le etichette senza doppioni, nell'ordine di `MEAL_STYLE_TAG_VALUES` |
+| `deriveStyleTags(tags, courses, ingredients)` | Applica le due regole derivate e restituisce le etichette senza doppioni, nell'ordine di `MEAL_STYLE_TAG_VALUES`. **Dalla Feature 11** la firma è `deriveStyleTags(tags, ingredients)`: resta la sola regola dei pochi ingredienti (v. sotto) |
 
 Costante: `FEW_INGREDIENTS_MAX = 6`.
 
@@ -43,6 +43,8 @@ Costante: `FEW_INGREDIENTS_MAX = 6`.
 
 1. **Pochi ingredienti**: `pochi-ingredienti` c'è se e solo se `countMeasuredIngredients(ingredients) <= FEW_INGREDIENTS_MAX`. La regola aggiunge l'etichetta se manca e la toglie se non spetta, qualunque cosa abbia scritto il modello. I *q.b.* non contano: 6 ingredienti misurati più 3 *q.b.* danno `pochi-ingredienti`.
 2. **Piatto unico**: su una ricetta **classificata**, l'etichetta di stile `piatto-unico` c'è se e solo se tra le portate c'è `piatto-unico`. Con `courses` vuoto l'etichetta resta com'è: non viene né aggiunta né tolta.
+
+**Dalla Feature 11** la seconda regola non esiste più: l'etichetta di stile `piatto-unico` è uscita da `MEAL_STYLE_TAG_VALUES` (spec D12), e *Piatto unico* resta solo come portata e come composizione ([[compositions]]). `deriveStyleTags(tags, ingredients)` perde il parametro `courses` (requirements P10 della Feature 11) e i cinque chiamanti della tabella qui sotto, più `lib/recipes/pack/build.ts` ([[recipe-pack-tools]]), sono stati aggiornati. La migrazione `0006` ha tolto l'etichetta dai dati ([[database-schema]]).
 
 Dove si applica:
 
@@ -58,6 +60,7 @@ Dove si applica:
 ## Chi Usa il Modulo
 
 - **Planner** ([[planner]]): `exclusionReason` restituisce `'course'` quando `!isMainDish(recipe.courses)`. Da lì l'esclusione arriva a sorteggio, *Rigenera*, *Ripeti*, swap, candidate di *Scegli*, assegnazione a mano e conteggio delle ricette fresche (`needMore`).
+  - **Dalla Feature 11** il planner non usa più `isMainDish`: il motivo `'course'` scatta quando `!fitsCourse(recipe.courses, course)`, con la portata dello slot ([[compositions]]). `fitsCourse` delega a `coursesAllowed` per i principali e aggiunge solo l'esclusione delle non classificate dal contorno. `isMainDish` resta nel modulo perché la usano i test delle fixture (requirements P11 della Feature 11).
 - **Vincoli di generazione** ([[recipe-generation]]): `findConstraintViolations` aggiunge la violazione «portata non adatta al pasto» quando `!coursesAllowed(recipe.courses, constraints.courses)`.
 - **Card e dettaglio** ([[library-screen]], [[meal-card]], [[plan-screen]], [[recipe-sheet]]): `courseLabel` dà il testo del badge di portata.
 - **`normalizeGeneratedRecipe`** ([[domain-types]]): `normalizeCourses`.
@@ -66,9 +69,11 @@ Dove si applica:
 
 Prima dell'architecture review il piano scriveva la regola due volte: `isMainDish` nel planner e un confronto in linea nei vincoli. Le due formule coincidevano solo perché l'elenco ammesso era sempre `MAIN_COURSE_VALUES`. La Feature 11 (composizione del pasto) renderà l'elenco diverso per ogni slot. Con `coursesAllowed` dovrà cambiare solo l'elenco passato, non due formule. I commenti di `exclusionReason` e `findConstraintViolations` lo ricordano. Le due funzioni restano comunque due copie delle altre regole, tenute insieme da un commento (osservazione P1 della review).
 
+**Esito nella Feature 11** ([[f11-composizione-pasto]]): è andata così. L'elenco ammesso per slot è `filterCourses(course)` e passa ancora da `coursesAllowed` dentro `fitsCourse`; i vincoli di generazione ricevono la portata del piatto da riempire in `constraints.courses`, contorni compresi. I due commenti dicono ora che la portata passa da `coursesAllowed` in entrambe le funzioni (nel planner tramite `fitsCourse`).
+
 ## Test
 
-`tests/domain/courses.test.ts`: ordine e doppioni di `normalizeCourses` (array nuovo); `coursesAllowed` con `null`, con una ricetta non classificata, con un contorno contro le principali, con una portata in comune e con nessuna; `isMainDish`; `courseLabel` (`null`, una portata, due nell'ordine canonico); `countMeasuredIngredients`; `deriveStyleTags` (aggiunta e rimozione di `pochi-ingredienti` attorno a 6, aggiunta e rimozione di `piatto-unico` su una classificata, etichetta conservata o non aggiunta su una non classificata, ordine e doppioni).
+`tests/domain/courses.test.ts`: ordine e doppioni di `normalizeCourses` (array nuovo); `coursesAllowed` con `null`, con una ricetta non classificata, con un contorno contro le principali, con una portata in comune e con nessuna; `isMainDish`; `courseLabel` (`null`, una portata, due nell'ordine canonico); `countMeasuredIngredients`; `deriveStyleTags` (aggiunta e rimozione di `pochi-ingredienti` attorno a 6, aggiunta e rimozione di `piatto-unico` su una classificata, etichetta conservata o non aggiunta su una non classificata, ordine e doppioni). Dalla Feature 11 i casi su `piatto-unico` non ci sono più: `deriveStyleTags` ha due parametri e la regola dei pochi ingredienti è l'unica.
 
 `tests/fixtures-data/recipes-fixtures.test.ts` controlla che le 18 ricette d'esempio siano tutte classificate, con portate già in ordine canonico ed etichette coerenti con `deriveStyleTags`, e che una sola sia solo contorno.
 
@@ -80,3 +85,5 @@ Prima dell'architecture review il piano scriveva la regola due volte: `isMainDis
 - [[recipe-generation]] — Violazione «portata non adatta al pasto»
 - [[recipe-classification]] — Portate assegnate dal modello alle ricette esistenti
 - [[single-source-of-truth-types]] — Perché i tipi restano in `types.ts`
+- [[compositions]] — `fitsCourse`, che usa `coursesAllowed` per gli slot del piano (Feature 11)
+- [[f11-composizione-pasto]] — Panoramica della Feature 11

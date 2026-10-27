@@ -144,7 +144,7 @@ describe.skipIf(!dbUp)('classifyPendingRecipes', () => {
     expect(await listUnclassifiedRecipes(db, h)).toEqual([]);
     expect(await readClassification(ids[0])).toEqual({
       courses: ['piatto-unico'],
-      tags: ['piatto-unico', 'tradizionale', 'pochi-ingredienti'],
+      tags: ['tradizionale', 'pochi-ingredienti'],
     });
     expect(await readClassification(ids[1])).toEqual({
       courses: ['secondo'],
@@ -170,23 +170,6 @@ describe.skipIf(!dbUp)('classifyPendingRecipes', () => {
       courses: ['secondo'],
       tags: ['veloce', 'tradizionale', 'pochi-ingredienti'],
     });
-  });
-
-  it('removes a piatto-unico tag from a recipe the model classifies as secondo', async () => {
-    const h = await newHousehold();
-    const id = await insertPending(h, 0, { tags: ['piatto-unico'] });
-    const classify = vi.fn<typeof classifyRecipes>(async (items) => answer(items, ['secondo']));
-
-    await classifyPendingRecipes({
-      householdId: h,
-      model: createRecordedModel([]).model,
-      classify,
-      logger: makeLogger(),
-    });
-
-    const row = await readClassification(id);
-    expect(row.courses).toEqual(['secondo']);
-    expect(row.tags).not.toContain('piatto-unico');
   });
 
   it('keeps going after a failed batch and leaves its recipes unclassified', async () => {

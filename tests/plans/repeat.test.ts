@@ -101,6 +101,59 @@ describe.skipIf(!dbUp)('repeatPlan', { timeout: DB_TEST_TIMEOUT_MS }, () => {
     );
   }
 
+  /** Household con sole cene, composizione secondo + contorno; 10 secondi e 10 contorni in libreria. */
+  async function secondoContornoHousehold(): Promise<string> {
+    const id = await createTestHousehold({
+      meals: ['cena'],
+      meal_compositions: { pranzo: ['piatto-unico'], cena: ['secondo-contorno'] },
+    });
+    createdHouseholdIds.push(id);
+    await insertTestRecipes(id, 10, { meal_types: ['cena'], courses: ['secondo'] });
+    await insertTestRecipes(id, 10, { meal_types: ['cena'], courses: ['contorno'] });
+    return id;
+  }
+
+  it('copies the composition and the recipe of each course, even when no longer admitted', async () => {
+    const householdId = await secondoContornoHousehold();
+    const source = shownPlan((await generatePlan(opts(householdId, MON, neverGenerate()))).screen);
+    expect(source.slots).toHaveLength(14);
+    await updateHousehold({ meal_compositions: { pranzo: ['piatto-unico'], cena: ['piatto-unico'] } }, householdId);
+    const generate = neverGenerate();
+
+    const { screen } = await repeatPlan(source.id, opts(householdId, SAT, generate));
+
+    expect(generate).not.toHaveBeenCalled();
+    const target = shownPlan(screen);
+    expect(target.slots).toHaveLength(14);
+    for (const slot of source.slots) {
+      const day = addDays(TARGET_WEEK, isoWeekday(slot.day) - 1);
+      const copied = target.slots.find((s) => s.day === day && s.meal === slot.meal && s.course === slot.course);
+      expect(copied?.recipe?.id).toBe(slot.recipe!.id);
+    }
+  });
+
+  it('replaces a contorno that is no longer eligible with another contorno, keeping the rest', async () => {
+    const householdId = await secondoContornoHousehold();
+    const source = shownPlan((await generatePlan(opts(householdId, MON, neverGenerate()))).screen);
+    const blocked = source.slots.find((s) => s.course === 'contorno')!;
+    await db
+      .update(recipe_prefs)
+      .set({ blocked: true })
+      .where(eq(recipe_prefs.recipe_id, blocked.recipe!.id));
+
+    const { screen } = await repeatPlan(source.id, opts(householdId, SAT, neverGenerate()));
+
+    const target = shownPlan(screen);
+    const day = addDays(TARGET_WEEK, isoWeekday(blocked.day) - 1);
+    const replaced = target.slots.find((s) => s.day === day && s.course === 'contorno')!;
+    expect(replaced.recipe!.id).not.toBe(blocked.recipe!.id);
+    expect(replaced.recipe!.courses).toEqual(['contorno']);
+    const sourceMain = source.slots.find((s) => s.day === blocked.day && s.course === 'secondo')!;
+    expect(target.slots.find((s) => s.day === day && s.course === 'secondo')!.recipe!.id).toBe(
+      sourceMain.recipe!.id
+    );
+  });
+
   it('copies the same recipe per weekday and meal onto the target week without calling the LLM', async () => {
     const householdId = await richHousehold();
     const source = await sourcePlan(householdId);
@@ -305,6 +358,7 @@ describe.skipIf(!dbUp)('repeatPlan', { timeout: DB_TEST_TIMEOUT_MS }, () => {
         BOTH_MEALS.map((meal) => ({
           day,
           meal,
+          course: 'piatto-unico',
           recipe_id: pastRecipes[meal][index].id,
           servings: 2,
           locked: false,

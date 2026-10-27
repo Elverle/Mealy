@@ -102,7 +102,7 @@ describe.skipIf(!dbUp)('loadIngredientPreferences', () => {
         household: { diet_tags: [], appliances: ['fornelli', 'forno', 'microonde', 'friggitrice-ad-aria', 'frullatore'] },
         ingredientPrefs,
         excludeRecipeIds: new Set<string>(),
-        slots: [{ key: 's', day: '2026-09-30', meal: 'cena' }],
+        slots: [{ key: 's', day: '2026-09-30', meal: 'cena', course: 'any-main' }],
         candidates,
         now,
         rng,

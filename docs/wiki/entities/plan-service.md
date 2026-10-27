@@ -2,8 +2,8 @@
 title: Servizio Piani, API e Client (plan-service)
 type: entity
 created: 2026-09-29
-updated: 2026-10-21
-tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat, week-navigator, manual-choice, feature-4, feature-8, feature-9]
+updated: 2026-10-27
+tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat, week-navigator, manual-choice, compositions, side-dish, feature-4, feature-8, feature-9, feature-11]
 ---
 
 ## File e Responsabilità
@@ -39,6 +39,8 @@ export async function setSlotLock(planId: string, slotId: string, locked: boolea
 export async function swapSlot(planId: string, slotId: string, request: SwapSlotRequest, options?: PlanServiceOptions): Promise<PlanMutationResult>;
 export async function listSlotCandidates(planId: string, slotId: string, options?: PlanServiceOptions): Promise<SlotCandidates>;          // Feature 9
 export async function assignSlotRecipe(planId: string, slotId: string, recipeId: string, options?: PlanServiceOptions): Promise<PlanResult>; // Feature 9
+export async function addSideDish(planId: string, mainSlotId: string, request: SwapSlotRequest, options?: PlanServiceOptions): Promise<PlanMutationResult>; // Feature 11
+export async function removeSideDish(planId: string, sideSlotId: string, options?: PlanServiceOptions): Promise<PlanResult>;                            // Feature 11
 ```
 
 Le opzioni esistono per i test DB (household dedicati, orologio fisso, RNG seedato, `generate` iniettato con `vi.fn`).
@@ -102,6 +104,43 @@ Uno slot senza ricetta ha le sue candidate come gli altri.
 
 Restituisce `{ plan: toPlanView(updated, household riletto) }`. Gli effetti sono quelli dello swap; la ricetta tolta non si decrementa. Due assegnazioni sovrapposte sullo stesso slot si serializzano sul lock: entrambe rispondono 200 e nello slot resta una delle due ricette, quella dell'ultima transazione. È il punto in cui, in futuro, registrare il segnale implicito "scelta a mano" (`v2-funzionalita.md` §2.5); oggi non lo registra.
 
+### Composizione del pasto (Feature 11)
+
+Dalla Feature 11 ([[f11-composizione-pasto]]) uno slot è un **piatto** e il pasto è il gruppo di slot con lo stesso `(day, meal)`: un principale e, solo con un primo o un secondo, un contorno. Le regole pure stanno in [[compositions]] e nel [[planner]]; il servizio le applica. Le sezioni precedenti restano valide per i piani a un piatto per pasto; quello che cambia è qui.
+
+**Chiavi.** `mealKey(day, meal)` = `${day}|${meal}` identifica il pasto; `slotKey(day, meal, course)` = `${day}|${meal}|${course}` il piatto (prima della Feature 11 la chiave dello slot era `${day}|${meal}`). `sameMeal(a, b)` confronta giorno e pasto. `courseFilterOf(slot)` dà il filtro della scelta a mano: `'contorno'` per il contorno, `'any-main'` per il principale.
+
+**Costruzione del piano** (`buildTargetPlan` e `computeSelection`):
+1. **Seme unico** (requirements P5): all'inizio di `buildTargetPlan` si prende una volta sola `compositionSeed = Math.floor(ctx.rng() * 0x1_0000_0000)`, e ogni `computeSelection` (giri di generazione e transazione finale) lo usa. Le composizioni restano le stesse tra un giro e l'altro, quindi la generazione chiede le portate che poi si scrivono. Il seme consuma una chiamata di `ctx.rng` prima di `selectRecipes`: per questo alcune attese dei test su una ricetta precisa con `rng` fisso sono cambiate (review R5).
+2. **Pasti tenuti** (requirements P6): un pasto con almeno un piatto passato o bloccato si tiene **per intero** (`kept` = tutti i suoi slot) e non conta nel bilanciamento.
+3. **Composizioni** (`assignCompositions`, privata): per ogni tipo di pasto, i pasti con una composizione imposta (`presetCompositions` di *Ripeti*) la tengono; gli altri ricevono `distributeCompositions(household.meal_compositions[meal], n, rng)` con `rng = createRng(compositionSeed)`, in ordine di giorno.
+4. **Piatti** (`DishSlot`, uno `PlannerSlot` con la portata concreta): `compositionDishes` dà `[principale]` oppure `[principale, contorno]`.
+5. **Pre-assegnazioni** di *Ripeti*: chiave `slotKey` con la portata; una ricetta si tiene solo se `exclusionReason(recipe, meal, course, …)` è nullo.
+6. **Selezione** con `selectRecipes` sui piatti non pre-assegnati; `excludeRecipeIds` contiene le ricette dei pasti tenuti e delle pre-assegnazioni: nessuna ricetta compare due volte, contorni compresi.
+7. **Generazione**: ogni giro calcola le richieste con `planGeneration(shortagesToGenerate(...), config)` (al più `generationMax` ricette per tipo di pasto, innesto R2), le divide in lotti con `splitGenerationBatches` e li lancia tutti in parallelo; ogni lotto chiama `generate({ householdId, count, mealType, courses: filterCourses(request.course) })`, quindi anche `['contorno']` ([[recipe-generation]]). Prima della Feature 11 ogni carenza riceveva `computeGenerationCount` ricette.
+8. **Scrittura**: `insertSlots` con `course` per ogni piatto, `servings = persons`, `locked: false`.
+
+***Ripeti*** (`repeatPlan`, spec D10): per ogni slot della sorgente raccoglie le portate del pasto e pre-assegna la ricetta sulla chiave con la portata. `mealCompositionOf` trasforma le portate di ogni pasto in una composizione imposta, **anche se non è più tra quelle ammesse**; una sorgente con portate che non formano una composizione non ne impone una. Un piatto la cui ricetta non è più idonea si riempie con il planner nella stessa portata; i pasti che mancano nell'origine prendono le composizioni ammesse, bilanciate.
+
+**Blocco per pasto** (`setSlotLock`, spec D7): sotto lock trova lo slot (`slot_not_found`) e chiama `setMealLocked(tx, planId, slot.day, slot.meal, locked)` ([[plan-repo]]): tutti i piatti del pasto prendono lo stesso valore. `findSwappableSlot` considera bloccato uno slot se **un qualsiasi piatto del suo pasto** è bloccato (`slot_locked`), così regge anche dati incoerenti.
+
+**`fillDish`** (privata, requirements P12): il flusso dello swap estratto in una funzione, condivisa da `swapSlot` e `addSideDish`. Riceve un `DishFill { check, course, write }`:
+- `check(plan, slot)`: controlli in più sullo slot di partenza, ripetuti dopo ogni rilettura;
+- `course(slot)`: portata del piatto da riempire;
+- `write(tx, slot, recipeId)`: la scrittura dentro la transazione.
+
+Fase 1, fuori da transazioni: piano aperto, `findSwappableSlot`, `check`, scelta con `selectRecipes` su uno slot con quella portata ed esclusioni = tutte le ricette del piano ∪ `exclude_recipe_ids`. Se non c'è nulla: una generazione di `generationMin` ricette con `courses: filterCourses(course)`, poi rilettura e nuovo tentativo; ancora nulla → `llmError ?? no_alternatives`. Fase 2, sotto `acquirePlanLock`: rilettura di piano, slot e vincoli, `check`, nuova scelta, `write`, `incrementRecipeUsage` se il piano è `active`, `markShoppingListStale`. Restituisce `{ plan, generation }`.
+
+- **`swapSlot`** = `fillDish` con `check` vuoto, `course = slot.course` e `write = updateSlotRecipe`: il piatto **tiene la sua portata**, un principale cambia con un principale della stessa portata, un contorno con un contorno (*Cambia contorno* è uno swap sullo slot del contorno). Conseguenza per i piani migrati: uno slot che la migrazione `0007` ha messo a `piatto-unico` perché la ricetta non era classificata si cambia con un altro piatto unico (o una non classificata).
+- **`addSideDish(planId, mainSlotId, request)`** = `fillDish` con `check = assertCanAddSide`, `course = 'contorno'` e `write` che inserisce uno slot `contorno` nello stesso giorno e pasto, con le **porzioni del principale** (spec D9) e `locked: false`. `assertCanAddSide` rifiuta uno slot che non sia `primo` o `secondo` (`side_not_allowed`: un piatto unico, o lo slot di un contorno) e un pasto che ha già un contorno (`side_exists`). Valgono anche `slot_locked`, `slot_past` e `plan_archived`. L'indice unico del DB è l'ultima difesa contro due aggiunte concorrenti.
+- **`removeSideDish(planId, sideSlotId)`**: una sola transazione sotto lock; `findSwappableSlot` (`slot_locked`, `slot_past`), poi `not_a_side_dish` se lo slot non è un contorno; `deleteSlots`, `markShoppingListStale`, household riletto con `getHouseholdById(…, tx)`. Restituisce `{ plan }`, senza conferma (spec FR-5.8). L'uso della ricetta tolta non si decrementa.
+
+**Scelta a mano per portata:**
+- `listSlotCandidates` filtra con `manualChoiceExclusionReason(recipe, slot.meal, courseFilterOf(slot), household)`: sul principale una qualsiasi principale, sul contorno solo i contorni (spec FR-5.4, FR-5.5). Esclude, oltre alla ricetta dello slot, quella **dell'altro piatto dello stesso pasto** (fix della code review, `028fb7d`). Una ricetta di un altro pasto resta ammessa e compare in `in_plan_recipe_ids`, come dalla Feature 9.
+- `assignSlotRecipe` controlla l'idoneità con lo stesso filtro, poi rifiuta con `recipe_not_eligible` la ricetta già nell'altro piatto dello stesso pasto (fix della code review). Sul principale la portata la decide `mainCourseForChoice(recipe.courses, slot.course, hasSide)` ([[compositions]]); `updateSlotRecipe(tx, slotId, recipeId, course)` la scrive insieme alla ricetta e, se diventa `piatto-unico`, il contorno del pasto si cancella nella stessa transazione. La composizione che ne esce può non essere tra quelle ammesse: la scelta a mano vince sulle Impostazioni. Una richiesta ripetuta (stessa ricetta e stessa portata) non scrive nulla.
+
+**Lista della spesa**: nessuna modifica. Ogni slot è un piatto, quindi la lista consolida già i contorni alle porzioni del pasto ([[shopping-service]]); `tests/plans/side-dish.test.ts` lo verifica su un piano confermato.
+
 ## Errori di Dominio (`errors.ts`)
 
 | Codice | HTTP | Messaggio |
@@ -117,8 +156,11 @@ Restituisce `{ plan: toPlanView(updated, household riletto) }`. Gli effetti sono
 | `no_alternatives` | 422 | `Non ci sono altre ricette adatte a questo pasto.` |
 | `recipe_not_found` | 404 | `Ricetta non trovata.` (Feature 9) |
 | `recipe_not_eligible` | 422 | `Questa ricetta non è adatta a questo pasto.` (Feature 9) |
+| `side_not_allowed` | 409 | `Questo pasto non prevede un contorno.` (Feature 11) |
+| `side_exists` | 409 | `Questo pasto ha già un contorno.` (Feature 11) |
+| `not_a_side_dish` | 409 | `Si può togliere solo il contorno.` (Feature 11) |
 
-`PlanError(code)` usa il messaggio della tabella; `isPlanError(err)` è la type guard. `recipe_not_found` ha lo stesso codice e messaggio della risposta 404 di `GET /api/recipes/:id` ([[library-service]]), che però non passa da `PlanError`.
+`PlanError(code)` usa il messaggio della tabella; `isPlanError(err)` è la type guard. Dalla Feature 11 `errors.ts` esporta anche `STALE_PLAN_ERROR_CODES: ReadonlySet<string>`, l'unico elenco dei codici che impongono al client di rileggere il piano mostrato: `slot_locked`, `slot_past`, `plan_archived`, `plan_not_found`, `slot_not_found`, `side_exists`, `side_not_allowed`, `not_a_side_dish` (proposta P3 della review architetturale della Feature 11). Lo importano [[slot-recipe-picker]] e `PlanSlotCard` ([[plan-screen]]) al posto delle costanti locali. `recipe_not_found` ha lo stesso codice e messaggio della risposta 404 di `GET /api/recipes/:id` ([[library-service]]), che però non passa da `PlanError`.
 
 ## API HTTP (`app/api/plans/**`)
 
@@ -134,10 +176,14 @@ Tutte le rotte hanno `runtime = 'nodejs'` e `dynamic = 'force-dynamic'`. Un id o
 | `POST /api/plans/:id/slots/:slotId/swap` | `{ exclude_recipe_ids?: uuid[] }` (max 50; body vuoto ammesso) | 200 `PlanMutationResult` | 400 con `details`; 404; 409 `plan_archived` / `slot_locked` / `slot_past`; 422 `no_alternatives`; errori LLM | 250 |
 | `GET /api/plans/:id/slots/:slotId/candidates` (Feature 9) | — | 200 `SlotCandidates` | 404 `plan_not_found` / `slot_not_found`; 409 `plan_archived` / `slot_locked` / `slot_past`; 500 | — |
 | `PUT /api/plans/:id/slots/:slotId/recipe` (Feature 9) | `{ recipe_id: uuid }` (strict, body obbligatorio) | 200 `PlanResult` | 400 con `details`; 404 `plan_not_found` / `slot_not_found` / `recipe_not_found`; 409 `plan_archived` / `slot_locked` / `slot_past`; 422 `recipe_not_eligible`; 500 | — |
+| `POST /api/plans/:id/slots/:slotId/side` (Feature 11) | `{ exclude_recipe_ids?: uuid[] }` (lo stesso `SwapSlotRequestSchema` dello swap; body vuoto ammesso); `slotId` è il **principale** | 200 `PlanMutationResult` | 400 con `details`; 404; 409 `plan_archived` / `slot_locked` / `slot_past` / `side_not_allowed` / `side_exists`; 422 `no_alternatives`; errori LLM | 250 |
+| `DELETE /api/plans/:id/slots/:slotId` (Feature 11) | nessun corpo; `slotId` è il **contorno**; stessa rotta del `PATCH` | 200 `PlanResult` | 404 `plan_not_found` / `slot_not_found`; 409 `plan_archived` / `slot_locked` / `slot_past` / `not_a_side_dish` | — |
+
+Dalla Feature 11 il `PATCH` blocca o sblocca il **pasto** dello slot (tutti i suoi piatti) e lo swap tiene la portata del piatto; le firme delle rotte esistenti non cambiano. Tag di log: `[api/plans/side]` per l'aggiunta; il `DELETE` usa quello della rotta, `[api/plans/slots]`.
 
 Tag di log delle due rotte della Feature 9: `[api/plans/candidates]` e `[api/plans/slot-recipe]`. Passano da `handlePlanRouteError` come le altre, quindi un errore LLM verrebbe mappato anche qui, ma il servizio non ne produce.
 
-**Durate**: il caso peggiore di `POST /api/plans` è `maxGenerationRoundsPlan × 2 × LLM_TIMEOUT_MS` (ogni lotto può includere la chiamata di riparazione): 6 minuti con i default, 8 con `LLM_TIMEOUT_MS = 120000`, coperti da `maxDuration = 500`; swap e *Ripeti* fanno al più un giro (`2 × LLM_TIMEOUT_MS`) con `maxDuration = 250` (fix m3 della code review, `ARCHITECTURE §6`). Sul Raspberry (Next standalone) `maxDuration` non è applicato: conta solo per l'opzione Vercel.
+**Durate**: il caso peggiore di `POST /api/plans` è `maxGenerationRoundsPlan × 2 × LLM_TIMEOUT_MS` (ogni lotto può includere la chiamata di riparazione): 6 minuti con i default, 8 con `LLM_TIMEOUT_MS = 120000`, coperti da `maxDuration = 500`; swap, *Ripeti* e (dalla Feature 11) aggiunta del contorno fanno al più un giro (`2 × LLM_TIMEOUT_MS`) con `maxDuration = 250` (fix m3 della code review, `ARCHITECTURE §6`). Sul Raspberry (Next standalone) `maxDuration` non è applicato: conta solo per l'opzione Vercel.
 
 ## Client (`client.ts`)
 
@@ -151,6 +197,8 @@ export function requestSwapSlot(planId: string, slotId: string, excludeRecipeIds
 export function requestRepeatPlan(planId: string): Promise<GeneratePlanResult>;       // POST /api/plans/{id}/repeat
 export function fetchSlotCandidates(planId: string, slotId: string): Promise<SlotCandidates>;                        // Feature 9: GET …/candidates
 export function requestAssignSlotRecipe(planId: string, slotId: string, recipeId: string): Promise<PlanResult>;      // Feature 9: PUT …/recipe
+export function requestAddSideDish(planId: string, mainSlotId: string, excludeRecipeIds: string[]): Promise<PlanMutationResult>; // Feature 11: POST …/side
+export function requestRemoveSideDish(planId: string, sideSlotId: string): Promise<PlanResult>;                        // Feature 11: DELETE, senza corpo
 ```
 
 Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte ogni `ApiRequestError` in `PlanRequestError` con gli stessi `status`, `code` e `message` (rete → `0` / `network_error` / `Connessione non disponibile.`; 2xx non conforme → `invalid_response`).
@@ -167,6 +215,7 @@ Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte
 - `tests/plans/client.test.ts` e `tests/plans/format.test.ts`.
 - `tests/plans/assign.test.ts` (Feature 9, DB): candidate solo adatte con ingredienti scartati ammessi e senza la ricetta dello slot, preferite prima, `in_plan_recipe_ids` senza la ricetta dello slot, rifiuti di piano e slot, slot senza ricetta; assegnazione su bozza senza toccare l'uso, su piano confermato con lista (uso contato, lista segnata), ingrediente scartato ammesso, ricetta già in un altro slot, ricetta inesistente o di un altro household, bloccata, di un altro pasto, non vegetariana o con un elettrodomestico mancante, richiesta ripetuta senza scritture, household riletto sotto lock, due assegnazioni sovrapposte. L'asserzione di confine `SlotCandidatesSchema.parse(JSON.parse(JSON.stringify(…)))` fissa la compatibilità con lo schema del client (innesto R6). `tests/api/plans-assign.test.ts` (servizio mockato) e casi aggiunti in `tests/plans/client.test.ts`.
 - Feature 8 (nessuna modifica a `lib/plans/`: la regola sta nel planner, [[planner]]): `tests/plans/service.test.ts` (una libreria di soli contorni non riempie mai uno slot e risulta insufficiente; un piano con un contorno assegnato prima della regola si legge senza errori), `tests/plans/swap.test.ts` (lo swap non propone mai un contorno e prende un secondo libero), `tests/plans/assign.test.ts` (candidate senza i contorni, con i secondi della stessa dieta; assegnazione di un contorno rifiutata con `recipe_not_eligible` e slot invariato). I piani esistenti non cambiano: una ricetta assegnata prima resta nel suo slot anche se è solo contorno.
+- Feature 11 (DB reale): `tests/plans/compose.test.ts` (cene composte con le composizioni ammesse e bilanciate senza chiamate al modello, una sola composizione `secondo-contorno`, generazione dei soli contorni quando mancano, al più `generationMax` ricette per tipo di pasto con più gruppi carenti, pasto bloccato con contorno tenuto identico da *Rigenera*, piano completo dal pacchetto vero senza il modello) e `tests/plans/side-dish.test.ts` (aggiunta nello stesso giorno e pasto con le stesse porzioni e la lista segnata; uso contato sul piano confermato; `side_not_allowed` su un piatto unico e su un contorno; `side_exists`; `slot_locked` e `slot_past`; generazione con `courses: ['contorno']`; rimozione e `not_a_side_dish`; *Scegli* di un piatto unico che toglie il contorno e di un primo che lo tiene; candidate per portata; blocco del pasto dal contorno; *Cambia contorno* che lascia il principale; stessa ricetta nei due piatti rifiutata ed esclusa dalle candidate; ricetta di un altro pasto ammessa e segnata; lista della spesa con il contorno). Casi aggiunti in `tests/plans/repeat.test.ts` (composizione e ricetta copiate anche se non più ammesse, contorno non più idoneo sostituito da un altro contorno) e ritocchi a `service.test.ts` e `swap.test.ts`; nella code review i file di test dei piani sono tornati a fine riga LF. Rotte: `tests/api/plans-side.test.ts` (`maxDuration` 250, corpo vuoto, 400, 404 senza chiamare il servizio, `side_exists` 409, `no_alternatives` 422, errore LLM 502, `DELETE` 200 e `not_a_side_dish` 409). Client ed errori: casi in `tests/plans/client.test.ts` (`requestAddSideDish`, `requestRemoveSideDish`, mappatura di `side_exists` e `not_a_side_dish`, messaggi italiani, contenuto di `STALE_PLAN_ERROR_CODES`).
 - `tests/plans/ingredient-prefs.test.ts` (Feature 5, DB): con uno scarto attivo 20 piani seedati non contengono mai le ricette con quell'ingrediente e `generate` non viene chiamata; controprova senza lo scarto; swap senza alternative dopo uno scarto → `no_alternatives`. `tests/prefs/planner-integration.test.ts` fa lo stesso passando dai servizi delle preferenze, anche per una ricetta bloccata.
 
 ## Vedi anche
@@ -185,3 +234,5 @@ Ogni funzione valida la risposta 2xx con lo schema Zod corrispondente e converte
 - [[slot-recipe-picker]] — Selettore che usa candidate e assegnazione (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[f8-portate-etichette]] — Feature 8: nessun contorno da solo nel piano
+- [[compositions]] — Regole pure delle composizioni (Feature 11)
+- [[f11-composizione-pasto]] — Panoramica della Feature 11

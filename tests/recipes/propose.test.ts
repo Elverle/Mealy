@@ -328,11 +328,11 @@ describe.skipIf(!dbUp)('proposeRecipe and saveProposedRecipe', () => {
 
     it('returns the proposal with the style tags derived from the rules', async () => {
       const householdId = await createHousehold();
-      // Tre ingredienti misurati: pochi-ingredienti; portata secondo: piatto-unico va tolto.
+      // Tre ingredienti misurati: pochi-ingredienti si aggiunge alle etichette del modello.
       const recipe = makeGeneratedRecipe({
         title: 'Ceci saltati',
         courses: ['secondo'],
-        tags: ['piatto-unico'],
+        tags: ['comfort-food'],
       });
 
       const proposal = await proposeRecipe(
@@ -340,7 +340,67 @@ describe.skipIf(!dbUp)('proposeRecipe and saveProposedRecipe', () => {
         { generate: vi.fn().mockResolvedValue(recipe) }
       );
 
-      expect(proposal.recipe.tags).toEqual(['pochi-ingredienti']);
+      expect(proposal.recipe.tags).toEqual(['comfort-food', 'pochi-ingredienti']);
+    });
+
+    it('asks the model for a side dish only when sideDish is set, and rejects a main course from the side-dish selector', async () => {
+      const householdId = await createHousehold();
+      const generate = vi.fn().mockResolvedValue({ ...lasagne(), meal_types: ['cena'] });
+
+      const error = await rejectionOf(
+        proposeRecipe(
+          {
+            householdId,
+            request: 'lasagne al pesto',
+            mealType: 'cena',
+            excludeTitles: [],
+            sideDish: true,
+          },
+          { generate }
+        )
+      );
+
+      expect((error as RecipeError).code).toBe('proposal_unsuitable');
+      expect(generate.mock.calls[0][0].courses).toEqual(['contorno']);
+      expect(console.warn).toHaveBeenCalledWith(
+        '[recipes/propose] proposal_unsuitable',
+        expect.objectContaining({ violations: ['portata non adatta al pasto'] })
+      );
+    });
+
+    it('accepts from the side-dish selector a proposal that is a side dish, with its courses', async () => {
+      const householdId = await createHousehold();
+
+      const proposal = await proposeRecipe(
+        {
+          householdId,
+          request: 'zucchine croccanti',
+          mealType: 'cena',
+          excludeTitles: [],
+          sideDish: true,
+        },
+        { generate: vi.fn().mockResolvedValue(sideDishRecipe()) }
+      );
+
+      expect(proposal.recipe.courses).toEqual(['contorno']);
+    });
+
+    it('asks for a main course from the Piano when sideDish is not set', async () => {
+      const householdId = await createHousehold();
+      const generate = vi.fn().mockResolvedValue({ ...lasagne(), meal_types: ['cena'] });
+
+      await proposeRecipe(
+        {
+          householdId,
+          request: 'lasagne al pesto',
+          mealType: 'cena',
+          excludeTitles: [],
+          sideDish: false,
+        },
+        { generate }
+      );
+
+      expect(generate.mock.calls[0][0].courses).toEqual(['piatto-unico', 'primo', 'secondo']);
     });
   });
 
@@ -423,14 +483,14 @@ describe.skipIf(!dbUp)('proposeRecipe and saveProposedRecipe', () => {
       const household = await loadHousehold(householdId);
 
       expect(
-        exclusionReason(saved, 'pranzo', {
+        exclusionReason(saved, 'pranzo', 'any-main', {
           household,
           ingredientPrefs: toIngredientPreferenceSets([], ['basilico']),
           excludeRecipeIds: new Set(),
         })
       ).toBe('disliked_ingredient');
       // R6/P2: la scelta a mano della stessa ricetta resta ammessa.
-      expect(manualChoiceExclusionReason(saved, 'pranzo', household)).toBeNull();
+      expect(manualChoiceExclusionReason(saved, 'pranzo', 'any-main', household)).toBeNull();
     });
 
     it('lets exactly one of two overlapping saves of the same title succeed', async () => {

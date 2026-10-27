@@ -3,13 +3,21 @@ import {
   PlanRequestError,
   fetchPlanScreen,
   fetchSlotCandidates,
+  requestAddSideDish,
   requestAssignSlotRecipe,
   requestConfirmPlan,
   requestGeneratePlan,
+  requestRemoveSideDish,
   requestRepeatPlan,
   requestSlotLock,
   requestSwapSlot,
 } from '@/lib/plans/client';
+import {
+  PLAN_ERROR_CODES,
+  PLAN_ERROR_HTTP,
+  STALE_PLAN_ERROR_CODES,
+  type PlanErrorCode,
+} from '@/lib/plans/errors';
 import { ApiRequestError } from '@/lib/http/client';
 
 const PLAN_ID = '11111111-1111-4111-8111-111111111111';
@@ -221,5 +229,107 @@ describe('slot recipe choice requests', () => {
       code: 'recipe_not_eligible',
       message: 'Questa ricetta non è adatta a questo pasto.',
     });
+  });
+});
+
+const MAIN_SLOT_ID = '44444444-4444-4444-8444-444444444444';
+const SIDE_SLOT_ID = '55555555-5555-4555-8555-555555555555';
+
+describe('side dish requests', () => {
+  it('requestAddSideDish POSTs the exclude list to the side route of the main slot', async () => {
+    const fetchMock = stubFetch(jsonResponse(200, { plan: PLAN, generation: GENERATION }));
+
+    await expect(requestAddSideDish(PLAN_ID, MAIN_SLOT_ID, ['a', 'b'])).resolves.toEqual({
+      plan: PLAN,
+      generation: GENERATION,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`/api/plans/${PLAN_ID}/slots/${MAIN_SLOT_ID}/side`);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ exclude_recipe_ids: ['a', 'b'] });
+  });
+
+  it('requestRemoveSideDish DELETEs the side slot without a body and returns the plan', async () => {
+    const fetchMock = stubFetch(jsonResponse(200, { plan: PLAN }));
+
+    await expect(requestRemoveSideDish(PLAN_ID, SIDE_SLOT_ID)).resolves.toEqual({ plan: PLAN });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`/api/plans/${PLAN_ID}/slots/${SIDE_SLOT_ID}`);
+    expect(init.method).toBe('DELETE');
+    expect(init.body).toBeUndefined();
+  });
+
+  it('maps a 409 side_exists to a PlanRequestError with that code and message', async () => {
+    stubFetch(
+      jsonResponse(409, {
+        error: { code: 'side_exists', message: 'Questo pasto ha già un contorno.' },
+      })
+    );
+
+    const error = await requestAddSideDish(PLAN_ID, MAIN_SLOT_ID, []).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(PlanRequestError);
+    expect(error).toMatchObject({
+      status: 409,
+      code: 'side_exists',
+      message: 'Questo pasto ha già un contorno.',
+    });
+  });
+
+  it('maps a 409 not_a_side_dish from the remove route to a PlanRequestError', async () => {
+    stubFetch(
+      jsonResponse(409, {
+        error: { code: 'not_a_side_dish', message: 'Si può togliere solo il contorno.' },
+      })
+    );
+
+    const error = await requestRemoveSideDish(PLAN_ID, MAIN_SLOT_ID).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(PlanRequestError);
+    expect(error).toMatchObject({
+      status: 409,
+      code: 'not_a_side_dish',
+      message: 'Si può togliere solo il contorno.',
+    });
+  });
+});
+
+describe('plan error codes for side dishes', () => {
+  const SIDE_CODES: PlanErrorCode[] = ['side_not_allowed', 'side_exists', 'not_a_side_dish'];
+
+  it.each(SIDE_CODES)('registers %s in PLAN_ERROR_CODES with a 409 message', (code) => {
+    expect(PLAN_ERROR_CODES).toContain(code);
+    expect(PLAN_ERROR_HTTP[code].status).toBe(409);
+  });
+
+  it('uses the Italian messages of the microcopy table', () => {
+    expect(PLAN_ERROR_HTTP.side_not_allowed.message).toBe('Questo pasto non prevede un contorno.');
+    expect(PLAN_ERROR_HTTP.side_exists.message).toBe('Questo pasto ha già un contorno.');
+    expect(PLAN_ERROR_HTTP.not_a_side_dish.message).toBe('Si può togliere solo il contorno.');
+  });
+});
+
+describe('STALE_PLAN_ERROR_CODES', () => {
+  it('contains exactly the codes that force the shown plan to be re-read', () => {
+    expect([...STALE_PLAN_ERROR_CODES].sort()).toEqual(
+      [
+        'not_a_side_dish',
+        'plan_archived',
+        'plan_not_found',
+        'side_exists',
+        'side_not_allowed',
+        'slot_locked',
+        'slot_not_found',
+        'slot_past',
+      ].sort()
+    );
+  });
+
+  it('contains only registered plan error codes', () => {
+    for (const code of STALE_PLAN_ERROR_CODES) {
+      expect(PLAN_ERROR_CODES).toContain(code);
+    }
   });
 });

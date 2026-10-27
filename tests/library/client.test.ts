@@ -121,6 +121,38 @@ describe('requestRecipeProposal', () => {
 
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal);
   });
+
+  it('sends side_dish true in the body only when sideDish is set', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { recipe: GENERATED_RECIPE, duplicate_of: null }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await requestRecipeProposal({
+      request: 'zucchine',
+      mealType: 'cena',
+      excludeTitles: [],
+      sideDish: true,
+    });
+
+    const body = (fetchMock.mock.calls[0][1] as RequestInit).body as string;
+    expect(body).toContain('"side_dish":true');
+    expect(JSON.parse(body)).toEqual({
+      request: 'zucchine',
+      meal_type: 'cena',
+      exclude_titles: [],
+      side_dish: true,
+    });
+  });
+
+  it('keeps the body identical to before when sideDish is not set', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { recipe: GENERATED_RECIPE, duplicate_of: null }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await requestRecipeProposal({ request: 'pasta', mealType: 'cena', excludeTitles: [] });
+
+    expect((fetchMock.mock.calls[0][1] as RequestInit).body).toBe(
+      '{"request":"pasta","meal_type":"cena","exclude_titles":[]}'
+    );
+  });
 });
 
 describe('requestSaveRecipe', () => {

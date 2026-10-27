@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { putSettings, SettingsRequestError } from "@/lib/settings/client";
-import type { SaveSettingsResult, UpdateSettingsRequest } from "@/lib/domain/types";
+import { DEFAULT_MEAL_COMPOSITIONS, type SaveSettingsResult, type UpdateSettingsRequest } from "@/lib/domain/types";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -12,6 +12,7 @@ function jsonResponse(status: number, body: unknown): Response {
 const VALID_BODY: UpdateSettingsRequest = {
   persons: 2,
   meals: ["pranzo", "cena"],
+  meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
   meal_style_tags: ["veloce"],
   diet_tags: [],
   appliances: ["fornelli"],
@@ -27,6 +28,7 @@ describe("putSettings", () => {
       settings: {
         persons: 2,
         meals: ["pranzo", "cena"],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ["veloce"],
         diet_tags: [],
         appliances: ["fornelli"],
@@ -105,6 +107,7 @@ describe("putSettings", () => {
       settings: {
         persons: 2,
         meals: ["pranzo", "cena"],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ["veloce"],
         diet_tags: [],
         appliances: ["fornelli"],

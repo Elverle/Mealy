@@ -1,13 +1,19 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtureRecipesAsDomain } from "@/fixtures";
-import { PlanScreen, discardPendingPlanToast } from "@/components/plan/plan-screen";
+import {
+  PlanScreen,
+  discardPendingPlanToast,
+  groupMealsByDay,
+  withMealFrom,
+} from "@/components/plan/plan-screen";
 import { toLibraryCard } from "@/lib/domain/library";
 import { defaultRecipePref } from "@/lib/domain/prefs";
 import type {
   GeneratePlanResult,
   PlanScreenView,
   PlanMutationResult,
+  PlanSlotView,
   PlanShoppingListView,
   PlanStatus,
   PlanView,
@@ -39,6 +45,8 @@ vi.mock("@/lib/plans/client", async (importOriginal) => {
     requestRepeatPlan: vi.fn(),
     fetchSlotCandidates: vi.fn(),
     requestAssignSlotRecipe: vi.fn(),
+    requestAddSideDish: vi.fn(),
+    requestRemoveSideDish: vi.fn(),
   };
 });
 
@@ -69,6 +77,8 @@ import {
   requestRepeatPlan,
   requestSlotLock,
   requestSwapSlot,
+  requestAddSideDish,
+  requestRemoveSideDish,
 } from "@/lib/plans/client";
 import { fetchPlanShoppingList, requestBuildShoppingList } from "@/lib/shopping/client";
 import { ApiRequestError } from "@/lib/http/client";
@@ -115,6 +125,7 @@ function makePlan({
         id: SLOT_IDS[0],
         day: "2026-09-30",
         meal: "pranzo",
+        course: "piatto-unico",
         servings: 2,
         locked: false,
         recipe: RECIPES[recipeOffset],
@@ -123,6 +134,7 @@ function makePlan({
         id: SLOT_IDS[1],
         day: "2026-09-30",
         meal: "cena",
+        course: "piatto-unico",
         servings: 2,
         locked: false,
         recipe: RECIPES[recipeOffset + 1],
@@ -1342,5 +1354,277 @@ describe("PlanScreen", () => {
       const card = screen.getByTestId(`meal-card-${SLOT_IDS[0]}`);
       expect(within(card).getByText(RECIPES[0].title)).toBeInTheDocument();
     });
+  });
+
+  describe("contorno nel pasto", () => {
+    const SIDE_SLOT_ID = "22222222-2222-4222-8222-222222222223";
+    const DINNER_MAIN = RECIPES[1];
+    const SIDE = RECIPES[2];
+    const LOCK_LABEL = "Blocca pasto";
+    const UNLOCK_LABEL = "Sblocca pasto";
+    const sideRowName = (title: string) => `Togli contorno: ${title}`;
+
+    /** Piano con pranzo di un piatto unico e cena con principale (secondo) e, se `withSide`, contorno. */
+    function dinnerPlan({
+      withSide = true,
+      locked = false,
+      mainCourse = "secondo",
+    }: { withSide?: boolean; locked?: boolean; mainCourse?: PlanSlotView["course"] } = {}): PlanView {
+      const base = makePlan();
+      const main: PlanSlotView = {
+        ...base.slots[1],
+        course: mainCourse,
+        recipe: DINNER_MAIN,
+        locked,
+      };
+      const side: PlanSlotView = {
+        id: SIDE_SLOT_ID,
+        day: "2026-09-30",
+        meal: "cena",
+        course: "contorno",
+        servings: 2,
+        locked,
+        recipe: SIDE,
+      };
+      return { ...base, slots: [base.slots[0], main, ...(withSide ? [side] : [])] };
+    }
+
+    const dinnerCard = () => screen.getByTestId(`meal-card-${SLOT_IDS[1]}`);
+
+    it("shows the side dish inside the card of its meal: one card per meal", () => {
+      render(<PlanScreen initialScreen={makeScreen({ view: { plan: dinnerPlan() } })} />);
+
+      expect(screen.getAllByTestId(/^meal-card-/)).toHaveLength(2);
+      expect(within(dinnerCard()).getByText(SIDE.title)).toBeInTheDocument();
+      expect(within(dinnerCard()).getByText("Contorno")).toBeInTheDocument();
+      expect(screen.queryByTestId(`meal-card-${SIDE_SLOT_ID}`)).toBeNull();
+    });
+
+    it("adds a side dish from the card: the row appears with the returned plan", async () => {
+      vi.mocked(requestAddSideDish).mockResolvedValueOnce({
+        plan: dinnerPlan(),
+        generation: { rounds: 0, created: 0, failed: false },
+      });
+      render(
+        <PlanScreen
+          initialScreen={makeScreen({ view: { plan: dinnerPlan({ withSide: false }) } })}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Aggiungi un contorno" }));
+
+      expect(requestAddSideDish).toHaveBeenCalledWith(PLAN_ID, SLOT_IDS[1], []);
+      expect(await within(dinnerCard()).findByText(SIDE.title)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Aggiungi un contorno" })).toBeNull();
+    });
+
+    it("removes the side dish: the row goes and «Aggiungi un contorno» comes back", async () => {
+      vi.mocked(requestRemoveSideDish).mockResolvedValueOnce({
+        plan: dinnerPlan({ withSide: false }),
+      });
+      render(<PlanScreen initialScreen={makeScreen({ view: { plan: dinnerPlan() } })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: sideRowName(SIDE.title) }));
+
+      expect(requestRemoveSideDish).toHaveBeenCalledWith(PLAN_ID, SIDE_SLOT_ID);
+      expect(
+        await screen.findByRole("button", { name: "Aggiungi un contorno" })
+      ).toBeInTheDocument();
+      expect(screen.queryByText(SIDE.title)).toBeNull();
+    });
+
+    it("locks the whole meal with the id of the main dish, and the side dish with it", async () => {
+      const pending = deferred<{ plan: PlanView }>();
+      vi.mocked(requestSlotLock).mockReturnValueOnce(pending.promise);
+      render(<PlanScreen initialScreen={makeScreen({ view: { plan: dinnerPlan() } })} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: LOCK_LABEL })[1]);
+
+      expect(requestSlotLock).toHaveBeenCalledWith(PLAN_ID, SLOT_IDS[1], true);
+      expect(within(dinnerCard()).getByRole("button", { name: UNLOCK_LABEL })).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+      // Il contorno bloccato non offre più azioni nella riga; il principale non si cambia.
+      expect(
+        within(dinnerCard()).queryByRole("button", { name: sideRowName(SIDE.title) })
+      ).toBeNull();
+      expect(
+        within(dinnerCard()).getByRole("button", { name: `Cambia ${DINNER_MAIN.title}` })
+      ).toBeDisabled();
+
+      const locked = dinnerPlan({ locked: true });
+      await act(async () => pending.resolve({ plan: locked }));
+
+      expect(within(dinnerCard()).getByRole("button", { name: UNLOCK_LABEL })).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: UNLOCK_LABEL })).toHaveLength(1);
+    });
+
+    it("rolls the lock back on both dishes of the meal when the request fails", async () => {
+      vi.mocked(requestSlotLock).mockRejectedValueOnce(
+        new PlanRequestError(500, "internal_error", "Impossibile bloccare il pasto.")
+      );
+      render(<PlanScreen initialScreen={makeScreen({ view: { plan: dinnerPlan() } })} />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: LOCK_LABEL })[1]);
+
+      expect(await screen.findByText("Impossibile bloccare il pasto.")).toBeInTheDocument();
+      expect(within(dinnerCard()).getByRole("button", { name: LOCK_LABEL })).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+      expect(
+        within(dinnerCard()).getByRole("button", { name: sideRowName(SIDE.title) })
+      ).toBeEnabled();
+      expect(
+        within(dinnerCard()).getByRole("button", { name: `Cambia ${DINNER_MAIN.title}` })
+      ).toBeEnabled();
+    });
+
+    it("disables the lock while a side dish is being added", () => {
+      vi.mocked(requestAddSideDish).mockReturnValueOnce(new Promise<PlanMutationResult>(() => {}));
+      render(
+        <PlanScreen
+          initialScreen={makeScreen({ view: { plan: dinnerPlan({ withSide: false }) } })}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Aggiungi un contorno" }));
+
+      expect(within(dinnerCard()).getByRole("button", { name: LOCK_LABEL })).toBeDisabled();
+      expect(requestSlotLock).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("groupMealsByDay", () => {
+  const slot = (
+    id: string,
+    meal: PlanSlotView["meal"],
+    course: PlanSlotView["course"],
+    day = "2026-09-30"
+  ): PlanSlotView => ({ id, day, meal, course, servings: 2, locked: false, recipe: RECIPES[0] });
+
+  it("pairs each meal's main dish with its side dish, one group per meal", () => {
+    const groups = groupMealsByDay([
+      slot("a", "pranzo", "piatto-unico"),
+      slot("b", "cena", "secondo"),
+      slot("c", "cena", "contorno"),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].day).toBe("2026-09-30");
+    expect(groups[0].meals.map((meal) => [meal.main.id, meal.side?.id ?? null])).toEqual([
+      ["a", null],
+      ["b", "c"],
+    ]);
+  });
+
+  it("splits days and keeps the order of the slots", () => {
+    const groups = groupMealsByDay([
+      slot("a", "pranzo", "primo", "2026-09-30"),
+      slot("b", "cena", "secondo", "2026-09-30"),
+      slot("c", "pranzo", "secondo", "2026-10-01"),
+    ]);
+
+    expect(groups.map((group) => group.day)).toEqual(["2026-09-30", "2026-10-01"]);
+    expect(groups[0].meals.map((meal) => meal.main.id)).toEqual(["a", "b"]);
+    expect(groups[1].meals.map((meal) => meal.main.id)).toEqual(["c"]);
+  });
+});
+
+describe("withMealFrom", () => {
+  const SIDE_SLOT_ID = "22222222-2222-4222-8222-222222222223";
+  const SIDE = RECIPES[2];
+
+  function screenOf(plan: PlanView): PlanScreenView {
+    return makeScreen({ view: { plan } });
+  }
+
+  /** Cena con principale e, se `withSide`, contorno. Pranzo: piatto unico. */
+  function planWithDinner({
+    withSide,
+    locked = false,
+    lunchLocked = false,
+  }: {
+    withSide: boolean;
+    locked?: boolean;
+    lunchLocked?: boolean;
+  }): PlanView {
+    const base = makePlan();
+    const lunch = { ...base.slots[0], locked: lunchLocked };
+    const dinner = { ...base.slots[1], course: "secondo" as const, locked };
+    const side: PlanSlotView = {
+      id: SIDE_SLOT_ID,
+      day: "2026-09-30",
+      meal: "cena",
+      course: "contorno",
+      servings: 2,
+      locked,
+      recipe: SIDE,
+    };
+    return { ...base, slots: [lunch, dinner, ...(withSide ? [side] : [])] };
+  }
+
+  it("replaces the slots of the meal with the server ones, an added side dish included", () => {
+    const local = screenOf(planWithDinner({ withSide: false }));
+    const server = planWithDinner({ withSide: true });
+
+    const next = withMealFrom(local, server, "2026-09-30", "cena");
+
+    expect(next.view.plan?.slots.map((slot) => slot.id)).toEqual([
+      SLOT_IDS[0],
+      SLOT_IDS[1],
+      SIDE_SLOT_ID,
+    ]);
+  });
+
+  it("removes the side dish when the server answer has none", () => {
+    const local = screenOf(planWithDinner({ withSide: true }));
+    const server = planWithDinner({ withSide: false });
+
+    const next = withMealFrom(local, server, "2026-09-30", "cena");
+
+    expect(next.view.plan?.slots.map((slot) => slot.id)).toEqual([SLOT_IDS[0], SLOT_IDS[1]]);
+  });
+
+  it("keeps the meal locked locally when the server answer carries locked false", () => {
+    const local = screenOf(planWithDinner({ withSide: true, locked: true }));
+    const server = planWithDinner({ withSide: true, locked: false });
+
+    const next = withMealFrom(local, server, "2026-09-30", "cena");
+
+    const dinner = next.view.plan?.slots.filter((slot) => slot.meal === "cena") ?? [];
+    expect(dinner.map((slot) => slot.locked)).toEqual([true, true]);
+  });
+
+  it("leaves the other meals of the plan as they are", () => {
+    const local = screenOf(planWithDinner({ withSide: false, lunchLocked: true }));
+    const server = planWithDinner({ withSide: true, lunchLocked: false });
+
+    const next = withMealFrom(local, server, "2026-09-30", "cena");
+
+    expect(next.view.plan?.slots[0]).toEqual(local.view.plan?.slots[0]);
+  });
+
+  it("returns the screen itself for another plan or for a meal that is not shown", () => {
+    const local = screenOf(planWithDinner({ withSide: false }));
+    const otherPlan = { ...planWithDinner({ withSide: true }), id: OTHER_PLAN_ID };
+
+    expect(withMealFrom(local, otherPlan, "2026-09-30", "cena")).toBe(local);
+    expect(withMealFrom(local, planWithDinner({ withSide: true }), "2026-10-01", "pranzo")).toBe(
+      local
+    );
+  });
+
+  it("applies the shopping list state passed with the answer", () => {
+    const local = screenOf(planWithDinner({ withSide: false }));
+    const server = planWithDinner({ withSide: true });
+
+    const next = withMealFrom(local, server, "2026-09-30", "cena", {
+      shopping_list: { exists: true, needs_regeneration: true },
+    });
+
+    expect(next.view.plan?.shopping_list).toEqual({ exists: true, needs_regeneration: true });
   });
 });

@@ -23,6 +23,12 @@ export const households = pgTable('households', {
   meals: text('meals').array().notNull(),
   diet_tags: text('diet_tags').array().notNull().default(sql`ARRAY[]::text[]`),
   meal_style_tags: text('meal_style_tags').array().notNull().default(sql`ARRAY[]::text[]`),
+  meal_compositions: jsonb('meal_compositions')
+    .$type<Record<string, string[]>>()
+    .notNull()
+    .default(
+      sql`'{"pranzo":["piatto-unico","primo","primo-contorno","secondo","secondo-contorno"],"cena":["piatto-unico","primo","primo-contorno","secondo","secondo-contorno"]}'::jsonb`
+    ),
   appliances: text('appliances').array().notNull().default(sql`ARRAY[]::text[]`),
   onboarded_at: timestamp('onboarded_at', { withTimezone: true }),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -176,12 +182,19 @@ export const plan_slots = pgTable(
       .references(() => meal_plans.id, { onDelete: 'cascade' }),
     day: date('day').notNull(),
     meal: text('meal').notNull(),
+    course: text('course').notNull(),
     recipe_id: uuid('recipe_id').references(() => recipes.id, { onDelete: 'set null' }),
     servings: integer('servings').notNull(),
     locked: boolean('locked').notNull().default(false),
   },
   (table) => [
-    uniqueIndex('plan_slots_plan_day_meal_idx').on(table.plan_id, table.day, table.meal),
+    // Al più un principale e un contorno per pasto.
+    uniqueIndex('plan_slots_plan_day_meal_side_idx').on(
+      table.plan_id,
+      table.day,
+      table.meal,
+      sql`(${table.course} = 'contorno')`
+    ),
   ]
 );
 

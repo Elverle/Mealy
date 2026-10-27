@@ -2,8 +2,8 @@
 title: Adapter LLM Multi-Provider (llm-adapter)
 type: entity
 created: 2026-09-17
-updated: 2026-10-26
-tags: [llm, ai-sdk, adapter, multi-provider, structured-output, repair-loop, errors, free-text-request, courses, classification, recipe-pack, feature-8, feature-10]
+updated: 2026-10-27
+tags: [llm, ai-sdk, adapter, multi-provider, structured-output, repair-loop, errors, free-text-request, courses, classification, recipe-pack, feature-8, feature-10, feature-11]
 ---
 
 ## File e Responsabilità
@@ -101,7 +101,7 @@ Il modulo `lib/llm/prompts.ts` governa la comunicazione con l'LLM:
 `lib/llm/index.ts` riesporta anche `generateRecipeFromRequest`, `buildRecipeRequestPrompt`, `RECIPE_REQUEST_OPEN` e `RECIPE_REQUEST_CLOSE`.
 
 ### Portate ed etichette nei prompt di generazione (Feature 8)
-- **`buildRecipeInstructions()`** ha una riga `courses`: le portate in cui il piatto si serve davvero, di solito una e al massimo due, tra `piatto-unico` (basta da solo come pasto), `primo` (pasta, riso, zuppe), `secondo` (carne, pesce, uova, formaggi o legumi come portata principale) e `contorno` (verdure o patate che accompagnano un secondo). La riga `tags` elenca le dodici etichette da `MEAL_STYLE_TAG_VALUES`, avverte che `pochi-ingredienti` e `piatto-unico` li calcola l'app e si possono omettere, e spiega le quattro nuove assegnate dal modello (`tradizionale`, `dal-mondo`, `in-anticipo`, `piatto-freddo`).
+- **`buildRecipeInstructions()`** ha una riga `courses`: le portate in cui il piatto si serve davvero, di solito una e al massimo due, tra `piatto-unico` (basta da solo come pasto), `primo` (pasta, riso, zuppe), `secondo` (carne, pesce, uova, formaggi o legumi come portata principale) e `contorno` (verdure o patate che accompagnano un secondo). La riga `tags` elenca le dodici etichette da `MEAL_STYLE_TAG_VALUES`, avverte che `pochi-ingredienti` e `piatto-unico` li calcola l'app e si possono omettere, e spiega le quattro nuove assegnate dal modello (`tradizionale`, `dal-mondo`, `in-anticipo`, `piatto-freddo`). **Dalla Feature 11** le etichette sono undici e `piatto-unico` non c'è più: la riga (`TAGS_LINE`) dice solo che `pochi-ingredienti` lo calcola l'app. `piatto-unico` resta nella riga `courses` come portata. L'adapter non ha altre modifiche: la portata richiesta (anche `contorno`, per il piano e per il selettore del contorno) arriva già nella riga *Portata* da `constraints.courses` ([[recipe-generation]], [[recipe-proposal-service]]). Quattro registrazioni di `tests/fixtures/llm/recorded/` (`gemini-cena-vegano`, `google-cena-portate`, `openrouter-cena-vegano`, `openrouter-glm-cena-vegano`) hanno perso `piatto-unico` dai `tags`, corrette a mano (requirements P21).
 - **`buildRecipePrompt` e `buildRecipeRequestPrompt`**: con `constraints.courses` non `null`, subito dopo la riga del pasto, `- Portata: in courses ogni ricetta deve avere almeno una tra …` (nella richiesta: "la ricetta"). Con `null` la riga manca. La costruisce la funzione privata `courseLine`.
 - Lo schema di output `GeneratedRecipeSchema` richiede `courses` con almeno una voce ([[domain-types]]); `normalizeGeneratedRecipe` le ordina e toglie i doppioni ([[courses]]).
 
@@ -193,3 +193,4 @@ Test della Feature 8: `tests/llm/prompts.test.ts` (riga `courses` con i quattro 
 - [[f8-portate-etichette]] — Panoramica della Feature 8
 - [[recipe-pack-tools]] — Feature 10: `runConvert` e `runIngredients`, chiamanti di `convertDatasetRecipe` e `draftIngredientFacts`
 - [[f10-pacchetto-ricette]] — Panoramica della Feature 10
+- [[f11-composizione-pasto]] — Feature 11: etichetta `piatto-unico` tolta dai prompt

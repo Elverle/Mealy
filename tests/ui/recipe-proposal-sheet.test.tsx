@@ -102,7 +102,7 @@ describe("RecipeProposalSheet opening", () => {
     renderSheet();
 
     expect(requestMock).toHaveBeenCalledWith(
-      { request: "lasagne", mealType: null, excludeTitles: [] },
+      { request: "lasagne", mealType: null, excludeTitles: [], sideDish: false },
       expect.any(AbortSignal)
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -116,6 +116,24 @@ describe("RecipeProposalSheet opening", () => {
 
     expect(requestMock).toHaveBeenCalledWith(
       expect.objectContaining({ mealType: "cena" }),
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("asks for a side dish when sideDish is set, also on «Un'altra»", async () => {
+    requestMock.mockResolvedValue(proposal(LASAGNE));
+    renderSheet({ mealType: "cena", sideDish: true });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      { request: "lasagne", mealType: "cena", excludeTitles: [], sideDish: true },
+      expect.any(AbortSignal)
+    );
+
+    await screen.findByRole("heading", { name: "Lasagne al pesto" });
+    fireEvent.click(screen.getByRole("button", { name: "Un'altra" }));
+
+    expect(requestMock).toHaveBeenLastCalledWith(
+      { request: "lasagne", mealType: "cena", excludeTitles: ["Lasagne al pesto"], sideDish: true },
       expect.any(AbortSignal)
     );
   });
@@ -158,7 +176,7 @@ describe("RecipeProposalSheet proposal view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Un'altra" }));
 
     expect(requestMock).toHaveBeenLastCalledWith(
-      { request: "lasagne", mealType: null, excludeTitles: ["Lasagne al pesto"] },
+      { request: "lasagne", mealType: null, excludeTitles: ["Lasagne al pesto"], sideDish: false },
       expect.any(AbortSignal)
     );
     expect(screen.queryByRole("heading", { name: "Lasagne al pesto" })).not.toBeInTheDocument();
@@ -174,6 +192,7 @@ describe("RecipeProposalSheet proposal view", () => {
         request: "lasagne",
         mealType: null,
         excludeTitles: ["Lasagne al pesto", "Lasagne bianche ai funghi"],
+        sideDish: false,
       },
       expect.any(AbortSignal)
     );
@@ -209,7 +228,7 @@ describe("RecipeProposalSheet errors", () => {
     fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
 
     expect(requestMock).toHaveBeenLastCalledWith(
-      { request: "lasagne", mealType: null, excludeTitles: ["Lasagne al pesto"] },
+      { request: "lasagne", mealType: null, excludeTitles: ["Lasagne al pesto"], sideDish: false },
       expect.any(AbortSignal)
     );
     expect(await screen.findByRole("heading", { name: "Lasagne bianche ai funghi" })).toBeInTheDocument();
@@ -256,7 +275,7 @@ describe("RecipeProposalSheet closing and reopening", () => {
     rerenderWith({ request: "risotto" });
 
     expect(requestMock).toHaveBeenLastCalledWith(
-      { request: "risotto", mealType: null, excludeTitles: [] },
+      { request: "risotto", mealType: null, excludeTitles: [], sideDish: false },
       expect.any(AbortSignal)
     );
   });

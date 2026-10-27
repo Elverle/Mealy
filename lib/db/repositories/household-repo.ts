@@ -42,6 +42,10 @@ export async function ensureDefaultHousehold(): Promise<Household> {
       meals: [...DEFAULT_HOUSEHOLD.meals],
       diet_tags: [...DEFAULT_HOUSEHOLD.diet_tags],
       meal_style_tags: [...DEFAULT_HOUSEHOLD.meal_style_tags],
+      meal_compositions: {
+        pranzo: [...DEFAULT_HOUSEHOLD.meal_compositions.pranzo],
+        cena: [...DEFAULT_HOUSEHOLD.meal_compositions.cena],
+      },
       appliances: [...DEFAULT_HOUSEHOLD.appliances],
       onboarded_at: null,
       created_at: DEFAULT_HOUSEHOLD.created_at,
@@ -107,6 +111,12 @@ export async function updateHousehold(
   if (data.meals !== undefined) updateValues.meals = [...data.meals];
   if (data.diet_tags !== undefined) updateValues.diet_tags = [...data.diet_tags];
   if (data.meal_style_tags !== undefined) updateValues.meal_style_tags = [...data.meal_style_tags];
+  if (data.meal_compositions !== undefined) {
+    updateValues.meal_compositions = {
+      pranzo: [...data.meal_compositions.pranzo],
+      cena: [...data.meal_compositions.cena],
+    };
+  }
   if (data.appliances !== undefined) updateValues.appliances = [...data.appliances];
   if (data.onboarded_at !== undefined) updateValues.onboarded_at = data.onboarded_at;
 

@@ -51,8 +51,7 @@ export function buildConstraints(
  * Violations are returned in order: meal_type, courses, diet_tags, appliances, ingredient_dislikes.
  *
  * Stesse regole di `exclusionReason` in `lib/domain/planner.ts` (applicate alla libreria):
- * se cambi una, controlla l'altra. La portata passa da `coursesAllowed` in entrambe: la
- * Feature 11 cambia solo l'elenco ammesso.
+ * se cambi una, controlla l'altra. La portata passa da `coursesAllowed` in entrambe.
  */
 export function findConstraintViolations(
   recipe: GeneratedRecipe,

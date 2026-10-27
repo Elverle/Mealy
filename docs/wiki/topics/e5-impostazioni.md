@@ -2,8 +2,8 @@
 title: E5 Impostazioni — Onboarding e Vincoli Household
 type: topic
 created: 2026-09-28
-updated: 2026-10-05
-tags: [settings, onboarding, household, api, route-group, ui, e5, feature-3]
+updated: 2026-10-27
+tags: [settings, onboarding, household, api, route-group, ui, e5, feature-3, feature-11]
 ---
 
 ## Panoramica
@@ -93,6 +93,11 @@ Punti aperti per il piano di F4 (review architetturale 2026-09-28 e addendum):
 
 **Esito nella Feature 5** ([[e2-libreria-preferenze]]): **R1 è deciso in via definitiva**. Con le preferenze ingrediente ora reali, l'utente ha confermato che un giudizio (su ricetta o ingrediente) non modifica mai un piano esistente e vale dalla selezione successiva: generazione, rigenerazione, *Ripeti* o *Cambia* (requirements U2 della Feature 5, `ARCHITECTURE §5.4`). Quindi `setIngredientPref` e `updateRecipePref` **non** toccano `households.updated_at`, nessun 👎 rende "superato" un piano, e la regola del contratto U1 resta legata ai soli 5 vincoli dell'household. Un toast lo dice all'utente al momento del giudizio.
 
+## Sviluppi nelle Feature Successive
+
+- **Feature 8** ([[f8-portate-etichette]]): il campo «Tipo di pasti» passa da 7 a 12 chip, senza codice nuovo nei componenti ([[settings-fields]]).
+- **Feature 11** ([[f11-composizione-pasto]]): i vincoli dell'household diventano sei con `meal_compositions`, le composizioni ammesse per pranzo e per cena (default tutte e cinque). Si scelgono dentro il campo «Pasti da pianificare», che resta il secondo passo del wizard: sotto ogni pasto selezionato cinque chip (Piatto unico, Primo, Primo + contorno, Secondo, Secondo + contorno), e il campo è valido solo con almeno una composizione per ogni pasto scelto ([[settings-fields]]). `GET/PUT /api/settings` portano il campo; cambiare le composizioni aggiorna `updated_at`, quindi vale il contratto U1 come per gli altri vincoli ([[settings-service]], [[household-repo]]). Il campo «Tipo di pasti» torna a 11 chip: *Piatto unico* non è più un'etichetta di stile.
+
 ## Innesti della Review Architetturale
 
 La review del 2026-09-28 (`docs/planning/feature/feature-3/architecture-review-2026-09-28.md`) ha fatto applicare tre correzioni dentro WP1:
@@ -123,3 +128,5 @@ I test di F1 sono stati adeguati solo nei percorsi (`@/app/(app)/…`) e nel tes
 - [[e3-pianificatore]] — Feature 4, consumatrice del contratto U1
 - [[e2-libreria-preferenze]] — Feature 5, che sostituisce il segnaposto "I miei ingredienti" e chiude R1
 - [[ingredient-prefs-section]] — Sezione reale "I miei ingredienti"
+- [[f8-portate-etichette]] — Feature 8: dodici etichette di stile
+- [[f11-composizione-pasto]] — Feature 11: composizioni dei pasti tra i vincoli

@@ -2,8 +2,8 @@
 title: Pannello Dettaglio Ricetta (recipe-sheet)
 type: entity
 created: 2026-09-15
-updated: 2026-10-21
-tags: [ui, components, recipe-sheet, sheet, drawer, ingredients, preferences, recipe-detail, alertdialog, accessibility, proposal, courses]
+updated: 2026-10-27
+tags: [ui, components, recipe-sheet, sheet, drawer, ingredients, preferences, recipe-detail, alertdialog, accessibility, proposal, courses, feature-11]
 ---
 
 ## File e Responsabilità
@@ -134,7 +134,7 @@ export function toRecipeDetail(
 - **Terzo parametro `ingredientInfo`** (Feature 5): mappa nome canonico → `RecipeIngredientInfo`. **Solo se è passata**, ogni ingrediente riceve anche `canonicalName` (`normalizeCanonicalName(ing.canonical_name)`), `preference` (`like` → `'liked'`, `dislike` → `'disliked'`, altrimenti `null`) e `recipesCount`; la ricerca nella mappa usa il nome normalizzato. Senza la mappa l'oggetto prodotto è identico a quello della Feature 4, senza chiavi in più.
 
 **Dalla Feature 8**:
-- `recipeChips(recipe: Pick<Recipe, 'tags' | 'diet_flags' | 'courses'>)`: il parametro chiede anche `courses`. Su una ricetta **classificata** l'etichetta di stile `piatto-unico` si toglie prima di prendere le due etichette, perché lo dice già il badge di portata (decisione U2); su una non classificata resta. Cambia solo la vista: i dati non si toccano. Lo stesso vale per le card del Piano e della Libreria, che usano questa funzione.
+- `recipeChips(recipe: Pick<Recipe, 'tags' | 'diet_flags' | 'courses'>)`: il parametro chiede anche `courses`. Su una ricetta **classificata** l'etichetta di stile `piatto-unico` si toglie prima di prendere le due etichette, perché lo dice già il badge di portata (decisione U2); su una non classificata resta. Cambia solo la vista: i dati non si toccano. Lo stesso vale per le card del Piano e della Libreria, che usano questa funzione. **Dalla Feature 11** il filtro non c'è più (costante `COURSE_STYLE_TAG` tolta): l'etichetta di stile `piatto-unico` non esiste ([[f11-composizione-pasto]]), quindi `recipeChips` prende le prime due etichette così come sono, più una dieta. La firma accetta ancora `courses`, che la funzione non legge.
 - `toRecipeDetail` e `proposalToRecipeDetail` valorizzano `course = courseLabel(recipe.courses) ?? undefined` ([[courses]]): portate in ordine canonico unite da `" · "`, nessun campo su una ricetta non classificata.
 
 Il piano originale le metteva in `lib/plans/format.ts`; la proposta R6 della review architetturale le ha spostate qui, accanto al tipo `RecipeDetail` che producono, così la Libreria (Feature 5) le riusa senza dipendere dal modulo dei piani e `lib/` non importa da `components/`.
@@ -165,3 +165,4 @@ Il primitivo `components/ui/sheet.tsx` chiude con `Esc`, blocca lo scorrimento d
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[courses]] — `courseLabel` per il badge di portata (Feature 8)
 - [[f8-portate-etichette]] — Panoramica della Feature 8
+- [[f11-composizione-pasto]] — Feature 11: niente più doppione *Piatto unico* da filtrare

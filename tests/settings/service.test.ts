@@ -8,15 +8,23 @@ import { eq, sql } from 'drizzle-orm';
 import { db, households } from '@/lib/db';
 import { getHouseholdById, loadHousehold } from '@/lib/db/repositories/household-repo';
 import { buildConstraints } from '@/lib/recipes/constraints';
-import { DEFAULT_HOUSEHOLD, type HouseholdSettings } from '@/lib/domain/types';
+import { DEFAULT_HOUSEHOLD, DEFAULT_MEAL_COMPOSITIONS, type HouseholdSettings } from '@/lib/domain/types';
 import { getSettings, saveSettings } from '@/lib/settings/service';
-import { isDbAvailable, assertDbMigrated, createTestHousehold, deleteTestHousehold } from '@/tests/helpers/db';
+import {
+  isDbAvailable,
+  assertDbMigrated,
+  createTestHousehold,
+  deleteTestHousehold,
+  TEST_MEAL_COMPOSITIONS,
+} from '@/tests/helpers/db';
 
 const dbUp = await isDbAvailable();
 
+// Le composizioni dell'household creato dal test helper: così il salvataggio con «nessun cambiamento» è davvero tale.
 const DEFAULT_SETTINGS: HouseholdSettings = {
   persons: DEFAULT_HOUSEHOLD.persons,
   meals: [...DEFAULT_HOUSEHOLD.meals],
+  meal_compositions: TEST_MEAL_COMPOSITIONS,
   meal_style_tags: [...DEFAULT_HOUSEHOLD.meal_style_tags],
   diet_tags: [...DEFAULT_HOUSEHOLD.diet_tags],
   appliances: [...DEFAULT_HOUSEHOLD.appliances],
@@ -81,6 +89,7 @@ describe.skipIf(!dbUp)('lib/settings/service', () => {
       {
         persons: 4,
         meals: ['cena'],
+        meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
         meal_style_tags: ['proteico', 'veloce'],
         diet_tags: ['vegano'],
         appliances: ['friggitrice-ad-aria'],
@@ -103,6 +112,37 @@ describe.skipIf(!dbUp)('lib/settings/service', () => {
     expect(constraints.diet_tags).toEqual(['vegano']);
     expect(constraints.appliances).toEqual(['friggitrice-ad-aria']);
     expect(constraints.meal_style_tags).toEqual(['veloce', 'proteico']);
+  });
+
+  it('saveSettings with different meal compositions persists them and bumps updated_at', async () => {
+    const id = await createHousehold();
+    // Come sopra: updated_at iniziale spostato indietro, così il bump è osservabile.
+    await db
+      .update(households)
+      .set({ updated_at: sql`now() - interval '1 second'` })
+      .where(eq(households.id, id));
+    const before = await getSettings(id);
+
+    const result = await saveSettings(
+      {
+        ...DEFAULT_SETTINGS,
+        meal_compositions: {
+          pranzo: ['secondo', 'primo-contorno'],
+          cena: ['piatto-unico', 'secondo-contorno'],
+        },
+      },
+      id
+    );
+
+    expect(result.changed).toBe(true);
+    expect(Date.parse(result.settings.updated_at)).toBeGreaterThan(Date.parse(before.updated_at));
+    expect(result.settings.meal_compositions).toEqual({
+      pranzo: ['primo-contorno', 'secondo'],
+      cena: ['piatto-unico', 'secondo-contorno'],
+    });
+
+    const reread = await getSettings(id);
+    expect(reread.meal_compositions).toEqual(result.settings.meal_compositions);
   });
 
   it('saveSettings with complete_onboarding: true completes onboarding without a spurious update on repeat', async () => {

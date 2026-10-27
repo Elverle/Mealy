@@ -2,8 +2,8 @@
 title: Servizio di Generazione e Route API (recipe-generation)
 type: entity
 created: 2026-09-17
-updated: 2026-10-26
-tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches, ingredient-prefs, courses, derived-tags, feature-8, feature-10]
+updated: 2026-10-27
+tags: [recipes, generation, constraints, deduplication, api-route, transactions, advisory-lock, batches, ingredient-prefs, courses, derived-tags, side-dish, feature-8, feature-10, feature-11]
 ---
 
 ## File e Responsabilità
@@ -59,6 +59,8 @@ Le stesse quattro regole sono applicate alla libreria da `exclusionReason` del p
 | `requestConstraints` senza tipo di pasto (dalla Libreria) e ricontrollo di `saveProposedRecipe` | `null` |
 
 Una ricetta generata solo contorno per il piano o per lo swap finisce in `skipped` come `constraint_violation`, con `detail` che contiene `portata non adatta al pasto` (spec FR-3.3). Il prompt chiede già la portata ([[llm-adapter]]): il controllo è la rete di sicurezza, come per le diete. Le stesse portate entrano nel conteggio del planner tramite `isMainDish`, cioè `coursesAllowed(courses, MAIN_COURSE_VALUES)`: un solo predicato per le due funzioni (innesto R2 della review architetturale della Feature 8).
+
+**Dalla Feature 11** ([[f11-composizione-pasto]]) la prima riga della tabella cambia: `GenerateAndStoreInput` ha il campo facoltativo `courses?: readonly Course[]`, passato a `buildConstraints` al posto della costante, con default `MAIN_COURSE_VALUES` (requirements P16). `POST /api/recipes/generate` non lo passa e resta com'era; il servizio dei piani passa per ogni lotto la portata della carenza o del piatto da riempire (`filterCourses(course)`: `['primo']`, `['secondo']`, `['contorno']`, …), quindi la generazione chiede anche **contorni** ([[plan-service]]). Una ricetta generata di una portata diversa da quella chiesta finisce in `skipped` con «portata non adatta al pasto», come prima. La richiesta dal selettore del contorno chiede `['contorno']` ([[recipe-proposal-service]]). Nel planner la portata passa ora da `fitsCourse` e non più da `isMainDish` ([[compositions]]); per le ricette generate, che hanno sempre almeno una portata, le due funzioni danno lo stesso esito (review P2 della Feature 11).
 
 I valori base arrivano dai vincoli che l'utente imposta nel wizard di primo avvio e in `/impostazioni` (Feature 3, [[e5-impostazioni]]); `tests/settings/service.test.ts` verifica che un salvataggio si rifletta in `buildConstraints`.
 
@@ -121,7 +123,7 @@ All'interno della transazione, ogni ricetta generata attraversa una sequenza a 4
 
 Dalla Feature 9 i passi 4 e 5 non sono più scritti nel ciclo: la chiamata è `insertGeneratedRecipe(tx, household.id, recipe)` di `lib/recipes/store.ts`, dove è stata spostata anche la funzione privata `uniqueSlug`. Il comportamento della generazione a lotti è invariato (stessi campi, `source: 'llm'`, `macros_est: null`); la stessa funzione scrive le ricette chieste dall'utente ([[recipe-proposal-service]]), che però saltano il livello 3: per loro la somiglianza trigram non conta (spec D11).
 
-**Dalla Feature 8** `insertGeneratedRecipe` scrive anche le portate (`normalizeCourses`) e applica `deriveStyleTags` alle etichette prima di scrivere: `pochi-ingredienti` segue il numero di ingredienti misurati, `piatto-unico` segue la portata ([[courses]]). È il punto unico di scrittura per generazione, proposta salvata e, con la Feature 10, il pacchetto iniziale; la regola non sta in `normalizeGeneratedRecipe`, quindi l'output dell'adapter non cambia (requirements P5 della Feature 8). **Dalla Feature 10** accetta le opzioni facoltative `source` (default `'llm'`) e `createdAt` (default adesso), che usa solo il caricatore del pacchetto ([[recipe-pack]]); la generazione a lotti non le passa e il suo comportamento non cambia ([[recipe-proposal-service]]). Test in `tests/recipes/generate.test.ts`: contorno scartato e secondo salvato; portate salvate in ordine canonico e senza doppioni; etichette derivate aggiunte e tolte.
+**Dalla Feature 8** `insertGeneratedRecipe` scrive anche le portate (`normalizeCourses`) e applica `deriveStyleTags` alle etichette prima di scrivere: `pochi-ingredienti` segue il numero di ingredienti misurati, `piatto-unico` segue la portata ([[courses]]); dalla Feature 11 resta la sola regola dei pochi ingredienti, con `deriveStyleTags(tags, ingredients)`. È il punto unico di scrittura per generazione, proposta salvata e, con la Feature 10, il pacchetto iniziale; la regola non sta in `normalizeGeneratedRecipe`, quindi l'output dell'adapter non cambia (requirements P5 della Feature 8). **Dalla Feature 10** accetta le opzioni facoltative `source` (default `'llm'`) e `createdAt` (default adesso), che usa solo il caricatore del pacchetto ([[recipe-pack]]); la generazione a lotti non le passa e il suo comportamento non cambia ([[recipe-proposal-service]]). Test in `tests/recipes/generate.test.ts`: contorno scartato e secondo salvato; portate salvate in ordine canonico e senza doppioni; etichette derivate aggiunte e tolte.
 
 L'oggetto finale restituito (`GenerateAndStoreResult`) riassume:
 - `requested`: numero di ricette richieste.
@@ -178,3 +180,4 @@ Dalla Feature 4 la rotta costruisce queste risposte con gli helper condivisi di 
 - [[courses]] — `coursesAllowed`, `normalizeCourses`, `deriveStyleTags` (Feature 8)
 - [[f8-portate-etichette]] — Panoramica della Feature 8
 - [[recipe-pack]] — Feature 10: caricamento del pacchetto con lo stesso schema transazione + lock + titoli noti
+- [[f11-composizione-pasto]] — Panoramica della Feature 11

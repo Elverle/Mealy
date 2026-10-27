@@ -1,6 +1,6 @@
-import type { Household, MealType, Recipe } from './types';
-import { MEAL_TYPE_VALUES } from './types';
-import { isMainDish } from './courses';
+import type { CourseFilter, Household, MealType, Recipe } from './types';
+import { COURSE_VALUES, MEAL_TYPE_VALUES } from './types';
+import { fitsCourse } from './compositions';
 import { expandDietFlags, normalizeCanonicalName } from './recipe-text';
 import { PLANNER_CONFIG, type PlannerConfig } from './planner-config';
 import type { Rng } from './rng';
@@ -52,17 +52,17 @@ export interface PlannerContext {
  *
  * Stesse regole di `findConstraintViolations` in `lib/recipes/constraints.ts`
  * (applicate alle ricette in libreria): se cambi una, controlla l'altra.
- * La portata passa da `coursesAllowed` in entrambe: la Feature 11 cambia solo l'elenco ammesso.
+ * La portata passa da `coursesAllowed` in entrambe (qui tramite `fitsCourse`).
  */
 export function exclusionReason(
   recipe: Recipe,
   meal: MealType,
+  course: CourseFilter,
   ctx: PlannerContext
 ): ExclusionReason | null {
   if (recipe.prefs?.blocked === true) return 'blocked';
   if (!recipe.meal_types.includes(meal)) return 'meal_type';
-  // Fino alla Feature 11 un pasto è una ricetta sola: mai un contorno da solo.
-  if (!isMainDish(recipe.courses)) return 'course';
+  if (!fitsCourse(recipe.courses, course)) return 'course';
 
   const recipeDiets = new Set(expandDietFlags(recipe.diet_flags));
   if (ctx.household.diet_tags.some((diet) => !recipeDiets.has(diet))) return 'diet';
@@ -91,9 +91,10 @@ const NO_EXCLUDED_RECIPES: ReadonlySet<string> = new Set<string>();
 export function manualChoiceExclusionReason(
   recipe: Recipe,
   meal: MealType,
+  course: CourseFilter,
   household: Pick<Household, 'diet_tags' | 'appliances'>
 ): ExclusionReason | null {
-  return exclusionReason(recipe, meal, {
+  return exclusionReason(recipe, meal, course, {
     household,
     ingredientPrefs: EMPTY_INGREDIENT_PREFERENCES,
     excludeRecipeIds: NO_EXCLUDED_RECIPES,
@@ -182,6 +183,8 @@ export interface PlannerSlot {
   key: string;
   day: string;
   meal: MealType;
+  /** Portata del piatto da riempire ('any-main' = una qualsiasi principale). */
+  course: CourseFilter;
 }
 
 export interface PlannerInput extends PlannerContext {
@@ -203,7 +206,9 @@ export interface PlannerAssignment {
 
 export interface MealTypeShortage {
   meal_type: MealType;
-  /** Slot di quel tipo da riempire. */
+  /** Portata della carenza: la stessa del filtro degli slot. */
+  course: CourseFilter;
+  /** Slot di quel pasto e di quella portata da riempire. */
   slots: number;
   /** Candidate idonee e fresche (mai usate, usate da almeno `recencyMinDays` giorni, o preferite). */
   available: number;
@@ -216,16 +221,28 @@ export interface MealTypeShortage {
 export interface PlannerResult {
   /** Stesso ordine di input.slots. */
   assignments: PlannerAssignment[];
-  /** Ordine di MEAL_TYPE_VALUES. */
+  /** Ordine di MEAL_TYPE_VALUES, poi della portata ('any-main', poi COURSE_VALUES). */
   needMore: MealTypeShortage[];
 }
 
 const compareStrings = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
+/** Filtri di portata in ordine canonico: prima 'any-main', poi le portate di COURSE_VALUES. */
+const COURSE_FILTER_ORDER: readonly CourseFilter[] = ['any-main', ...COURSE_VALUES];
+const groupKey = (meal: MealType, course: CourseFilter): string => `${meal}|${course}`;
+
+/** Gruppo di slot con lo stesso pasto e la stessa portata. */
+interface SlotGroup {
+  meal: MealType;
+  course: CourseFilter;
+  key: string;
+}
+
 /**
  * Riempie gli slot con una selezione pesata dalla libreria, senza ripetere ricette.
- * Deterministica a parità di input e `rng`. Segnala in `needMore` i tipi di pasto
- * per cui la libreria "fresca" è scarsa o per cui restano slot vuoti.
+ * Deterministica a parità di input e `rng`. Lavora per gruppi (pasto, portata): ogni gruppo
+ * ha le sue candidate idonee. Segnala in `needMore` i gruppi per cui la libreria "fresca"
+ * è scarsa o per cui restano slot vuoti.
  */
 export function selectRecipes(input: PlannerInput): PlannerResult {
   const config = input.config ?? PLANNER_CONFIG;
@@ -239,29 +256,34 @@ export function selectRecipes(input: PlannerInput): PlannerResult {
     );
   }
 
-  const mealsInSlots = MEAL_TYPE_VALUES.filter((m) => input.slots.some((s) => s.meal === m));
-  const eligibleByMeal = new Map<MealType, Recipe[]>();
-  for (const meal of mealsInSlots) {
-    eligibleByMeal.set(
-      meal,
-      input.candidates
-        .filter((r) => exclusionReason(r, meal, input) === null)
-        .sort((a, b) => compareStrings(a.id, b.id))
-    );
+  // Gruppi presenti negli slot, in ordine canonico: pasto, poi portata.
+  const groups: SlotGroup[] = [];
+  for (const meal of MEAL_TYPE_VALUES) {
+    for (const course of COURSE_FILTER_ORDER) {
+      if (input.slots.some((s) => s.meal === meal && s.course === course)) {
+        groups.push({ meal, course, key: groupKey(meal, course) });
+      }
+    }
   }
+  const eligibleByGroup = new Map<string, Recipe[]>(
+    groups.map((group) => [
+      group.key,
+      input.candidates
+        .filter((r) => exclusionReason(r, group.meal, group.course, input) === null)
+        .sort((a, b) => compareStrings(a.id, b.id)),
+    ])
+  );
 
-  // Il tipo con meno candidate va per primo, così le ricette condivise non lo affamano.
-  const mealRank = new Map<MealType, number>(
-    [...mealsInSlots]
-      .sort((a, b) => {
-        const diff = eligibleByMeal.get(a)!.length - eligibleByMeal.get(b)!.length;
-        return diff !== 0 ? diff : MEAL_TYPE_VALUES.indexOf(a) - MEAL_TYPE_VALUES.indexOf(b);
-      })
-      .map((meal, index) => [meal, index] as const)
+  // Il gruppo con meno candidate va per primo, così le ricette condivise non lo affamano.
+  // sort è stabile: a parità vince l'ordine canonico dei gruppi.
+  const groupRank = new Map<string, number>(
+    [...groups]
+      .sort((a, b) => eligibleByGroup.get(a.key)!.length - eligibleByGroup.get(b.key)!.length)
+      .map((group, index) => [group.key, index] as const)
   );
   const orderedSlots = [...input.slots].sort(
     (a, b) =>
-      mealRank.get(a.meal)! - mealRank.get(b.meal)! ||
+      groupRank.get(groupKey(a.meal, a.course))! - groupRank.get(groupKey(b.meal, b.course))! ||
       compareStrings(a.day, b.day) ||
       compareStrings(a.key, b.key)
   );
@@ -269,7 +291,9 @@ export function selectRecipes(input: PlannerInput): PlannerResult {
   const picked = new Set<string>();
   const assigned = new Map<string, string | null>();
   for (const slot of orderedSlots) {
-    const pool = eligibleByMeal.get(slot.meal)!.filter((r) => !picked.has(r.id));
+    const pool = eligibleByGroup
+      .get(groupKey(slot.meal, slot.course))!
+      .filter((r) => !picked.has(r.id));
     if (pool.length === 0) {
       assigned.set(slot.key, null);
       continue;
@@ -289,13 +313,22 @@ export function selectRecipes(input: PlannerInput): PlannerResult {
   }));
 
   const needMore: MealTypeShortage[] = [];
-  for (const meal of mealsInSlots) {
-    const mealSlots = input.slots.filter((s) => s.meal === meal);
-    const available = eligibleByMeal.get(meal)!.filter((r) => isFresh(r, input.now, config)).length;
-    const required = mealSlots.length + config.minPoolSize - 1;
-    const unfilled = mealSlots.filter((s) => assigned.get(s.key) === null).length;
+  for (const group of groups) {
+    const groupSlots = input.slots.filter((s) => s.meal === group.meal && s.course === group.course);
+    const available = eligibleByGroup
+      .get(group.key)!
+      .filter((r) => isFresh(r, input.now, config)).length;
+    const required = groupSlots.length + config.minPoolSize - 1;
+    const unfilled = groupSlots.filter((s) => assigned.get(s.key) === null).length;
     if (available < required || unfilled > 0) {
-      needMore.push({ meal_type: meal, slots: mealSlots.length, available, required, unfilled });
+      needMore.push({
+        meal_type: group.meal,
+        course: group.course,
+        slots: groupSlots.length,
+        available,
+        required,
+        unfilled,
+      });
     }
   }
 
@@ -309,6 +342,45 @@ export function computeGenerationCount(
 ): number {
   const deficit = Math.max(shortage.required - shortage.available, shortage.unfilled);
   return Math.min(config.generationMax, Math.max(config.generationMin, deficit + config.generationExtra));
+}
+
+/** Richiesta di generazione per un gruppo (pasto, portata): quante ricette generare. */
+export interface GenerationRequest {
+  meal_type: MealType;
+  course: CourseFilter;
+  count: number;
+}
+
+/**
+ * Ricette da generare per carenza, con al più `config.generationMax` ricette per tipo di pasto.
+ * Dentro un tipo di pasto hanno la precedenza le carenze con slot vuoti (`unfilled > 0`), poi
+ * l'ordine di `needMore`. Le carenze rimaste a 0 non compaiono.
+ */
+export function planGeneration(
+  needMore: readonly MealTypeShortage[],
+  config: PlannerConfig = PLANNER_CONFIG
+): GenerationRequest[] {
+  const counts = needMore.map(() => 0);
+  const hasEmptySlots = (index: number): boolean => needMore[index].unfilled > 0;
+
+  for (const meal of MEAL_TYPE_VALUES) {
+    const indexes = needMore.flatMap((shortage, index) => (shortage.meal_type === meal ? [index] : []));
+    const ordered = [
+      ...indexes.filter((index) => hasEmptySlots(index)),
+      ...indexes.filter((index) => !hasEmptySlots(index)),
+    ];
+    let budget = config.generationMax;
+    for (const index of ordered) {
+      counts[index] = Math.min(computeGenerationCount(needMore[index], config), budget);
+      budget -= counts[index];
+    }
+  }
+
+  return needMore.flatMap((shortage, index) =>
+    counts[index] > 0
+      ? [{ meal_type: shortage.meal_type, course: shortage.course, count: counts[index] }]
+      : []
+  );
 }
 
 /** Divide un numero di ricette in lotti da al più `generationBatchSize` (una chiamata LLM ciascuno). */

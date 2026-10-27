@@ -1,20 +1,36 @@
 import * as React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtureRecipesAsDomain } from "@/fixtures";
 import { makeRecipe } from "@/tests/helpers/recipes";
+import { LONG_PRESS_MS } from "@/components/cards/meal-card";
 import { PlanSlotCard, type PlanSlotCardProps } from "@/components/plan/plan-slot-card";
 import {
   SWAP_EXCLUDE_MAX,
+  type Course,
   type PlanMutationResult,
   type PlanSlotView,
   type PlanView,
   type Recipe,
 } from "@/lib/domain/types";
 
+// jsdom has no PointerEvent: without it fireEvent.pointer* drops button/clientX/clientY.
+if (typeof window.PointerEvent === "undefined") {
+  class PointerEventPolyfill extends MouseEvent {}
+  Object.defineProperty(window, "PointerEvent", {
+    value: PointerEventPolyfill,
+    configurable: true,
+  });
+}
+
 vi.mock("@/lib/plans/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/plans/client")>();
-  return { ...original, requestSwapSlot: vi.fn() };
+  return {
+    ...original,
+    requestSwapSlot: vi.fn(),
+    requestAddSideDish: vi.fn(),
+    requestRemoveSideDish: vi.fn(),
+  };
 });
 
 vi.mock("@/components/plan/slot-recipe-picker", () => ({
@@ -27,6 +43,9 @@ vi.mock("@/components/plan/slot-recipe-picker", () => ({
   }) => (
     <div data-testid="picker" data-slot-id={props.slot.id}>
       <button onClick={() => props.onAssigned(makeResult(RECIPE_C).plan)}>finto-assegna</button>
+      <button onClick={() => props.onAssigned(resultWith(makeSlot(RECIPE_A, false, "secondo"), makeSide(SIDE_C)).plan)}>
+        finto-assegna-contorno
+      </button>
       <button onClick={props.onClose}>finto-chiudi</button>
       <button onClick={() => { props.onPlanStale(); props.onClose(); }}>finto-scaduto</button>
       <button onClick={() => props.onNotify("avviso dal selettore")}>finto-avviso</button>
@@ -34,32 +53,59 @@ vi.mock("@/components/plan/slot-recipe-picker", () => ({
   ),
 }));
 
-import { PlanRequestError, requestSwapSlot } from "@/lib/plans/client";
+import {
+  PlanRequestError,
+  requestAddSideDish,
+  requestRemoveSideDish,
+  requestSwapSlot,
+} from "@/lib/plans/client";
 
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
 const SLOT_ID = "22222222-2222-4222-8222-222222222222";
+const SIDE_ID = "33333333-3333-4333-8333-333333333333";
 const [RECIPE_A, RECIPE_B, RECIPE_C] = fixtureRecipesAsDomain();
+const SIDE_A = makeRecipe({ title: "Insalata di finocchi", courses: ["contorno"] });
+const SIDE_B = makeRecipe({ title: "Patate al forno", courses: ["contorno"] });
+const SIDE_C = makeRecipe({ title: "Carote glassate", courses: ["contorno"] });
+const ADD_LABEL = "Aggiungi un contorno";
 
-function makeSlot(recipe: Recipe | null, locked = false): PlanSlotView {
-  return { id: SLOT_ID, day: "2026-10-01", meal: "cena", servings: 2, locked, recipe };
+function makeSlot(
+  recipe: Recipe | null,
+  locked = false,
+  course: Course = "piatto-unico"
+): PlanSlotView {
+  return { id: SLOT_ID, day: "2026-10-01", meal: "cena", course, servings: 2, locked, recipe };
 }
 
-function makeResult(recipe: Recipe): PlanMutationResult {
-  const plan: PlanView = {
+function makeSide(recipe: Recipe | null, locked = false): PlanSlotView {
+  return { ...makeSlot(recipe, locked, "contorno"), id: SIDE_ID };
+}
+
+function planOf(slots: PlanSlotView[]): PlanView {
+  return {
     id: PLAN_ID,
     week_start: "2026-09-28",
     status: "draft",
     created_at: "2026-09-29T10:00:00.000Z",
     generated_at: "2026-09-29T10:00:00.000Z",
     superseded: false,
-    slots: [makeSlot(recipe)],
+    slots,
     shopping_list: { exists: false, needs_regeneration: false },
   };
-  return { plan, generation: { rounds: 0, created: 0, failed: false } };
+}
+
+function makeResult(recipe: Recipe): PlanMutationResult {
+  return { plan: planOf([makeSlot(recipe)]), generation: { rounds: 0, created: 0, failed: false } };
+}
+
+function resultWith(main: PlanSlotView, side: PlanSlotView | null): PlanMutationResult {
+  const slots = side ? [main, side] : [main];
+  return { plan: planOf(slots), generation: { rounds: 0, created: 0, failed: false } };
 }
 
 interface HarnessProps {
   initial: PlanSlotView;
+  side?: PlanSlotView | null;
   editable?: boolean;
   swappable?: boolean;
   onPlanChange?: (plan: PlanView) => void;
@@ -68,11 +114,13 @@ interface HarnessProps {
   onToggleFavorite?: (recipeId: string) => void;
   onPlanStale?: () => void;
   onRecipePrefsChange?: PlanSlotCardProps["onRecipePrefsChange"];
+  onSelectRecipe?: (slot: PlanSlotView) => void;
 }
 
-/** Fa da genitore: sostituisce lo slot con quello del piano restituito dallo swap. */
+/** Fa da genitore: il piano restituito da un'azione ridistribuisce pasto principale e contorno. */
 function Harness({
   initial,
+  side: initialSide = null,
   editable = true,
   swappable,
   onPlanChange = vi.fn(),
@@ -81,20 +129,24 @@ function Harness({
   onToggleFavorite,
   onPlanStale,
   onRecipePrefsChange,
+  onSelectRecipe = vi.fn(),
 }: HarnessProps) {
   const [slot, setSlot] = React.useState(initial);
+  const [side, setSide] = React.useState<PlanSlotView | null>(initialSide);
   return (
     <PlanSlotCard
       planId={PLAN_ID}
       slot={slot}
+      side={side}
       editable={editable}
       swappable={swappable}
       onPlanChange={(plan) => {
         onPlanChange(plan);
-        setSlot(plan.slots[0]);
+        setSlot(plan.slots.find((candidate) => candidate.course !== "contorno") ?? plan.slots[0]);
+        setSide(plan.slots.find((candidate) => candidate.course === "contorno") ?? null);
       }}
       onToggleLock={onToggleLock}
-      onSelectRecipe={vi.fn()}
+      onSelectRecipe={onSelectRecipe}
       onToggleFavorite={onToggleFavorite}
       onPlanStale={onPlanStale}
       onRecipePrefsChange={onRecipePrefsChange}
@@ -116,6 +168,8 @@ function deferred<T>() {
 describe("PlanSlotCard", () => {
   beforeEach(() => {
     vi.mocked(requestSwapSlot).mockReset();
+    vi.mocked(requestAddSideDish).mockReset();
+    vi.mocked(requestRemoveSideDish).mockReset();
   });
 
   it("swaps excluding the current recipe, shows progress, then the review actions", async () => {
@@ -558,11 +612,415 @@ describe("PlanSlotCard — Scegli", () => {
   });
 });
 
-describe("PlanSlotCard — course badge", () => {
-  it("shows the courses of the recipe in course order", () => {
-    render(<Harness initial={makeSlot(makeRecipe({ courses: ["contorno", "secondo"] }))} />);
+describe("PlanSlotCard — contorno", () => {
+  const sideSwapName = `Cambia contorno: ${SIDE_A.title}`;
+  const sidePickName = `Scegli contorno: ${SIDE_A.title}`;
+  const sideRemoveName = `Togli contorno: ${SIDE_A.title}`;
+  const mainScegliName = `Scegli un'altra ricetta per ${RECIPE_A.title}`;
 
-    expect(screen.getByText("Secondo · Contorno")).toBeInTheDocument();
+  beforeEach(() => {
+    vi.mocked(requestSwapSlot).mockReset();
+    vi.mocked(requestAddSideDish).mockReset();
+    vi.mocked(requestRemoveSideDish).mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("offers «Aggiungi un contorno» on a primo or a secondo without a side dish", () => {
+    const { unmount } = render(<Harness initial={makeSlot(RECIPE_A, false, "secondo")} />);
+    expect(screen.getByRole("button", { name: ADD_LABEL })).toBeInTheDocument();
+    unmount();
+
+    render(<Harness initial={makeSlot(RECIPE_A, false, "primo")} />);
+    expect(screen.getByRole("button", { name: ADD_LABEL })).toBeInTheDocument();
+  });
+
+  it("offers no «Aggiungi un contorno» on a piatto unico", () => {
+    render(<Harness initial={makeSlot(RECIPE_A, false, "piatto-unico")} />);
+
+    expect(screen.queryByRole("button", { name: ADD_LABEL })).toBeNull();
+  });
+
+  it("shows no side actions on a locked or read-only meal, and no add button", () => {
+    const { unmount } = render(
+      <Harness initial={makeSlot(RECIPE_A, true, "secondo")} side={makeSide(SIDE_A, true)} />
+    );
+    expect(screen.getByText(SIDE_A.title)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: sideSwapName })).toBeNull();
+    expect(screen.queryByRole("button", { name: sidePickName })).toBeNull();
+    expect(screen.queryByRole("button", { name: sideRemoveName })).toBeNull();
+    unmount();
+
+    const readOnly = render(
+      <Harness
+        initial={makeSlot(RECIPE_A, false, "secondo")}
+        side={makeSide(SIDE_A)}
+        editable={false}
+      />
+    );
+    expect(screen.queryByRole("button", { name: sideSwapName })).toBeNull();
+    expect(screen.queryByRole("button", { name: sideRemoveName })).toBeNull();
+    readOnly.unmount();
+
+    render(<Harness initial={makeSlot(RECIPE_A, true, "secondo")} />);
+    expect(screen.queryByRole("button", { name: ADD_LABEL })).toBeNull();
+  });
+
+  it("adds a side dish: waits with a message, then shows the side row from the returned plan", async () => {
+    const pending = deferred<PlanMutationResult>();
+    vi.mocked(requestAddSideDish).mockReturnValueOnce(pending.promise);
+    const onPlanChange = vi.fn();
+    render(<Harness initial={makeSlot(RECIPE_A, false, "secondo")} onPlanChange={onPlanChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: ADD_LABEL }));
+
+    expect(requestAddSideDish).toHaveBeenCalledWith(PLAN_ID, SLOT_ID, []);
+    expect(screen.getByRole("status")).toHaveTextContent("Cerco un contorno…");
+    expect(screen.queryByRole("button", { name: ADD_LABEL })).toBeNull();
+
+    await act(async () =>
+      pending.resolve(resultWith(makeSlot(RECIPE_A, false, "secondo"), makeSide(SIDE_A)))
+    );
+
+    expect(onPlanChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: sideSwapName })).toBeInTheDocument();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: ADD_LABEL })).toBeNull();
+  });
+
+  it("moves the focus to the swap button of the new side dish", async () => {
+    vi.mocked(requestAddSideDish).mockResolvedValueOnce(
+      resultWith(makeSlot(RECIPE_A, false, "secondo"), makeSide(SIDE_A))
+    );
+    render(<Harness initial={makeSlot(RECIPE_A, false, "secondo")} />);
+
+    const add = screen.getByRole("button", { name: ADD_LABEL });
+    add.focus();
+    fireEvent.click(add);
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: sideSwapName })));
+  });
+
+  it("removes the side dish with the side slot id and brings back the add button", async () => {
+    vi.mocked(requestRemoveSideDish).mockResolvedValueOnce({
+      plan: planOf([makeSlot(RECIPE_A, false, "secondo")]),
+    });
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: sideRemoveName }));
+
+    expect(requestRemoveSideDish).toHaveBeenCalledWith(PLAN_ID, SIDE_ID);
+    expect(await screen.findByRole("button", { name: ADD_LABEL })).toBeInTheDocument();
+    expect(screen.queryByText(SIDE_A.title)).toBeNull();
+  });
+
+  it("swaps the side dish excluding the current one, then excludes the previous one too", async () => {
+    vi.mocked(requestSwapSlot)
+      .mockResolvedValueOnce(resultWith(makeSlot(RECIPE_A, false, "secondo"), makeSide(SIDE_B)))
+      .mockResolvedValueOnce(resultWith(makeSlot(RECIPE_A, false, "secondo"), makeSide(SIDE_C)));
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: sideSwapName }));
+    expect(requestSwapSlot).toHaveBeenNthCalledWith(1, PLAN_ID, SIDE_ID, [SIDE_A.id]);
+
+    fireEvent.click(await screen.findByRole("button", { name: `Cambia contorno: ${SIDE_B.title}` }));
+    expect(requestSwapSlot).toHaveBeenNthCalledWith(2, PLAN_ID, SIDE_ID, [SIDE_A.id, SIDE_B.id]);
+    expect(await screen.findByText(SIDE_C.title)).toBeInTheDocument();
+  });
+
+  it("reports a stale-plan refusal through onError and onPlanStale, and restores the add button", async () => {
+    vi.mocked(requestAddSideDish).mockRejectedValueOnce(
+      new PlanRequestError(409, "side_exists", "Questo pasto ha già un contorno.")
+    );
+    const onError = vi.fn();
+    const onPlanStale = vi.fn();
+    render(
+      <Harness
+        initial={makeSlot(RECIPE_A, false, "secondo")}
+        onError={onError}
+        onPlanStale={onPlanStale}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: ADD_LABEL }));
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("Questo pasto ha già un contorno."));
+    expect(onPlanStale).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: ADD_LABEL })).toBeEnabled();
+  });
+
+  it("reports a failed side swap through onError without asking to reread the plan", async () => {
+    vi.mocked(requestSwapSlot).mockRejectedValueOnce(
+      new PlanRequestError(422, "no_alternatives", "Non ci sono altre ricette adatte a questo pasto.")
+    );
+    const onError = vi.fn();
+    const onPlanStale = vi.fn();
+    render(
+      <Harness
+        initial={makeSlot(RECIPE_A, false, "secondo")}
+        side={makeSide(SIDE_A)}
+        onError={onError}
+        onPlanStale={onPlanStale}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: sideSwapName }));
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith("Non ci sono altre ricette adatte a questo pasto.")
+    );
+    expect(onPlanStale).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: sideSwapName })).toBeEnabled();
+  });
+
+  it("disables the side actions while the main swap is pending", () => {
+    vi.mocked(requestSwapSlot).mockReturnValueOnce(new Promise<PlanMutationResult>(() => {}));
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+
+    expect(screen.getByRole("button", { name: sideSwapName })).toBeDisabled();
+    expect(screen.getByRole("button", { name: sidePickName })).toBeDisabled();
+    expect(screen.getByRole("button", { name: sideRemoveName })).toBeDisabled();
+  });
+
+  it("disables Cambia, Scegli and the lock of the main while a side action is pending", () => {
+    vi.mocked(requestSwapSlot).mockReturnValueOnce(new Promise<PlanMutationResult>(() => {}));
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: sideSwapName }));
+
+    expect(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` })).toBeDisabled();
+    expect(screen.getByRole("button", { name: mainScegliName })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Blocca pasto" })).toBeDisabled();
+  });
+
+  it("disables the lock and ignores a long-press while the main swap is pending", () => {
+    vi.useFakeTimers();
+    const onToggleLock = vi.fn();
+    vi.mocked(requestSwapSlot).mockReturnValueOnce(new Promise<PlanMutationResult>(() => {}));
+    render(
+      <Harness
+        initial={makeSlot(RECIPE_A, false, "secondo")}
+        side={makeSide(SIDE_A)}
+        onToggleLock={onToggleLock}
+      />
+    );
+    const card = screen.getByTestId(`meal-card-${SLOT_ID}`);
+
+    // Controllo: fuori da un'azione la pressione lunga blocca il pasto.
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onToggleLock).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(card);
+    onToggleLock.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+    expect(screen.getByText("Cerco un'alternativa…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Blocca pasto" })).toBeDisabled();
+
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onToggleLock).not.toHaveBeenCalled();
+  });
+
+  it("re-enables the lock once the main swap reaches review, while the side row stays disabled", async () => {
+    vi.mocked(requestSwapSlot).mockResolvedValueOnce(
+      resultWith(makeSlot(RECIPE_B, false, "secondo"), makeSide(SIDE_A))
+    );
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+    await screen.findByRole("button", { name: "Tieni" });
+
+    expect(screen.getByRole("button", { name: "Blocca pasto" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: sideSwapName })).toBeDisabled();
+    expect(screen.getByRole("button", { name: sidePickName })).toBeDisabled();
+    expect(screen.getByRole("button", { name: sideRemoveName })).toBeDisabled();
+  });
+
+  it("disables the lock while adding a side dish, and a long-press does not toggle it", () => {
+    vi.useFakeTimers();
+    const onToggleLock = vi.fn();
+    vi.mocked(requestAddSideDish).mockReturnValueOnce(new Promise<PlanMutationResult>(() => {}));
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} onToggleLock={onToggleLock} />
+    );
+    const card = screen.getByTestId(`meal-card-${SLOT_ID}`);
+
+    // Controllo: fuori da un'azione la pressione lunga blocca il pasto.
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onToggleLock).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(card);
+    onToggleLock.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: ADD_LABEL }));
+    expect(screen.getByRole("button", { name: "Blocca pasto" })).toBeDisabled();
+
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onToggleLock).not.toHaveBeenCalled();
+  });
+
+  it("the side title opens the detail of the side dish", () => {
+    const onSelectRecipe = vi.fn();
+    render(
+      <Harness
+        initial={makeSlot(RECIPE_A, false, "secondo")}
+        side={makeSide(SIDE_A)}
+        onSelectRecipe={onSelectRecipe}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: SIDE_A.title }));
+
+    expect(onSelectRecipe).toHaveBeenCalledWith(expect.objectContaining({ id: SIDE_ID }));
+  });
+
+  it("opens the picker on the side slot and brings the focus back to Scegli contorno on close", async () => {
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: sidePickName }));
+    expect(screen.getByTestId("picker")).toHaveAttribute("data-slot-id", SIDE_ID);
+
+    fireEvent.click(screen.getByRole("button", { name: "finto-chiudi" }));
+
+    expect(screen.queryByTestId("picker")).toBeNull();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: sidePickName }))
+    );
+  });
+
+  it("moves the focus to the add button after removing the side dish", async () => {
+    vi.mocked(requestRemoveSideDish).mockResolvedValueOnce({
+      plan: planOf([makeSlot(RECIPE_A, false, "secondo")]),
+    });
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    const remove = screen.getByRole("button", { name: sideRemoveName });
+    remove.focus();
+    fireEvent.click(remove);
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: ADD_LABEL }))
+    );
+  });
+
+  it("moves the focus back to the side swap button after a side swap", async () => {
+    vi.mocked(requestSwapSlot).mockResolvedValueOnce(
+      resultWith(makeSlot(RECIPE_A, false, "secondo"), makeSide(SIDE_B))
+    );
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    const swap = screen.getByRole("button", { name: sideSwapName });
+    swap.focus();
+    fireEvent.click(swap);
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: `Cambia contorno: ${SIDE_B.title}` })
+      )
+    );
+  });
+
+  it("brings the focus back to the side remove button after a failed removal", async () => {
+    vi.mocked(requestRemoveSideDish).mockRejectedValueOnce(
+      new PlanRequestError(500, "internal_error", "Errore.")
+    );
+    const onError = vi.fn();
+    render(
+      <Harness
+        initial={makeSlot(RECIPE_A, false, "secondo")}
+        side={makeSide(SIDE_A)}
+        onError={onError}
+      />
+    );
+
+    const remove = screen.getByRole("button", { name: sideRemoveName });
+    remove.focus();
+    fireEvent.click(remove);
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("Errore."));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: sideRemoveName }))
+    );
+  });
+
+  it("brings the focus back to the side library icon after an assignment from the side picker", async () => {
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: sidePickName }));
+    fireEvent.click(screen.getByRole("button", { name: "finto-assegna-contorno" }));
+
+    expect(screen.queryByTestId("picker")).toBeNull();
+    expect(screen.getByText(SIDE_C.title)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: `Scegli contorno: ${SIDE_C.title}` })
+      )
+    );
+  });
+
+  it("shows the placeholder title of a side dish without recipe, not tappable for the detail", () => {
+    const onSelectRecipe = vi.fn();
+    render(
+      <Harness
+        initial={makeSlot(RECIPE_A, false, "secondo")}
+        side={makeSide(null)}
+        onSelectRecipe={onSelectRecipe}
+      />
+    );
+
+    expect(screen.getByText("Ricetta non disponibile")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Ricetta non disponibile" })
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Cambia contorno: Ricetta non disponibile" })
+    ).toBeInTheDocument();
+    expect(onSelectRecipe).not.toHaveBeenCalled();
+  });
+});
+
+describe("PlanSlotCard — course badge", () => {
+  it("shows the course of the slot, not every course of the recipe", () => {
+    render(
+      <Harness
+        initial={makeSlot(makeRecipe({ courses: ["secondo", "piatto-unico"] }), false, "secondo")}
+      />
+    );
+
+    expect(screen.getByText("Secondo")).toBeInTheDocument();
+    expect(screen.queryByText("Piatto unico")).toBeNull();
   });
 
   it("shows no course badge for an unclassified recipe", () => {
@@ -572,11 +1030,11 @@ describe("PlanSlotCard — course badge", () => {
     expect(screen.getByText("Ricetta di prova")).toBeInTheDocument();
   });
 
-  it("shows Piatto unico once, as the course, and not again among the style chips", () => {
+  it("shows the course once, as the badge, next to the style chips", () => {
     render(
       <Harness
         initial={makeSlot(
-          makeRecipe({ courses: ["piatto-unico"], tags: ["piatto-unico", "veloce"] })
+          makeRecipe({ courses: ["piatto-unico"], tags: ["comfort-food", "veloce"] })
         )}
       />
     );

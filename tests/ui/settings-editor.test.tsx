@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SettingsEditor } from "@/components/settings/settings-editor";
 import { SETTINGS_FIELD_COPY } from "@/components/settings/settings-fields";
-import { DEFAULT_HOUSEHOLD, type SettingsView, type SaveSettingsResult } from "@/lib/domain/types";
+import { DEFAULT_HOUSEHOLD, DEFAULT_MEAL_COMPOSITIONS, type SettingsView, type SaveSettingsResult } from "@/lib/domain/types";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -21,6 +21,7 @@ import { putSettings } from "@/lib/settings/client";
 const FIXTURE: SettingsView = {
   persons: DEFAULT_HOUSEHOLD.persons,
   meals: DEFAULT_HOUSEHOLD.meals,
+  meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
   meal_style_tags: DEFAULT_HOUSEHOLD.meal_style_tags,
   diet_tags: DEFAULT_HOUSEHOLD.diet_tags,
   appliances: DEFAULT_HOUSEHOLD.appliances,
@@ -112,6 +113,7 @@ describe("SettingsEditor", () => {
     expect(putSettings).toHaveBeenCalledWith({
       persons: FIXTURE.persons,
       meals: FIXTURE.meals,
+      meal_compositions: DEFAULT_MEAL_COMPOSITIONS,
       meal_style_tags: FIXTURE.meal_style_tags,
       diet_tags: ["vegano"],
       appliances: FIXTURE.appliances,
@@ -223,6 +225,58 @@ describe("SettingsEditor", () => {
 
     resolveSave({ settings: { ...FIXTURE, diet_tags: ["vegano"] }, changed: true });
     await screen.findByText(BANNER_TEXT);
+  });
+
+  it("enables Salva after changing a meal composition", () => {
+    renderEditor();
+
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Pranzo" })).getByRole("checkbox", {
+        name: "Secondo + contorno",
+      })
+    );
+
+    expect(screen.getByRole("button", { name: "Salva" })).toBeEnabled();
+  });
+
+  it("disables Salva when every composition of a selected meal is removed", () => {
+    renderEditor();
+
+    const cenaGroup = screen.getByRole("group", { name: "Cena" });
+    for (const chip of within(cenaGroup).getAllByRole("checkbox")) {
+      fireEvent.click(chip);
+    }
+
+    expect(screen.getByText("Scegli almeno una composizione.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salva" })).toBeDisabled();
+  });
+
+  it("sends the changed meal compositions when saving", async () => {
+    const compositions = {
+      pranzo: ["piatto-unico" as const, "primo" as const],
+      cena: [...DEFAULT_MEAL_COMPOSITIONS.cena],
+    };
+    vi.mocked(putSettings).mockResolvedValueOnce({
+      settings: { ...FIXTURE, meal_compositions: compositions },
+      changed: true,
+    });
+    renderEditor();
+
+    const pranzoGroup = screen.getByRole("group", { name: "Pranzo" });
+    fireEvent.click(within(pranzoGroup).getByRole("checkbox", { name: "Primo + contorno" }));
+    fireEvent.click(within(pranzoGroup).getByRole("checkbox", { name: "Secondo" }));
+    fireEvent.click(within(pranzoGroup).getByRole("checkbox", { name: "Secondo + contorno" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+
+    await screen.findByText(BANNER_TEXT);
+    expect(putSettings).toHaveBeenCalledWith({
+      persons: FIXTURE.persons,
+      meals: FIXTURE.meals,
+      meal_compositions: compositions,
+      meal_style_tags: FIXTURE.meal_style_tags,
+      diet_tags: FIXTURE.diet_tags,
+      appliances: FIXTURE.appliances,
+    });
   });
 
   it("disables the field chips while a save is pending, and blocks clicks on them", async () => {

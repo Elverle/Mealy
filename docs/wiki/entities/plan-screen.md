@@ -2,8 +2,8 @@
 title: Pagina Piano — PlanScreen, PlanSlotCard e Avanzamento (plan-screen)
 type: entity
 created: 2026-09-29
-updated: 2026-10-21
-tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, preferences, shopping-list, manual-choice, accessibility, courses, feature-4, feature-8, feature-9]
+updated: 2026-10-27
+tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, preferences, shopping-list, manual-choice, accessibility, courses, side-dish, compositions, feature-4, feature-8, feature-9, feature-11]
 ---
 
 ## File e Responsabilità
@@ -13,6 +13,7 @@ tags: [ui, components, plan, page, week-navigator, swap, long-press, favorites, 
   - `components/plan/plan-screen.tsx`: componente client `PlanScreen` (intestazione, navigatore di settimane, azioni del piano, card per giorno, footer, sheet, toast).
   - `components/plan/plan-slot-card.tsx`: componente client `PlanSlotCard`, una `MealCard` con il flusso di swap *Cambia → Tieni / Cambia ancora* e, dalla Feature 9, *Scegli* con il selettore [[slot-recipe-picker]] (`components/plan/slot-recipe-picker.tsx`).
   - `components/plan/generation-progress.tsx`: `GenerationProgress` (skeleton + microcopy a rotazione) e hook `useRotatingMessage`.
+  - `components/plan/side-dish-row.tsx` (Feature 11): la riga del contorno dentro la card, documentata in [[side-dish-row]].
 - **Scopo**: la schermata principale del prodotto: genera o rigenera il piano della settimana da pianificare, lo mostra giorno per giorno, permette di cambiare, bloccare e confermare i pasti, di ripetere un piano e di consultare le settimane passate.
 - I componenti importano dal dominio dei piani solo `lib/plans/client.ts`, `lib/plans/format.ts` ed `errors` tramite il client ([[plan-service]]); i chip delle card arrivano da `recipeChips` in `components/sheets/recipe-detail.ts` ([[recipe-sheet]]). Dalla Feature 5 il dettaglio della ricetta è [[recipe-detail-sheet]] (che fa da sé la conversione ricetta → sheet), le preferenze si salvano con `putRecipePref` di `lib/prefs/client.ts` ([[prefs-service]]) e i messaggi d'errore passano da `apiErrorMessage` ([[http-helpers]]). Dalla Feature 6 il footer usa `fetchPlanShoppingList` e `requestBuildShoppingList` di `lib/shopping/client.ts` ([[shopping-service]]).
 
@@ -57,6 +58,7 @@ Stato: `screen` (`PlanScreenView`), `isGenerating`, `isRecovering`, `generateErr
 - **Conferma**: `requestConfirmPlan(plan.id)` → badge `Confermato`, footer con la lista, toast `Piano confermato`; errore → toast.
 - **Blocco** (lucchetto o long-press): aggiornamento ottimistico di `locked`, poi `requestSlotLock`; errore → ripristino e toast.
 - **Unione per slot** (fix m9): le risposte di swap e blocco aggiornano **solo** lo slot interessato (`recipe`/`servings` e lo stato della lista per lo swap, `locked` per il blocco), così risposte arrivate fuori ordine non annullano le modifiche degli altri slot.
+- **Dalla Feature 11 l'unità è il pasto** (v. "Pasti con contorno" più sotto): l'unione si fa per pasto con `withMealFrom`, e il blocco tocca tutti i piatti del pasto.
 
 ### Preferenze sulle ricette (Feature 5)
 - **`applyRecipePrefs(recipeId, changed)`**: fonde i soli campi cambiati (`RecipePrefChanges`) nelle preferenze della ricetta, in **tutti** gli slot del piano mostrato che la contengono, partendo da `defaultRecipePref` se la ricetta non ha preferenze. Se il risultato è bloccato forza `favorite: false`: la risposta tardiva di una ★ non rimette tra le preferite una ricetta appena bloccata. È l'handler `onRecipePrefsChange` del dettaglio.
@@ -79,6 +81,15 @@ Su un piano confermato e modificabile il footer mostra, secondo `plan.shopping_l
 - **La rilettura non sovrascrive un'azione dell'utente**: un ref (`shoppingListTouchedRef`) si accende quando la lista viene creata dal footer o quando uno swap riporta dal server un nuovo stato della lista; una rilettura partita prima e arrivata dopo viene scartata.
 - La variante del difetto "tasto Indietro" sul footer è coperta dai test ma non è stata riprodotta in un browser, a differenza di quella sulla Lista ([[e4-lista-spesa]]).
 
+### Pasti con contorno (Feature 11)
+
+Dalla Feature 11 ([[f11-composizione-pasto]]) un pasto ha uno o due slot (principale e contorno), ma resta **una card sola** (decisione U1).
+
+- **`groupMealsByDay(slots)`** (esportata): raggruppa gli slot, già ordinati per giorno, pasto e principale → contorno ([[plan-repo]]), in `{ day, meals: MealGroup[] }[]`, con `MealGroup { main: PlanSlotView; side: PlanSlotView | null }`. Il principale è lo slot con `course !== 'contorno'` (in sua assenza il primo), il contorno lo slot `contorno`. Sostituisce `groupByDay`. Il corpo rende una `<section>` per giorno e una `PlanSlotCard` per pasto, con `key = main.id`, `slot = main`, `side` e `swappable = main.day >= today`.
+- **`withMealFrom(screen, serverPlan, day, meal, planFields?)`** (esportata, requirements P20): sostituisce **tutti** gli slot del pasto `(day, meal)` con quelli della risposta, aggiunte e rimozioni comprese, nella stessa posizione; il resto del piano non si tocca e una risposta di un altro piano o di un pasto non mostrato lascia lo schermo com'è. Sostituisce `withSlotFrom`: «+ Contorno», *Togli* e *Scegli* cambiano l'insieme degli slot del pasto, e fondere per slot non bastava. **Il blocco non lo decide la risposta** (innesto R1 della review architetturale): ogni slot del pasto prende il `locked` che il principale aveva in locale prima della sostituzione. Lo cambia solo `handleToggleLock`. Senza questa regola, una risposta di «+ Contorno» calcolata prima di un blocco e arrivata dopo avrebbe mostrato sbloccato un pasto bloccato sul server.
+- **Blocco per pasto**: `setMealLocked(day, meal, locked)` aggiorna in modo ottimistico tutti i piatti del pasto; `handleToggleLock(slotId)` chiama `requestSlotLock` con l'id del principale e poi applica il `locked` della risposta a ogni slot del pasto che la risposta contiene; in caso d'errore ripristina tutti i piatti e mostra il toast.
+- `onPlanChange` della card chiama `withMealFrom(prev, next, main.day, main.meal, { shopping_list })`.
+
 ## `PlanSlotCard`
 
 ```ts
@@ -100,6 +111,7 @@ export interface PlanSlotCardProps {
 - Props passate a [[meal-card]]: solo il nome del giorno come eyebrow, `MEAL_TYPE_LABELS`, titolo (o `Ricetta non disponibile` se la ricetta è stata eliminata), tempo e chip (`recipeChips`); `onSwap` solo se `editable && swappable`; lucchetto e long-press solo se `editable`. Dalla Feature 5 passa anche `isFavorite` (`slot.recipe.prefs.favorite`) e `onToggleFavorite`, quest'ultimo solo se il genitore ha fornito l'handler, lo slot ha una ricetta e la ricetta **non è bloccata**; l'handler riceve l'**id della ricetta**, non dello slot. La ★ compare anche sulle card non modificabili (settimane passate): il giudizio riguarda la ricetta, non il piano. Fino alla Feature 4 `onToggleFavorite` non veniva mai passato. **Dalla Feature 8** passa anche `course = courseLabel(slot.recipe.courses) ?? undefined` ([[courses]]): badge di portata sulla card, assente se la ricetta non è classificata o manca. I chip vengono da `recipeChips`, che su una ricetta classificata non ripete *Piatto unico* ([[recipe-sheet]]).
 - Modalità `idle → swapping → review`. Lo swap invia come esclusioni le ricette scartate nella sequenza più quella corrente, senza duplicati e al massimo `SWAP_EXCLUDE_MAX` (50). In attesa, al posto del footer un `role="status"` con `Cerco un'alternativa…` seguito dai messaggi di generazione. In revisione la card si rimonta dentro `animate-meal-flip` e mostra `Tieni` (azzera la sequenza) e `Cambia ancora`. Un errore torna alla modalità precedente e passa il messaggio al genitore; se lo slot viene bloccato durante la revisione la sequenza termina.
 - **Focus** (fix m8): all'arrivo della proposta va su `Tieni`, dopo `Tieni` o un errore di nuovo su `Cambia` (su `Cambia ancora` se l'errore arriva in revisione), solo se l'utente non l'ha spostato altrove nel frattempo.
+- **Dalla Feature 11** il badge di portata della card mostra la portata **dello slot**, non tutte quelle della ricetta: `course = slot.recipe && slot.recipe.courses.length > 0 ? COURSE_LABELS[slot.course] : undefined` (innesto R3 della review architetturale). Una ricetta `['secondo', 'piatto-unico']` usata come secondo in un «secondo + contorno» mostra «Secondo», non «Piatto unico · Secondo» sopra la riga del contorno. Una ricetta non classificata resta senza badge. Libreria, selettore e dettaglio continuano a mostrare tutte le portate della ricetta. `courseLabel` non è più importata qui.
 
 ### *Scegli* e il selettore (Feature 9)
 - **Dove compare**: `MealCard` riceve `onPick` esattamente quando riceve `onSwap` (`canSwap = editable && swappable`): piano modificabile e giorno non passato, anche su uno slot senza ricetta. È disabilitato sullo slot bloccato e assente durante uno swap in corso (il footer è sostituito dal messaggio di attesa). Nella riga di revisione compare tra `Tieni` e `Cambia ancora` come pulsante `ghost` con la sola icona `Search` (`size="icon"`, `aria-label="Scegli dalla libreria"`, `data-slot-action="pick"`), nell'ordine `Tieni` · 🔍 · `Cambia ancora` (decisione U2).
@@ -110,6 +122,28 @@ export interface PlanSlotCardProps {
 - **Inoltri**: il selettore riceve `onRecipePrefsChange` e `onPlanStale` dalla card e `onError` come `onNotify`.
 
 `PlanScreen` passa `onRecipePrefsChange={applyRecipePrefs}` (un giudizio dato dal dettaglio del selettore aggiorna tutti gli slot con quella ricetta) e `onPlanStale={() => router.refresh()}`: un rifiuto per piano non più modificabile rilegge il piano con il riallineamento `syncedInitialScreen` già esistente. Il dettaglio dello slot (`sheetSlotId`) resta quello di prima, fuori dal contenitore delle card.
+
+### Contorno sulla card (Feature 11)
+
+```ts
+// in PlanSlotCardProps
+side?: PlanSlotView | null;   // contorno del pasto, se c'è; `slot` è il principale
+```
+
+- **Stato in più**: `sideMode: 'idle' | 'adding' | 'swapping' | 'removing'`, `sideRejected` (contorni scartati nella sequenza di *Cambia contorno*), `pickerFor: 'main' | 'side' | null` al posto di `pickerOpen`.
+- **`busy` = swap del principale in corso oppure un'azione sul contorno in corso** (spec FR-4.5, innesto R1). La card passa `actionsDisabled={busy}` a [[meal-card]]: *Cambia*, *Scegli*, lucchetto e long-press sono disattivati. In modalità `review` il lucchetto torna attivo (lo swap è concluso), mentre la riga del contorno e «+ Contorno» restano disattivati finché non si sceglie *Tieni* o *Cambia ancora*.
+- **`canEditDishes = editable && swappable && !slot.locked`**: le azioni sui piatti ci sono solo su un piano modificabile, un giorno non passato e un pasto non bloccato. Il blocco del pasto è quello del principale, che `withMealFrom` e `setMealLocked` tengono uguale a quello del contorno.
+- **Contenuto sotto il footer** (prop `extra` di `MealCard`):
+  - con un contorno: [[side-dish-row]] con titolo (o `Ricetta non disponibile`), `onOpen` che apre il dettaglio del contorno (`onSelectRecipe(side)`) se la ricetta esiste, e `onSwap` / `onPick` / `onRemove` solo con `canEditDishes`. Attese: «Cerco un contorno…» per *Cambia contorno*, «Tolgo il contorno…» per la rimozione;
+  - senza contorno, con un principale `primo` o `secondo` e `canEditDishes`: il pulsante `ghost` «Contorno» con icona `Plus`, `aria-label="Aggiungi un contorno"`, `data-side-action="add"`; durante l'aggiunta al suo posto un `role="status"` con «Cerco un contorno…». Su un piatto unico, su un pasto bloccato, su un giorno passato o su un piano in sola lettura il pulsante non c'è (spec FR-4.3, FR-4.4).
+- **Azioni**:
+  - `handleAddSide`: `requestAddSideDish(planId, slot.id, [])`; successo → `onPlanChange`, sequenza degli scarti azzerata, focus su ⟳ del contorno nuovo; errore → `onError` e focus di nuovo su «+ Contorno»;
+  - `handleSideSwap`: `requestSwapSlot(planId, side.id, buildExclude(sideRejected, side.recipe?.id))`, subito senza passo di revisione e senza flip (spec FR-5.2); i contorni scartati si accumulano entro `SWAP_EXCLUDE_MAX` finché la card resta montata; il focus torna su ⟳;
+  - `handleRemoveSide`: `requestRemoveSideDish(planId, side.id)`, senza conferma; successo → focus su «+ Contorno», errore → focus su ✕;
+  - `openSidePicker`: apre [[slot-recipe-picker]] sullo slot del contorno. Chiusura o assegnazione riportano il focus sulla lente del contorno; l'assegnazione azzera `sideRejected` e non tocca la modalità del principale.
+  - Errori delle azioni sul contorno (`reportSideError`): `onError(apiErrorMessage(err))` e, se il codice è in `STALE_PLAN_ERROR_CODES` ([[plan-service]]), `onPlanStale()`; un errore qualsiasi (per esempio `no_alternatives`) non chiede di rileggere il piano.
+- **Focus**: `FocusTarget` aggiunge `sideSwap`, `sidePick`, `sideAdd`, `sideRemove` con i selettori `[data-side-action="…"]`; il selettore di `swap` diventa `button[aria-label^="Cambia "]:not([data-side-action])`, perché anche ⟳ del contorno ha un `aria-label` che inizia con «Cambia ».
+- **Selettore**: `pickerSlot` è `side` o `slot` secondo `pickerFor`; il selettore resta montato fuori dal `div` con `key`, come dalla Feature 9.
 
 ## `GenerationProgress` e `useRotatingMessage`
 
@@ -129,6 +163,7 @@ Classe `animate-meal-flip`: flip `rotateY` da 80° a 0° in 320 ms; con `prefers
 - `tests/ui/generation-progress.test.tsx`; `tests/ui/shell.test.tsx` rende ora `PlanScreen` con un fixture al posto della vecchia home.
 - Dalla Feature 9: blocco `PlanSlotCard — Scegli` in `tests/ui/plan-slot-card.test.tsx` (presente su una card modificabile e cambiabile, assente in sola lettura o su un giorno passato, disabilitato su slot bloccato, selettore montato per lo slot, assegnazione dallo stato normale con focus su *Scegli*, chiusura senza assegnazione, ordine `Tieni` · icona · `Cambia ancora`, assegnazione dalla revisione che azzera la sequenza, chiusura in revisione con focus sull'icona, piano non più modificabile notificato una volta, avvisi inoltrati a `onError`, nessun *Scegli* durante uno swap, *Scegli* su uno slot senza ricetta) e blocco `scelta a mano` in `tests/ui/plan-screen.test.tsx` (ricetta scelta che compare sulla card, nessun *Scegli* sui giorni passati o su una settimana in sola lettura, rifiuto per piano non più modificabile con toast, selettore chiuso e una sola rilettura). I test esistenti su *Cambia* restano verdi senza modificarne le attese.
 - Dalla Feature 8: blocco `PlanSlotCard — course badge` in `tests/ui/plan-slot-card.test.tsx` (portate in ordine canonico, nessun badge su una ricetta non classificata, *Piatto unico* una volta sola, come portata e non tra i chip). Che un contorno non entri mai nel piano lo verificano i test del servizio e del planner, non quelli della pagina ([[planner]], [[plan-service]]).
+- Dalla Feature 11: blocco `PlanSlotCard — contorno` in `tests/ui/plan-slot-card.test.tsx` («Aggiungi un contorno» su un primo o un secondo e mai su un piatto unico, nessuna azione su un pasto bloccato o in sola lettura, aggiunta con attesa e riga dalla risposta, rimozione con l'id del contorno, *Cambia contorno* con le esclusioni che si accumulano, rifiuto per piano non più modificabile con `onError` e `onPlanStale`, errore dello swap del contorno senza rilettura, azioni del contorno disattivate durante lo swap del principale e viceversa, lucchetto e long-press disattivati durante lo swap e durante l'aggiunta, lucchetto riattivo in revisione, dettaglio dal titolo del contorno, focus dopo ogni azione e dopo il selettore del contorno, contorno senza ricetta, badge della portata dello slot e non di tutte le portate della ricetta); in `tests/ui/plan-screen.test.tsx` il blocco `contorno nel pasto` (una card per pasto con il contorno dentro, aggiunta e rimozione, blocco del pasto con l'id del principale e ripristino su entrambi i piatti, lucchetto disattivato durante un'aggiunta) e i test puri di `groupMealsByDay` e `withMealFrom` (pasto bloccato in locale che resta bloccato con una risposta `locked: false`, altri pasti invariati, stato della lista). Il componente della riga ha i suoi test ([[side-dish-row]]).
 
 ## Vedi anche
 
@@ -148,3 +183,5 @@ Classe `animate-meal-flip`: flip `rotateY` da 80° a 0° in 320 ms; con `prefers
 - [[slot-recipe-picker]] — Selettore aperto da *Scegli* (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[f8-portate-etichette]] — Feature 8: badge di portata sulle card
+- [[side-dish-row]] — Riga del contorno nella card (Feature 11)
+- [[f11-composizione-pasto]] — Panoramica della Feature 11

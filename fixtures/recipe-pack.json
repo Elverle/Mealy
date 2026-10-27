@@ -1951,7 +1951,6 @@
         "proteico",
         "comfort-food",
         "economico",
-        "piatto-unico",
         "dal-mondo",
         "pochi-ingredienti"
       ],
@@ -9369,7 +9368,6 @@
         "veloce",
         "comfort-food",
         "economico",
-        "piatto-unico",
         "pochi-ingredienti"
       ],
       "diet_flags": [],
@@ -9433,7 +9431,6 @@
       ],
       "tags": [
         "economico",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -9546,7 +9543,6 @@
       "tags": [
         "veloce",
         "comfort-food",
-        "piatto-unico",
         "pochi-ingredienti"
       ],
       "diet_flags": [],
@@ -9621,7 +9617,6 @@
         "salutare",
         "proteico",
         "economico",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -9711,7 +9706,6 @@
       ],
       "tags": [
         "economico",
-        "piatto-unico",
         "pochi-ingredienti",
         "in-anticipo"
       ],
@@ -9824,7 +9818,6 @@
       "tags": [
         "proteico",
         "economico",
-        "piatto-unico",
         "pochi-ingredienti",
         "in-anticipo",
         "piatto-freddo"
@@ -9908,7 +9901,6 @@
       "tags": [
         "comfort-food",
         "economico",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -10001,7 +9993,6 @@
       "tags": [
         "veloce",
         "comfort-food",
-        "piatto-unico",
         "pochi-ingredienti"
       ],
       "diet_flags": [],
@@ -10066,7 +10057,6 @@
         "piatto-unico"
       ],
       "tags": [
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti",
         "in-anticipo",
@@ -10201,7 +10191,6 @@
         "proteico",
         "leggero",
         "economico",
-        "piatto-unico",
         "pochi-ingredienti",
         "piatto-freddo"
       ],
@@ -10308,7 +10297,6 @@
       "tags": [
         "veloce",
         "comfort-food",
-        "piatto-unico",
         "pochi-ingredienti"
       ],
       "diet_flags": [],
@@ -10382,7 +10370,6 @@
       ],
       "tags": [
         "economico",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -10463,7 +10450,6 @@
       "tags": [
         "comfort-food",
         "economico",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -10574,7 +10560,6 @@
       "tags": [
         "veloce",
         "leggero",
-        "piatto-unico",
         "pochi-ingredienti"
       ],
       "diet_flags": [
@@ -10679,7 +10664,6 @@
         "veloce",
         "proteico",
         "comfort-food",
-        "piatto-unico",
         "dal-mondo",
         "pochi-ingredienti"
       ],
@@ -10761,7 +10745,6 @@
         "piatto-unico"
       ],
       "tags": [
-        "piatto-unico",
         "dal-mondo",
         "pochi-ingredienti"
       ],
@@ -10869,7 +10852,6 @@
       "tags": [
         "proteico",
         "comfort-food",
-        "piatto-unico",
         "dal-mondo",
         "pochi-ingredienti"
       ],
@@ -10975,7 +10957,6 @@
         "salutare",
         "proteico",
         "leggero",
-        "piatto-unico",
         "pochi-ingredienti",
         "in-anticipo",
         "piatto-freddo"
@@ -11084,7 +11065,6 @@
       ],
       "tags": [
         "leggero",
-        "piatto-unico",
         "dal-mondo",
         "pochi-ingredienti"
       ],
@@ -11167,7 +11147,6 @@
       "tags": [
         "veloce",
         "proteico",
-        "piatto-unico",
         "pochi-ingredienti"
       ],
       "diet_flags": [],
@@ -11241,7 +11220,6 @@
         "piatto-unico"
       ],
       "tags": [
-        "piatto-unico",
         "dal-mondo",
         "pochi-ingredienti"
       ],
@@ -11346,7 +11324,6 @@
       ],
       "tags": [
         "comfort-food",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -11455,7 +11432,6 @@
       ],
       "tags": [
         "salutare",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti",
         "piatto-freddo"
@@ -11544,7 +11520,6 @@
       "tags": [
         "salutare",
         "leggero",
-        "piatto-unico",
         "dal-mondo",
         "pochi-ingredienti"
       ],
@@ -11644,7 +11619,6 @@
       ],
       "tags": [
         "veloce",
-        "piatto-unico",
         "pochi-ingredienti"
       ],
       "diet_flags": [
@@ -11759,7 +11733,6 @@
       ],
       "tags": [
         "proteico",
-        "piatto-unico",
         "in-anticipo",
         "piatto-freddo"
       ],
@@ -11874,7 +11847,6 @@
       ],
       "tags": [
         "veloce",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -11960,7 +11932,6 @@
         "veloce",
         "salutare",
         "proteico",
-        "piatto-unico",
         "pochi-ingredienti",
         "piatto-freddo"
       ],
@@ -12070,7 +12041,6 @@
         "salutare",
         "proteico",
         "leggero",
-        "piatto-unico",
         "dal-mondo",
         "pochi-ingredienti",
         "piatto-freddo"
@@ -12172,7 +12142,6 @@
       "tags": [
         "proteico",
         "comfort-food",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -12284,7 +12253,6 @@
       "tags": [
         "salutare",
         "proteico",
-        "piatto-unico",
         "pochi-ingredienti"
       ],
       "diet_flags": [
@@ -12408,7 +12376,6 @@
       "tags": [
         "veloce",
         "proteico",
-        "piatto-unico",
         "pochi-ingredienti"
       ],
       "diet_flags": [
@@ -12506,7 +12473,6 @@
       "tags": [
         "comfort-food",
         "economico",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -12593,7 +12559,6 @@
       ],
       "tags": [
         "comfort-food",
-        "piatto-unico",
         "tradizionale"
       ],
       "diet_flags": [],
@@ -12712,7 +12677,6 @@
         "veloce",
         "salutare",
         "leggero",
-        "piatto-unico",
         "pochi-ingredienti",
         "piatto-freddo"
       ],
@@ -12805,7 +12769,6 @@
       ],
       "tags": [
         "comfort-food",
-        "piatto-unico",
         "tradizionale",
         "pochi-ingredienti"
       ],
@@ -12909,7 +12872,6 @@
         "salutare",
         "leggero",
         "economico",
-        "piatto-unico",
         "tradizionale",
         "piatto-freddo"
       ],
@@ -13011,7 +12973,6 @@
       ],
       "tags": [
         "leggero",
-        "piatto-unico",
         "dal-mondo",
         "pochi-ingredienti"
       ],
@@ -13094,7 +13055,6 @@
       ],
       "tags": [
         "proteico",
-        "piatto-unico",
         "dal-mondo"
       ],
       "diet_flags": [
@@ -13211,7 +13171,6 @@
       ],
       "tags": [
         "economico",
-        "piatto-unico",
         "in-anticipo",
         "piatto-freddo"
       ],

@@ -2,7 +2,7 @@
 title: Lista della Spesa — Regole Pure di Consolidamento, Riconciliazione e Formattazione (shopping-list)
 type: entity
 created: 2026-10-09
-updated: 2026-10-09
+updated: 2026-10-27
 tags: [shopping-list, domain, pure-functions, consolidation, aliases, rounding, reconciliation, sorting, formatting, feature-6]
 ---
 
@@ -55,6 +55,8 @@ Per ogni slot con una ricetta, `servings > 0` e `servings_base > 0` (gli altri s
 7. **Ordine** del risultato: reparto, nome (`localeCompare` italiano), unità nell'ordine di `UNIT_VALUES`.
 
 La funzione non muta gli slot e senza slot restituisce `[]`.
+
+**Dalla Feature 11** uno slot è un piatto ([[f11-composizione-pasto]]): un pasto con contorno arriva qui come due slot, con le stesse porzioni, e il contorno entra nella lista come ogni altro piatto. La funzione non è cambiata; `tests/plans/side-dish.test.ts` verifica che la lista di un piano confermato comprenda gli ingredienti del contorno, scalati sulle porzioni.
 
 ### `roundShoppingQuantity`
 

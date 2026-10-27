@@ -19,6 +19,8 @@ export interface RecipeProposalSheetProps {
   request: string | null;
   /** Tipo di pasto imposto (dal Piano); null = lo decide il modello (Libreria). */
   mealType: MealType | null;
+  /** true: si chiede un contorno (selettore del contorno). */
+  sideDish?: boolean;
   /** Porzioni su cui mostrare le quantità. */
   servings: number;
   /** Etichetta dell'azione primaria: «Aggiungi alla libreria» oppure «Metti nel piano». */
@@ -50,6 +52,7 @@ const REQUEST_PREFIX = "Hai chiesto";
 export function RecipeProposalSheet({
   request,
   mealType,
+  sideDish = false,
   servings,
   acceptLabel,
   onAccept,
@@ -67,10 +70,12 @@ export function RecipeProposalSheet({
   const controllerRef = React.useRef<AbortController | null>(null);
   const mountedRef = React.useRef(true);
   const mealTypeRef = React.useRef(mealType);
+  const sideDishRef = React.useRef(sideDish);
   const onAcceptRef = React.useRef(onAccept);
 
   React.useEffect(() => {
     mealTypeRef.current = mealType;
+    sideDishRef.current = sideDish;
     onAcceptRef.current = onAccept;
   });
 
@@ -96,7 +101,12 @@ export function RecipeProposalSheet({
     setStatus("pending");
     setProposal(null);
     requestRecipeProposal(
-      { request: text, mealType: mealTypeRef.current, excludeTitles: titlesRef.current },
+      {
+        request: text,
+        mealType: mealTypeRef.current,
+        excludeTitles: titlesRef.current,
+        sideDish: sideDishRef.current,
+      },
       controller.signal
     ).then(
       (next) => {
