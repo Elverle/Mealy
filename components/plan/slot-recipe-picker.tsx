@@ -26,6 +26,7 @@ import { ApiRequestError, apiErrorMessage } from "@/lib/http/client";
 import { requestSaveRecipe } from "@/lib/library/client";
 import { formatDayLabel } from "@/lib/plans/format";
 import { fetchSlotCandidates, requestAssignSlotRecipe } from "@/lib/plans/client";
+import { STALE_PLAN_ERROR_CODES } from "@/lib/plans/errors";
 
 export interface SlotRecipePickerProps {
   planId: string;
@@ -45,13 +46,6 @@ export interface SlotRecipePickerProps {
 
 type LoadState = "loading" | "ready" | "error";
 
-const STALE_PLAN_CODES: ReadonlySet<string> = new Set([
-  "slot_locked",
-  "slot_past",
-  "plan_archived",
-  "plan_not_found",
-  "slot_not_found",
-]);
 const UNAVAILABLE_RECIPE_CODES: ReadonlySet<string> = new Set([
   "recipe_not_eligible",
   "recipe_not_found",
@@ -163,7 +157,7 @@ export function SlotRecipePicker({
     } catch (err) {
       const code = errorCode(err);
       onNotify(apiErrorMessage(err));
-      if (STALE_PLAN_CODES.has(code)) {
+      if (STALE_PLAN_ERROR_CODES.has(code)) {
         onPlanStale();
         onClose();
       } else if (UNAVAILABLE_RECIPE_CODES.has(code)) {
@@ -197,7 +191,7 @@ export function SlotRecipePicker({
       // La ricetta è in libreria: non si rilancia, la sheet di proposta si chiude.
       onNotify(SAVED_NOT_ASSIGNED);
       setRequestText(null);
-      if (STALE_PLAN_CODES.has(errorCode(err))) {
+      if (STALE_PLAN_ERROR_CODES.has(errorCode(err))) {
         onPlanStale();
         onClose();
       } else {
@@ -205,6 +199,9 @@ export function SlotRecipePicker({
       }
     }
   };
+
+  const isSide = slot.course === "contorno";
+  const slotTitle = `${formatDayLabel(slot.day)} · ${MEAL_TYPE_LABELS[slot.meal]}`;
 
   return (
     <>
@@ -216,7 +213,7 @@ export function SlotRecipePicker({
       >
         <SheetContent className="h-[92dvh]">
           <SheetHeader>
-            <SheetTitle>{`Scegli per ${formatDayLabel(slot.day)} · ${MEAL_TYPE_LABELS[slot.meal]}`}</SheetTitle>
+            <SheetTitle>{isSide ? `Scegli il contorno per ${slotTitle}` : `Scegli per ${slotTitle}`}</SheetTitle>
           </SheetHeader>
 
           {/* Campo di ricerca fisso sopra l'elenco: stesse classi di LibraryFilters, senza autoFocus */}
@@ -272,7 +269,9 @@ export function SlotRecipePicker({
               <>
                 {candidates.recipes.length === 0 ? (
                   <p className="py-8 text-center text-sm text-stone">
-                    {"Nessun'altra ricetta adatta a questo pasto"}
+                    {isSide
+                      ? "Nessun altro contorno adatto a questo pasto"
+                      : "Nessun'altra ricetta adatta a questo pasto"}
                   </p>
                 ) : visible.length === 0 ? (
                   <p className="py-8 text-center text-sm text-stone">Nessuna ricetta trovata</p>
@@ -311,6 +310,7 @@ export function SlotRecipePicker({
       <RecipeProposalSheet
         request={requestText}
         mealType={slot.meal}
+        sideDish={isSide}
         servings={slot.servings}
         acceptLabel="Metti nel piano"
         onAccept={acceptProposal}

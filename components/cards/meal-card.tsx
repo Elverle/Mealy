@@ -26,6 +26,10 @@ export interface MealCardProps {
   onLongPress?: (id: string) => void;
   /** Sostituisce l'intero footer (Cambia + preferita). */
   actions?: React.ReactNode;
+  /** Contenuto sotto il footer, dentro la card (riga contorno o «+ Contorno»). */
+  extra?: React.ReactNode;
+  /** Disattiva Cambia, Scegli, lucchetto e pressione lunga (azione in corso su un altro piatto della card). */
+  actionsDisabled?: boolean;
   className?: string;
 }
 
@@ -50,6 +54,8 @@ export function MealCard({
   onSelect,
   onLongPress,
   actions,
+  extra,
+  actionsDisabled = false,
   className,
 }: MealCardProps) {
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,7 +72,8 @@ export function MealCard({
 
   React.useEffect(() => cancelLongPress, [cancelLongPress]);
 
-  const longPressProps = onLongPress
+  // Con un'azione in corso la pressione lunga non blocca il pasto (come il lucchetto).
+  const longPressProps = onLongPress && !actionsDisabled
     ? {
         onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
           if (e.button !== 0) return;
@@ -127,10 +134,11 @@ export function MealCard({
               e.stopPropagation();
               onToggleLock(id);
             }}
+            disabled={actionsDisabled}
             aria-label={isLocked ? "Sblocca pasto" : "Blocca pasto"}
             aria-pressed={isLocked}
             className={cn(
-              "flex h-11 w-11 items-center justify-center rounded-lg text-stone transition-colors hover:bg-stone/15 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil cursor-pointer",
+              "flex h-11 w-11 items-center justify-center rounded-lg text-stone transition-colors hover:bg-stone/15 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil cursor-pointer disabled:pointer-events-none disabled:opacity-40",
               isLocked && "text-basil hover:text-basil/80"
             )}
           >
@@ -210,7 +218,7 @@ export function MealCard({
                         e.stopPropagation();
                         onSwap(id);
                       }}
-                      disabled={isLocked}
+                      disabled={isLocked || actionsDisabled}
                       aria-label={`Cambia ${title}`}
                       className="flex min-h-[44px] items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-tomato transition-colors hover:bg-tomato/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tomato active:scale-95 cursor-pointer disabled:pointer-events-none disabled:opacity-40"
                     >
@@ -225,7 +233,7 @@ export function MealCard({
                         e.stopPropagation();
                         onPick(id);
                       }}
-                      disabled={isLocked}
+                      disabled={isLocked || actionsDisabled}
                       aria-label={`Scegli un'altra ricetta per ${title}`}
                       data-slot-action="pick"
                       className="flex min-h-[44px] items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-ink transition-colors hover:bg-stone/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basil active:scale-95 cursor-pointer disabled:pointer-events-none disabled:opacity-40"
@@ -263,6 +271,8 @@ export function MealCard({
           )}
         </div>
       )}
+
+      {extra && <div className="mt-2 border-t border-dashed border-stone/25 pt-2">{extra}</div>}
     </Card>
   );
 }

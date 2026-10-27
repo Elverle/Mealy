@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { applyRecipePrefPatch, defaultRecipePref } from "@/lib/domain/prefs";
 import type {
   GeneratePlanResult,
+  MealType,
   PlanScreenView,
   PlanSlotView,
   PlanView,
@@ -106,35 +107,69 @@ function withPlan(screen: PlanScreenView, plan: PlanView): PlanScreenView {
   };
 }
 
+/** Un pasto della schermata: il piatto principale e, se c'è, il contorno. */
+export interface MealGroup {
+  main: PlanSlotView;
+  side: PlanSlotView | null;
+}
+
+function mealGroupOf(slots: readonly PlanSlotView[]): MealGroup {
+  const main = slots.find((slot) => slot.course !== "contorno") ?? slots[0];
+  const side = slots.find((slot) => slot.course === "contorno" && slot.id !== main.id) ?? null;
+  return { main, side };
+}
+
+/** Raggruppa gli slot (già ordinati: giorno, pasto, principale → contorno) per giorno e pasto. */
+export function groupMealsByDay(
+  slots: readonly PlanSlotView[]
+): { day: string; meals: MealGroup[] }[] {
+  const meals: { day: string; meal: MealType; slots: PlanSlotView[] }[] = [];
+  for (const slot of slots) {
+    const last = meals[meals.length - 1];
+    if (last && last.day === slot.day && last.meal === slot.meal) last.slots.push(slot);
+    else meals.push({ day: slot.day, meal: slot.meal, slots: [slot] });
+  }
+  const days: { day: string; meals: MealGroup[] }[] = [];
+  for (const meal of meals) {
+    const group = mealGroupOf(meal.slots);
+    const last = days[days.length - 1];
+    if (last && last.day === meal.day) last.meals.push(group);
+    else days.push({ day: meal.day, meals: [group] });
+  }
+  return days;
+}
+
 /**
- * Applica solo i campi `pick` dello slot `slotId` presi dall'istantanea del server. Le
- * risposte di swap e blocco possono arrivare fuori ordine: sostituire l'intero piano
- * annullerebbe le modifiche degli altri slot applicate nel frattempo.
+ * Sostituisce gli slot del pasto (day, meal) con quelli della risposta: aggiunte e rimozioni
+ * comprese. Le risposte possono arrivare fuori ordine: il resto del piano non si tocca. Il
+ * blocco non lo decide la risposta: ogni slot del pasto prende quello che il principale aveva
+ * localmente prima della sostituzione.
  */
-function withSlotFrom(
+export function withMealFrom(
   screen: PlanScreenView,
   serverPlan: PlanView,
-  slotId: string,
-  pick: (serverSlot: PlanSlotView) => Partial<PlanSlotView>,
+  day: string,
+  meal: MealType,
   planFields: Partial<Pick<PlanView, "shopping_list">> = {}
 ): PlanScreenView {
   const plan = screen.view.plan;
-  const serverSlot = serverPlan.slots.find((slot) => slot.id === slotId);
-  if (!plan || plan.id !== serverPlan.id || !serverSlot) return screen;
-  const slots = plan.slots.map((slot) =>
-    slot.id === slotId ? { ...slot, ...pick(serverSlot) } : slot
-  );
-  return { ...screen, view: { ...screen.view, plan: { ...plan, ...planFields, slots } } };
-}
-
-function groupByDay(slots: readonly PlanSlotView[]): { day: string; slots: PlanSlotView[] }[] {
-  const groups: { day: string; slots: PlanSlotView[] }[] = [];
-  for (const slot of slots) {
-    const last = groups[groups.length - 1];
-    if (last && last.day === slot.day) last.slots.push(slot);
-    else groups.push({ day: slot.day, slots: [slot] });
+  if (!plan || plan.id !== serverPlan.id) return screen;
+  const inMeal = (slot: PlanSlotView): boolean => slot.day === day && slot.meal === meal;
+  const localMeal = plan.slots.filter(inMeal);
+  if (localMeal.length === 0) return screen;
+  const locked = mealGroupOf(localMeal).main.locked;
+  const replacement = serverPlan.slots.filter(inMeal).map((slot) => ({ ...slot, locked }));
+  const slots: PlanSlotView[] = [];
+  let placed = false;
+  for (const slot of plan.slots) {
+    if (!inMeal(slot)) {
+      slots.push(slot);
+    } else if (!placed) {
+      slots.push(...replacement);
+      placed = true;
+    }
   }
-  return groups;
+  return { ...screen, view: { ...screen.view, plan: { ...plan, ...planFields, slots } } };
 }
 
 interface WeekNavLinkProps {
@@ -498,11 +533,12 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
     }
   };
 
-  const setSlotLocked = (slotId: string, locked: boolean): void => {
+  /** Il blocco vale per l'intero pasto: principale e contorno insieme. */
+  const setMealLocked = (day: string, meal: MealType, locked: boolean): void => {
     setScreen((prev) => {
       if (!prev.view.plan) return prev;
       const slots = prev.view.plan.slots.map((slot) =>
-        slot.id === slotId ? { ...slot, locked } : slot
+        slot.day === day && slot.meal === meal ? { ...slot, locked } : slot
       );
       return { ...prev, view: { ...prev.view, plan: { ...prev.view.plan, slots } } };
     });
@@ -511,15 +547,23 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
   const handleToggleLock = async (slotId: string): Promise<void> => {
     const slot = plan?.slots.find((candidate) => candidate.id === slotId);
     if (!plan || !slot) return;
+    const { day, meal } = slot;
     const nextLocked = !slot.locked;
-    setSlotLocked(slotId, nextLocked);
+    setMealLocked(day, meal, nextLocked);
     try {
       const result = await requestSlotLock(plan.id, slotId, nextLocked);
-      setScreen((prev) =>
-        withSlotFrom(prev, result.plan, slotId, (serverSlot) => ({ locked: serverSlot.locked }))
-      );
+      setScreen((prev) => {
+        const current = prev.view.plan;
+        if (!current || current.id !== result.plan.id) return prev;
+        const slots = current.slots.map((local) => {
+          const inMeal = local.day === day && local.meal === meal;
+          const serverSlot = result.plan.slots.find((candidate) => candidate.id === local.id);
+          return inMeal && serverSlot ? { ...local, locked: serverSlot.locked } : local;
+        });
+        return { ...prev, view: { ...prev.view, plan: { ...current, slots } } };
+      });
     } catch (err) {
-      setSlotLocked(slotId, !nextLocked);
+      setMealLocked(day, meal, !nextLocked);
       setToast(apiErrorMessage(err));
     }
   };
@@ -547,28 +591,25 @@ export function PlanScreen({ initialScreen }: PlanScreenProps): React.JSX.Elemen
   } else if (plan) {
     body = (
       <div className="flex flex-col gap-6">
-        {groupByDay(plan.slots).map((group) => (
-          <section key={group.day} className="flex flex-col gap-3">
+        {groupMealsByDay(plan.slots).map((day) => (
+          <section key={day.day} className="flex flex-col gap-3">
             <h3 className="font-display text-lg font-bold text-ink">
-              {formatDayLabel(group.day)}
+              {formatDayLabel(day.day)}
             </h3>
-            {group.slots.map((slot) => (
+            {day.meals.map((group) => (
               <PlanSlotCard
-                key={slot.id}
+                key={group.main.id}
                 planId={plan.id}
-                slot={slot}
+                slot={group.main}
+                side={group.side}
                 editable={view.editable}
-                swappable={slot.day >= screen.today}
+                swappable={group.main.day >= screen.today}
                 onPlanChange={(next) => {
                   shoppingListTouchedRef.current = true;
                   setScreen((prev) =>
-                    withSlotFrom(
-                      prev,
-                      next,
-                      slot.id,
-                      (serverSlot) => ({ recipe: serverSlot.recipe, servings: serverSlot.servings }),
-                      { shopping_list: next.shopping_list }
-                    )
+                    withMealFrom(prev, next, group.main.day, group.main.meal, {
+                      shopping_list: next.shopping_list,
+                    })
                   );
                 }}
                 onToggleLock={(slotId) => void handleToggleLock(slotId)}

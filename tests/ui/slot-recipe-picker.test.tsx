@@ -535,3 +535,64 @@ describe("SlotRecipePicker: richiesta di una ricetta", () => {
     );
   });
 });
+
+describe("SlotRecipePicker: contorno", () => {
+  const SIDE_SLOT_ID = "66666666-6666-4666-8666-666666666666";
+  const SIDE_SLOT: PlanSlotView = {
+    id: SIDE_SLOT_ID,
+    day: "2026-10-01",
+    meal: "cena",
+    course: "contorno",
+    servings: 2,
+    locked: false,
+    recipe: null,
+  };
+
+  it("titles the picker as the side dish choice and says so when there is no candidate", async () => {
+    await renderReady(candidatesOf([]), { slot: SIDE_SLOT });
+
+    expect(
+      screen.getByRole("heading", { name: "Scegli il contorno per Giovedì 1 · Cena" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nessun altro contorno adatto a questo pasto")).toBeInTheDocument();
+    expect(screen.queryByText(NO_CANDIDATES)).not.toBeInTheDocument();
+  });
+
+  it("loads the candidates of the side slot and assigns the chosen recipe to it", async () => {
+    await renderReady(ALL_CANDIDATES, { slot: SIDE_SLOT });
+    assignMock.mockResolvedValue(assignedResult());
+    await openDetail(RECIPE_A);
+
+    fireEvent.click(screen.getByRole("button", { name: ASSIGN_LABEL }));
+
+    expect(fetchCandidatesMock).toHaveBeenCalledWith(PLAN_ID, SIDE_SLOT_ID);
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith(PLAN_ID, SIDE_SLOT_ID, RECIPE_A.id));
+  });
+
+  it("asks the proposal for a side dish", async () => {
+    await renderReady(ALL_CANDIDATES, { slot: SIDE_SLOT });
+    fireEvent.change(searchField(), { target: { value: "insalata" } });
+    proposalMock.mockReturnValue(new Promise(() => {}));
+
+    fireEvent.click(screen.getByRole("button", { name: "Chiedi una ricetta per «insalata»" }));
+
+    expect(proposalMock).toHaveBeenCalledWith(
+      { request: "insalata", mealType: "cena", sideDish: true, excludeTitles: [] },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("closes the picker when the side slot is refused as stale", async () => {
+    const { onPlanStale, onClose, onNotify } = await renderReady(ALL_CANDIDATES, {
+      slot: SIDE_SLOT,
+    });
+    assignMock.mockRejectedValue(new PlanRequestError(409, "side_exists", "Questo pasto ha già un contorno."));
+    await openDetail(RECIPE_A);
+
+    fireEvent.click(screen.getByRole("button", { name: ASSIGN_LABEL }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onNotify).toHaveBeenCalledWith("Questo pasto ha già un contorno.");
+    expect(onPlanStale).toHaveBeenCalledTimes(1);
+  });
+});
