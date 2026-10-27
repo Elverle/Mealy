@@ -1,2 +1,6 @@
+# Fine riga LF per tutti i file di testo, anche su Windows: niente commit che cambiano solo LF e CRLF.
+# Git riconosce da sé i file binari.
+* text=auto eol=lf
+
 # Gli script di shell girano in container Linux e sul Raspberry: sempre LF, anche su Windows.
 *.sh text eol=lf
