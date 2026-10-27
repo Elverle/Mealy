@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# Node 24: la stessa versione del gate CI. `ai` 7 richiede Node >= 22.
-ARG NODE_VERSION=24
+# Node 24.22.1 (fix CVE-2026-111497): la stessa versione del gate CI. `ai` 7 richiede Node >= 22.
+ARG NODE_VERSION=24.22.1
 
 FROM node:${NODE_VERSION}-alpine AS base
 RUN apk add --no-cache libc6-compat \
