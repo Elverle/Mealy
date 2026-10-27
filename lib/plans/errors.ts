@@ -12,8 +12,23 @@ export const PLAN_ERROR_CODES = [
   'repeat_same_week',
   'recipe_not_found',
   'recipe_not_eligible',
+  'side_not_allowed',
+  'side_exists',
+  'not_a_side_dish',
 ] as const;
 export type PlanErrorCode = (typeof PLAN_ERROR_CODES)[number];
+
+// Codici che impongono di rileggere il piano mostrato.
+export const STALE_PLAN_ERROR_CODES: ReadonlySet<string> = new Set<PlanErrorCode>([
+  'slot_locked',
+  'slot_past',
+  'plan_archived',
+  'plan_not_found',
+  'slot_not_found',
+  'side_exists',
+  'side_not_allowed',
+  'not_a_side_dish',
+]);
 
 export const PLAN_ERROR_HTTP: Record<PlanErrorCode, { status: number; message: string }> = {
   plan_not_found: { status: 404, message: 'Piano non trovato.' },
@@ -43,6 +58,9 @@ export const PLAN_ERROR_HTTP: Record<PlanErrorCode, { status: number; message: s
   },
   recipe_not_found: { status: 404, message: 'Ricetta non trovata.' },
   recipe_not_eligible: { status: 422, message: 'Questa ricetta non è adatta a questo pasto.' },
+  side_not_allowed: { status: 409, message: 'Questo pasto non prevede un contorno.' },
+  side_exists: { status: 409, message: 'Questo pasto ha già un contorno.' },
+  not_a_side_dish: { status: 409, message: 'Si può togliere solo il contorno.' },
 };
 
 export class PlanError extends Error {
