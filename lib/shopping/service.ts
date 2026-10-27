@@ -52,7 +52,7 @@ import { addDays, mondayOf, todayInTimeZone } from '@/lib/domain/week';
 import { ShoppingError } from './errors';
 
 const DAYS_PER_WEEK = 7;
-const UuidSchema = z.string().uuid();
+const UuidSchema = z.guid();
 
 export interface ShoppingServiceOptions {
   /** Default: singleton. */

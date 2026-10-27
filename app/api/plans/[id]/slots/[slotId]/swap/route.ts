@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 250;
 
 const TAG = '[api/plans/swap]';
-const UuidSchema = z.string().uuid();
+const UuidSchema = z.guid();
 
 export async function POST(
   request: Request,

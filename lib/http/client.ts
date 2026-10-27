@@ -36,7 +36,7 @@ export function apiErrorMessage(err: unknown): string {
 export async function requestJson<T>(
   url: string,
   init: RequestInit,
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>
+  schema: z.ZodType<T, unknown>
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body != null && !headers.has('content-type')) {

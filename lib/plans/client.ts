@@ -24,7 +24,7 @@ export class PlanRequestError extends ApiRequestError {
   }
 }
 
-async function request<T>(url: string, init: RequestInit, schema: z.ZodType<T, z.ZodTypeDef, unknown>): Promise<T> {
+async function request<T>(url: string, init: RequestInit, schema: z.ZodType<T, unknown>): Promise<T> {
   try {
     return await requestJson(url, init, schema);
   } catch (err) {

@@ -10,7 +10,7 @@ export const CHECK_RETRY_MAX_DELAY_MS = 30_000;
 export const CHECK_SEND_TIMEOUT_MS = 10_000;
 
 const STORAGE_PREFIX = 'mealy:shopping:pending:';
-const PendingSchema = z.record(z.string().uuid(), z.boolean());
+const PendingSchema = z.record(z.guid(), z.boolean());
 
 const HTTP_REQUEST_TIMEOUT = 408;
 const HTTP_TOO_MANY_REQUESTS = 429;

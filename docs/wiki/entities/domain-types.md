@@ -59,10 +59,12 @@ Accanto alle portate, `MAIN_COURSE_VALUES: readonly Course[] = ['piatto-unico', 
 
 ## Schemi delle Entità Principali
 
+Dal 2026-10-27 gli schemi usano zod 4. Gli ID sono `z.guid()`, non `z.uuid()`: in zod 4 `uuid` accetta solo UUID conformi alla RFC 9562, e `DEFAULT_HOUSEHOLD_ID` (`00000000-0000-0000-0000-000000000001`, già nel database di produzione) non lo è. `z.guid()` controlla solo il formato 8-4-4-4-12, come `z.string().uuid()` di zod 3.
+
 ### 1. Ingredient (`IngredientSchema`)
 Rappresenta un singolo ingrediente di una ricetta normalizzato alla fonte.
-- `id`: `z.string().uuid().optional()`
-- `recipe_id`: `z.string().uuid().optional()`
+- `id`: `z.guid().optional()`
+- `recipe_id`: `z.guid().optional()`
 - `canonical_name`: `z.string().min(1)` (minuscolo, singolare, es. "zucchina")
 - `display_name`: `z.string().min(1)` (denominazione visuale, es. "Zucchine tonde")
 - `qty`: `z.coerce.number().nullable().optional()`
@@ -72,8 +74,8 @@ Rappresenta un singolo ingrediente di una ricetta normalizzato alla fonte.
 
 ### 2. Recipe (`RecipeSchema`)
 Modella una ricetta memorizzata nella libreria permanente.
-- `id`: `z.string().uuid()`
-- `household_id`: `z.string().uuid()`
+- `id`: `z.guid()`
+- `household_id`: `z.guid()`
 - `title`: `z.string().min(1)`
 - `slug`: `z.string().min(1)` (identificatore URL-friendly univoco)
 - `description`: `z.string().default('')`
@@ -94,7 +96,7 @@ Modella una ricetta memorizzata nella libreria permanente.
 
 ### 3. RecipePref (`RecipePrefSchema`)
 Preferenze e statistiche di utilizzo per ciascuna ricetta (relazione 1:1 con `Recipe`).
-- `recipe_id`: `z.string().uuid()`
+- `recipe_id`: `z.guid()`
 - `rating`: `z.number().int().min(1).max(5).nullable().optional()`
 - `favorite`: `z.boolean().default(false)`
 - `blocked`: `z.boolean().default(false)`
@@ -103,7 +105,7 @@ Preferenze e statistiche di utilizzo per ciascuna ricetta (relazione 1:1 con `Re
 
 ### 4. Household (`HouseholdSchema`)
 Configurazione del nucleo domestico.
-- `id`: `z.string().uuid()`
+- `id`: `z.guid()`
 - `persons`: `z.number().int().min(1)`
 - `meals`: `z.array(MealTypeSchema)`
 - `diet_tags`: `z.array(DietFlagSchema)`
@@ -173,7 +175,7 @@ I provider LLM con supporto a structured output (come Gemini o OpenAI) richiedon
   - `detail`: spiegazione specifica dello scarto.
 
 ### 4. Contratti Fixtures
-- **`FixtureRecipeSchema`**: estende `GeneratedRecipeSchema` con `id: z.string().uuid()` e `slug: z.string().min(1)`.
+- **`FixtureRecipeSchema`**: estende `GeneratedRecipeSchema` con `id: z.guid()` e `slug: z.string().min(1)`.
 - **`FixtureFileSchema`**: valida `fixtures/recipes.json` (richiede tra 15 e 20 ricette).
 - **`IngredientAliasesFileSchema`**: valida `fixtures/ingredient-aliases.json` (richiede minimo 15 alias). **Dalla Feature 7** ha anche un `refine` che rifiuta il file se lo stesso `alias` compare più di una volta, con il messaggio `Lo stesso alias compare più di una volta.`; il confronto è sul solo campo `alias`, quindi vale anche per due voci identiche. Motivo: il seed carica gli alias con un solo `INSERT … ON CONFLICT DO UPDATE`, che Postgres rifiuta se la stessa chiave compare due volte, e in produzione quel caricamento avviene all'avvio dell'app ([[fixtures-and-seed]], [[db-bootstrap]]). È l'unica modifica della Feature 7 a `types.ts`; test in `tests/domain/generation-contracts.test.ts`.
 
@@ -328,7 +330,7 @@ Sezione `// Recipe Pack (Feature 10)` in coda a `types.ts`. Nessun campo nuovo s
 | `RecipePackFileSchema` | `{ recipes: SavedRecipeInput[] }` | `fixtures/recipe-pack.json`, con i tetti di una ricetta salvata. **Non** controlla l'unicità dei titoli: `normalizeTitle` sta in `recipe-text.ts`, che importa `types.ts`, e importarla qui creerebbe un ciclo (requirements P3). La controllano `build` e il test del file |
 | `PackStatsSchema` / `PackStats` | totale e conteggi per portata, pasto, dieta, ingrediente principale, fasce di minuti | Statistiche del report di `build` |
 
-Le chiavi di `z.record` con un enum sono facoltative nel tipo inferito di zod 3: `build` incrementa i contatori con un `?? 0`.
+Con zod 4 `z.record` con chiavi enum è esaustivo: il tipo e la validazione chiedono tutte le chiavi. `computePackStats` le inizializza già tutte a zero (`countsOf`); il `?? 0` dei contatori viene da zod 3, dove erano facoltative.
 
 ## Composizioni del Pasto (Feature 11)
 

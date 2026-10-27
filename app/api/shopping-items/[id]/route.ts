@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const TAG = '[api/shopping-items]';
-const UuidSchema = z.string().uuid();
+const UuidSchema = z.guid();
 
 export async function PATCH(
   request: Request,
