@@ -452,7 +452,7 @@ describe("SlotRecipePicker: richiesta di una ricetta", () => {
     fireEvent.click(screen.getByRole("button", { name: "Chiedi una ricetta per «lasagne»" }));
 
     expect(proposalMock).toHaveBeenCalledWith(
-      { request: "lasagne", mealType: "cena", excludeTitles: [] },
+      { request: "lasagne", mealType: "cena", sideDish: false, excludeTitles: [] },
       expect.any(AbortSignal)
     );
     fireEvent.click(await screen.findByRole("button", { name: ASSIGN_LABEL }));

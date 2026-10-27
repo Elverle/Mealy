@@ -9,6 +9,7 @@ import {
   listRecipeTitleRefs,
 } from '@/lib/db/repositories/recipe-repo';
 import {
+  type Course,
   type GeneratedRecipe,
   type Household,
   type MealType,
@@ -29,6 +30,8 @@ export interface ProposeRecipeInput {
   request: string;
   mealType: MealType | null;
   excludeTitles: readonly string[];
+  /** Dal selettore del contorno: la ricetta deve essere un contorno. Default false. */
+  sideDish?: boolean;
 }
 
 export interface ProposeRecipeDeps {
@@ -45,20 +48,21 @@ export interface SaveProposedRecipeInput {
   recipe: GeneratedRecipe;
 }
 
+const SIDE_DISH_COURSES: readonly Course[] = ['contorno'];
+
 /**
  * Vincoli di una richiesta esplicita: persone, tipo di pasto, diete ed elettrodomestici.
  * Niente stile preferito né preferenze sugli ingredienti: guida il testo della richiesta.
- * Dal Piano (`mealType` indicato) la ricetta deve fare da pasto; dalla Libreria qualsiasi
- * portata, contorno compreso.
+ * Dal Piano (`mealType` indicato) la ricetta deve fare da pasto; dal selettore del contorno
+ * solo un contorno; dalla Libreria qualsiasi portata.
  */
-function requestConstraints(household: Household, mealType: MealType | null): RecipeConstraints {
-  return buildConstraints(
-    household,
-    mealType,
-    { meal_style_tags: [] },
-    undefined,
-    mealType === null ? null : MAIN_COURSE_VALUES
-  );
+function requestConstraints(
+  household: Household,
+  mealType: MealType | null,
+  sideDish: boolean
+): RecipeConstraints {
+  const courses = sideDish ? SIDE_DISH_COURSES : mealType === null ? null : MAIN_COURSE_VALUES;
+  return buildConstraints(household, mealType, { meal_style_tags: [] }, undefined, courses);
 }
 
 /**
@@ -71,7 +75,7 @@ export async function proposeRecipe(
   deps?: ProposeRecipeDeps
 ): Promise<RecipeProposal> {
   const household = await loadHousehold(input.householdId);
-  const constraints = requestConstraints(household, input.mealType);
+  const constraints = requestConstraints(household, input.mealType, input.sideDish ?? false);
 
   const generate = deps?.generate ?? generateRecipeFromRequest;
   const recipe = await generate(constraints, input.request, input.excludeTitles, {
@@ -122,7 +126,7 @@ export async function saveProposedRecipe(
       throw new Error(`Household ${household.id} non trovato`);
     }
 
-    const violations = findConstraintViolations(recipe, requestConstraints(current, null));
+    const violations = findConstraintViolations(recipe, requestConstraints(current, null, false));
     if (violations.length > 0) {
       console.warn('[recipes/save] recipe_unsuitable', { title: recipe.title, violations });
       throw new RecipeError('recipe_unsuitable');

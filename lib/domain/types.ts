@@ -792,6 +792,7 @@ export const ProposeRecipeRequestSchema = z
   .object({
     request: z.string().trim().min(RECIPE_REQUEST_MIN).max(LIBRARY_QUERY_MAX),
     meal_type: MealTypeSchema.nullable().default(null),
+    side_dish: z.boolean().default(false), // true: dal selettore del contorno, si chiede un contorno
     exclude_titles: z
       .array(z.string().trim().min(1).max(PROPOSAL_TITLE_MAX))
       .max(PROPOSAL_EXCLUDE_MAX)

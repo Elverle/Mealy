@@ -400,4 +400,38 @@ describe.skipIf(!dbUp)('generateAndStoreRecipes', () => {
     expect(result.created[0].tags).toEqual(['comfort-food']);
     expect(result.created[0].courses).toEqual(['piatto-unico']);
   });
+
+  it('asks the model only for the requested course when courses is given (side dishes included)', async () => {
+    const householdId = await createHousehold();
+    const spyGenerate = vi.fn().mockResolvedValue([]);
+
+    await generateAndStoreRecipes(
+      { householdId, count: 2, mealType: 'cena', courses: ['contorno'] },
+      { generate: spyGenerate }
+    );
+
+    const [calledConstraints] = spyGenerate.mock.calls[0];
+    expect(calledConstraints).toMatchObject({ meal_type: 'cena', courses: ['contorno'] });
+  });
+
+  it('keeps only the recipes of the requested course and skips the others with constraint_violation', async () => {
+    const householdId = await createHousehold();
+    const main = makeGeneratedRecipe({ title: 'Frittata di zucchine', courses: ['secondo'] });
+    const sideDish = makeGeneratedRecipe({ title: 'Zucchine croccanti', courses: ['contorno'] });
+
+    const result = await generateAndStoreRecipes(
+      { householdId, count: 2, mealType: 'cena', courses: ['contorno'] },
+      { generate: vi.fn().mockResolvedValue([main, sideDish]) }
+    );
+
+    expect(result.created.map((r) => r.title)).toEqual(['Zucchine croccanti']);
+    expect(result.created[0].courses).toEqual(['contorno']);
+    expect(result.skipped).toEqual([
+      {
+        title: 'Frittata di zucchine',
+        reason: 'constraint_violation',
+        detail: 'portata non adatta al pasto',
+      },
+    ]);
+  });
 });

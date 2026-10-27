@@ -48,6 +48,7 @@ describe('ProposeRecipeRequestSchema', () => {
     expect(ProposeRecipeRequestSchema.parse({ request: '  lasagne  ' })).toEqual({
       request: 'lasagne',
       meal_type: null,
+      side_dish: false,
       exclude_titles: [],
     });
   });

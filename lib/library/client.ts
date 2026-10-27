@@ -28,6 +28,8 @@ export interface RecipeProposalInput {
   mealType: MealType | null;
   /** Titoli già proposti nella sequenza di «Un'altra». */
   excludeTitles: readonly string[];
+  /** Dal selettore del contorno: si chiede un contorno. Assente = false. */
+  sideDish?: boolean;
 }
 
 /**
@@ -47,6 +49,7 @@ export function requestRecipeProposal(
         request: input.request,
         meal_type: input.mealType,
         exclude_titles: input.excludeTitles,
+        ...(input.sideDish === true ? { side_dish: true } : {}),
       }),
       signal,
     },

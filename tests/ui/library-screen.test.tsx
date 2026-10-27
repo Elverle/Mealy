@@ -421,6 +421,7 @@ describe("LibraryScreen — chiedere una ricetta", () => {
     expect(proposeMock.mock.calls[0][0]).toEqual({
       request: "lasagne",
       mealType: null,
+      sideDish: false,
       excludeTitles: [],
     });
   });

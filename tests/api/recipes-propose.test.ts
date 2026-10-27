@@ -46,8 +46,22 @@ describe('POST /api/recipes/propose', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(MOCK_PROPOSAL);
     expect(proposeRecipe).toHaveBeenCalledWith(
-      { request: 'lasagne', mealType: null, excludeTitles: [] },
+      { request: 'lasagne', mealType: null, excludeTitles: [], sideDish: false },
       { abortSignal: request.signal }
+    );
+  });
+
+  it('passes side_dish true to the service as sideDish', async () => {
+    vi.mocked(proposeRecipe).mockResolvedValueOnce(MOCK_PROPOSAL as never);
+
+    const response = await proposeRoute.POST(
+      post(JSON.stringify({ request: 'zucchine', meal_type: 'cena', side_dish: true }))
+    );
+
+    expect(response.status).toBe(200);
+    expect(proposeRecipe).toHaveBeenCalledWith(
+      { request: 'zucchine', mealType: 'cena', excludeTitles: [], sideDish: true },
+      expect.objectContaining({ abortSignal: expect.any(AbortSignal) })
     );
   });
 
@@ -59,7 +73,7 @@ describe('POST /api/recipes/propose', () => {
     );
 
     expect(proposeRecipe).toHaveBeenCalledWith(
-      { request: 'lasagne', mealType: 'cena', excludeTitles: ['A'] },
+      { request: 'lasagne', mealType: 'cena', excludeTitles: ['A'], sideDish: false },
       expect.objectContaining({ abortSignal: expect.any(AbortSignal) })
     );
   });
@@ -71,6 +85,7 @@ describe('POST /api/recipes/propose', () => {
     ['a request longer than the maximum', JSON.stringify({ request: 'a'.repeat(101) })],
     ['an unknown key', JSON.stringify({ request: 'abc', x: 1 })],
     ['an invalid meal_type', JSON.stringify({ request: 'abc', meal_type: 'colazione' })],
+    ['a non-boolean side_dish', JSON.stringify({ request: 'abc', side_dish: 'si' })],
     [
       'eleven excluded titles',
       JSON.stringify({ request: 'abc', exclude_titles: Array.from({ length: 11 }, (_, i) => `T${i}`) }),
