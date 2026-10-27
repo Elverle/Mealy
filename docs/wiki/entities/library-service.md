@@ -2,8 +2,8 @@
 title: Libreria — Regole Pure, Servizio, API e Client (library-service)
 type: entity
 created: 2026-10-05
-updated: 2026-10-26
-tags: [library, domain, pure-functions, service, api-route, client-fetch, filters, search, recipe-requests, courses, feature-5, feature-8, feature-9, feature-10]
+updated: 2026-10-27
+tags: [library, domain, pure-functions, service, api-route, client-fetch, filters, search, recipe-requests, courses, feature-5, feature-8, feature-9, feature-10, feature-11]
 ---
 
 ## File e Responsabilità
@@ -49,7 +49,7 @@ Dalla Feature 9 `toLibraryCard` e `compareLibraryCards` servono anche il seletto
 | `q` | `q` | Trim; al più `LIBRARY_QUERY_MAX` (100) caratteri |
 | `pasto` (ripetibile) | `meals` | Valori di `MealType`, senza doppioni |
 | `portata` (ripetibile, Feature 8) | `courses` | Valori di `Course`, senza doppioni, nell'ordine della query |
-| `tag` (ripetibile) | `tags` | Valori di `MealStyleTag` (dodici dalla Feature 8), senza doppioni |
+| `tag` (ripetibile) | `tags` | Valori di `MealStyleTag` (dodici dalla Feature 8, undici dalla Feature 11 senza `piatto-unico`), senza doppioni |
 | `dieta` (ripetibile) | `diets` | Valori di `DietFlag`, senza doppioni |
 | `preferite`, `bloccate` | `favorites`, `blocked` | Assente → `false`; `1` / `true` → `true`; `0` / `false` → `false`; ogni altro valore è rifiutato |
 
@@ -106,7 +106,7 @@ export function requestRecipeProposal(input: RecipeProposalInput, signal?: Abort
 export async function requestSaveRecipe(recipe: GeneratedRecipe): Promise<Recipe>;                                // POST /api/recipes
 ```
 
-- `requestRecipeProposal` invia `{ request, meal_type, exclude_titles }` e valida con `RecipeProposalSchema`. `signal` annulla la richiesta; in quel caso la promessa rigetta con `network_error` (`requestJson` non distingue l'annullamento dalla rete assente), quindi chi annulla controlla `signal.aborted` e ignora l'esito ([[recipe-proposal-sheet]]).
+- `requestRecipeProposal` invia `{ request, meal_type, exclude_titles }` e valida con `RecipeProposalSchema`. Dalla Feature 11 `RecipeProposalInput` ha `sideDish?: boolean`: con `true` il corpo comprende anche `side_dish: true` (proposta di un contorno, dal selettore del contorno, [[recipe-proposal-sheet]]); senza, il corpo è identico a prima. `signal` annulla la richiesta; in quel caso la promessa rigetta con `network_error` (`requestJson` non distingue l'annullamento dalla rete assente), quindi chi annulla controlla `signal.aborted` e ignora l'esito ([[recipe-proposal-sheet]]).
 - `requestSaveRecipe` valida con `SaveRecipeResultSchema` e restituisce `result.recipe`, la ricetta completa con ingredienti e preferenze. La usano la Libreria ([[library-screen]]) e il selettore del Piano ([[slot-recipe-picker]]).
 
 ## Test
@@ -133,3 +133,4 @@ export async function requestSaveRecipe(recipe: GeneratedRecipe): Promise<Recipe
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[f8-portate-etichette]] — Feature 8: filtro per portata e `courses` sulle card
 - [[recipe-pack]] — Feature 10: data di creazione fissa delle ricette del pacchetto
+- [[f11-composizione-pasto]] — Feature 11: `sideDish` nella richiesta di proposta, undici etichette

@@ -2,8 +2,8 @@
 title: Servizio Impostazioni Household e API (settings-service)
 type: entity
 created: 2026-09-28
-updated: 2026-10-05
-tags: [settings, household, service, api-route, normalization, client-fetch, onboarding, contract-u1, feature-3]
+updated: 2026-10-27
+tags: [settings, household, service, api-route, normalization, client-fetch, onboarding, contract-u1, compositions, feature-3, feature-11]
 ---
 
 ## File e Responsabilità
@@ -25,6 +25,8 @@ tags: [settings, household, service, api-route, normalization, client-fetch, onb
 | `householdToSettings(household)` | Estrae e normalizza i 5 campi dall'`Household`, senza validazione (un household con `meals: []` restituisce `meals: []`). |
 | `toSettingsView(household)` | Produce la `SettingsView` pubblica: i 5 campi normalizzati + `onboarded: onboarded_at !== null` + `updated_at` in ISO 8601. |
 | `toggleInOrder(values, order, value)` | Aggiunge o rimuove `value` e ritorna l'insieme risultante nell'ordine canonico `order`. Usata dai chip di [[settings-fields]]. |
+
+**Dalla Feature 11** le impostazioni hanno un sesto campo, `meal_compositions` (`{ pranzo, cena }`, [[domain-types]]): `normalizeSettings` riduce anche i due elenchi di composizioni all'ordine di `MEAL_COMPOSITION_VALUES` senza doppioni; `settingsEqual` li confronta con gli altri array (una funzione privata `sameItems`), quindi cambiare una sola composizione di pranzo o di cena rende le impostazioni diverse e `saveSettings` scrive, aggiornando `updated_at` (una bozza diventa `superseded`, spec FR-2.5); `householdToSettings` e `toSettingsView` le copiano dall'household. `PUT /api/settings` rifiuta con 400 un pasto con l'elenco vuoto o una composizione sconosciuta (`HouseholdSettingsSchema`), e le composizioni di entrambi i pasti si salvano anche se uno non è pianificato. Le frasi sui "5 campi" e sui "quattro array" della tabella qui sopra descrivono la Feature 3.
 
 Le diete vengono salvate **come selezionate**, senza espansione transitiva: la regola "diete household ⊆ `diet_flags` della ricetta" funziona già perché è la Feature 2 a espandere i flag delle ricette (`expandDietFlags`, v. [[domain-types]]).
 
@@ -119,6 +121,7 @@ Punti aperti consegnati al piano della Feature 4 (addendum della review 2026-09-
 - `tests/settings/service.test.ts` (node, DB reale con `describe.skipIf(!dbUp)` e household dedicati): nessuna scrittura a valori invariati, persistenza normalizzata con `updated_at` avanzato, completamento idempotente dell'onboarding, `ZodError` senza scritture, id sconosciuto, propagazione dei vincoli a `buildConstraints`; più un `describe` senza DB che verifica il file di migrazione `0002`.
 - `tests/api/settings.test.ts` (node, servizio mockato): status e corpi di `GET`/`PUT`, inclusi i `details` di validazione.
 - `tests/settings/client.test.ts` (jsdom, `fetch` stubbato): tutti i rami di `putSettings`.
+- Feature 11: casi in `tests/settings/normalize.test.ts` (ordine e doppioni di ogni elenco di composizioni, una sola composizione di pranzo o di cena cambiata, stesso insieme in un altro ordine), `tests/settings/service.test.ts` (composizioni diverse salvate con `updated_at` avanzato) e `tests/api/settings.test.ts` (400 senza salvataggio per un gruppo vuoto e per un valore sconosciuto, aggiunti nella code review).
 
 ## Vedi anche
 
@@ -132,3 +135,4 @@ Punti aperti consegnati al piano della Feature 4 (addendum della review 2026-09-
 - [[plan-service]] — Consumatore del contratto U1 (`superseded`)
 - [[prefs-service]] — Servizi delle preferenze, che non toccano `households.updated_at` (esito di R1)
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
+- [[f11-composizione-pasto]] — Feature 11: composizioni dei pasti nel campo «Pasti da pianificare»

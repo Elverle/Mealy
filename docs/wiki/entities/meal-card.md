@@ -2,8 +2,8 @@
 title: Scheda Pasto (meal-card)
 type: entity
 created: 2026-09-15
-updated: 2026-10-21
-tags: [ui, components, meal-card, cards, planner, long-press, accessibility, manual-choice, courses]
+updated: 2026-10-27
+tags: [ui, components, meal-card, cards, planner, long-press, accessibility, manual-choice, courses, side-dish, feature-11]
 ---
 
 ## File e Responsabilità
@@ -69,6 +69,13 @@ Dalla Feature 9 il footer si rende con almeno uno tra `actions`, `onSwap`, `onPi
 
 Le tre azioni a 360 px occupano circa 240 px dei 296 disponibili secondo la stima della review architetturale; la prova da telefono non è ancora stata fatta ([[f9-ricette-su-richiesta]]).
 
+### Contorno e azioni disattivate (Feature 11)
+Dalla Feature 11 ([[f11-composizione-pasto]]) `MealCard` resta il componente del **piatto principale** e riceve due props in più (requirements P19):
+- **`extra?: React.ReactNode`**: contenuto sotto il footer, dentro la card, separato da un divisore tratteggiato (`mt-2 border-t border-dashed border-stone/25 pt-2`). `PlanSlotCard` ci mette la riga del contorno ([[side-dish-row]]) oppure il pulsante «Contorno» con l'icona `+` ([[plan-screen]]). Senza `extra` non c'è il divisore.
+- **`actionsDisabled?: boolean`** (default `false`): disattiva *Cambia*, *Scegli*, il **lucchetto** e la **pressione lunga** mentre è in corso un'azione su un altro piatto della card. Il lucchetto riceve `disabled` con `disabled:pointer-events-none disabled:opacity-40`; con `actionsDisabled` le props del long-press non si montano, quindi tenere premuta la card non blocca il pasto (innesto R1 della review architetturale della Feature 11). La ★ non è toccata.
+
+Il badge `course` lo calcola `PlanSlotCard`, che dalla Feature 11 passa la portata dello slot e non più tutte le portate della ricetta ([[plan-screen]]).
+
 ## Long-press (Feature 4)
 
 Attivo solo se `onLongPress` è definito; la pagina Piano lo usa per bloccare/sbloccare lo slot (il lucchetto resta l'alternativa accessibile da tastiera e lettori di schermo).
@@ -100,3 +107,5 @@ Attivo solo se `onLongPress` è definito; la pagina Piano lo usa per bloccare/sb
 - [[slot-recipe-picker]] — Selettore aperto da *Scegli* (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[f8-portate-etichette]] — Feature 8: badge di portata
+- [[side-dish-row]] — Riga del contorno resa nella prop `extra` (Feature 11)
+- [[f11-composizione-pasto]] — Panoramica della Feature 11

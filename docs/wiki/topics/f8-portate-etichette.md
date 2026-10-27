@@ -2,8 +2,8 @@
 title: F8 Portate ed Etichette — Portata delle Ricette, Dodici Etichette di Stile e Classificazione all'Avvio
 type: topic
 created: 2026-10-21
-updated: 2026-10-26
-tags: [recipes, courses, style-tags, derived-tags, classification, llm, planner, library, migrations, startup, ui, feature-8, feature-10]
+updated: 2026-10-27
+tags: [recipes, courses, style-tags, derived-tags, classification, llm, planner, library, migrations, startup, ui, feature-8, feature-10, feature-11]
 ---
 
 ## Panoramica
@@ -131,6 +131,7 @@ Lettura
 - **Feature 10 (pacchetto iniziale)**: ricette con almeno una portata e le dodici etichette; scrittura con `insertGeneratedRecipe`, che applica le regole derivate; `FixtureRecipeSchema` ha `courses`. Attenzione: `insertGeneratedRecipe` scrive sempre `source: 'llm'` (contratto della Feature 9, [[recipe-proposal-service]]).
   - **Esito nella Feature 10** ([[f10-pacchetto-ricette]]): contratto rispettato. Tutte le 200 ricette del pacchetto hanno almeno una portata (E2 la controlla durante la conversione) e le etichette derivate; il caricatore scrive con `insertGeneratedRecipe`, a cui la Feature 10 ha aggiunto le opzioni `source` (il pacchetto usa `'manual'`) e `createdAt` ([[recipe-pack]]). Le ricette del pacchetto non passano mai dalla classificazione, che parte dopo il caricamento ([[recipe-classification]]).
 - **Feature 11 (composizione del pasto)**: `Course`, `COURSE_VALUES`, `MAIN_COURSE_VALUES`; `coursesAllowed` come unico predicato (la F11 cambia solo l'elenco ammesso per slot); il motivo `course` di `exclusionReason` da trasformare in "ha la portata dello slot"; `RecipeConstraints.courses` per generare contorni. **Togliere `piatto-unico` da `MEAL_STYLE_TAG_VALUES` richiede, nello stesso rilascio, una migrazione che lo tolga da `recipes.tags` e `households.meal_style_tags`**: `toRecipeWithDetails` e `HouseholdSchema.parse` rifiutano i valori sconosciuti e la Libreria non si aprirebbe (review R3).
+  - **Esito nella Feature 11** ([[f11-composizione-pasto]]): contratto rispettato. `coursesAllowed` resta l'unico predicato di portata e la Feature 11 ha cambiato solo l'elenco ammesso per slot, tramite `fitsCourse` ([[compositions]]), che aggiunge una regola: una ricetta non classificata non fa mai da contorno. Il motivo `course` resta nello stesso punto dell'ordine di `exclusionReason`, con la portata dello slot come parametro ([[planner]]). `RecipeConstraints.courses` serve a generare i contorni (`['contorno']`). L'etichetta `piatto-unico` è uscita da `MEAL_STYLE_TAG_VALUES` insieme alla migrazione `0006`, che la toglie da household e ricette, nello stesso work package (requirements P2 della Feature 11); con lei sono sparite la seconda regola derivata di `deriveStyleTags` e il filtro del doppione in `recipeChips`. Le dodici etichette di questa pagina sono quindi undici dalla 0.10.
 - **Correzione a mano (v2 §1.4)**: oggi un errore del modello nella classificazione si vede in Libreria ma non si corregge dall'app.
 - **Documenti di progetto allineati dalla feature (WP7)**: `ARCHITECTURE` §4.2, §5.1, §5.2, §5.3, §7; `DEPLOY` §5, §6, §9; `CLAUDE.md` (comando `pnpm recipes:classify`).
 
@@ -174,3 +175,4 @@ La suite conta **98 file di test** (94 alla fine della Feature 9). Nuovi file:
 - [[e6-deploy]] — Feature 7: bootstrap all'avvio, su cui poggia la classificazione
 - [[f9-ricette-su-richiesta]] — Feature 9: richiesta dalla Libreria e dal Piano
 - [[f10-pacchetto-ricette]] — Feature 10: il pacchetto che popola le portate
+- [[f11-composizione-pasto]] — Feature 11: la composizione del pasto che sfrutta le portate

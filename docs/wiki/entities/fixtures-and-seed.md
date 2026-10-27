@@ -2,7 +2,7 @@
 title: Fixtures di Test e Seed Idempotente (fixtures-and-seed)
 type: entity
 created: 2026-09-17
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [fixtures, seed, database, testing, offline, household, aliases, ingredients, upsert, deploy, courses, derived-tags, recipe-pack]
 ---
 
@@ -45,7 +45,7 @@ Dalla Feature 8 ogni ricetta del file ha `courses` (obbligatorio: `FixtureRecipe
 | `piatto-unico` e `primo` | Pasta e ceci |
 | `contorno` (solo) | Patate e zucchine croccanti |
 
-Una sola ricetta è solo contorno: rende visibile in sviluppo la regola "mai un contorno da solo nel piano" ([[planner]]). Le etichette rispettano già le regole derivate di [[courses]] (`pochi-ingredienti` con al massimo 6 ingredienti misurati, `piatto-unico` solo con quella portata): un test lo controlla (requirements P18). Il seed applica comunque le regole, quindi un errore nel file non arriverebbe al database.
+Una sola ricetta è solo contorno: rende visibile in sviluppo la regola "mai un contorno da solo nel piano" ([[planner]]). Dalla Feature 11 è l'unico contorno della libreria d'esempio: basta per un «+ Contorno» in sviluppo, ma un piano generato con le composizioni di default su un DB con le sole ricette d'esempio chiede contorni al modello. Le etichette rispettano già le regole derivate di [[courses]] (`pochi-ingredienti` con al massimo 6 ingredienti misurati, `piatto-unico` solo con quella portata): un test lo controlla (requirements P18). Il seed applica comunque le regole, quindi un errore nel file non arriverebbe al database.
 
 La frase iniziale "primi piatti, secondi, contorni, piatti unici" ora corrisponde a un campo: prima della Feature 8 la portata non esisteva come dato.
 
@@ -107,7 +107,7 @@ Lo script (`lib/db/seed.ts`) carica le variabili d'ambiente (`.env.local` / `.en
    - Per ciascuna delle 18 ricette, verifica preventivamente se esiste già un record con lo stesso UUID (`getRecipeById`) o lo stesso slug (`getRecipeBySlug`).
    - Se presente, la ricetta viene saltata incrementando il contatore `recipesSkipped`.
    - Se assente, viene inserita in modo atomico assieme ai suoi ingredienti tramite `insertRecipe` da [[recipe-repo]], incrementando `recipesInserted`.
-   - **Dalla Feature 8** il seed scrive `courses = normalizeCourses(r.courses)` e `tags = deriveStyleTags(r.tags, r.courses, r.ingredients)` ([[courses]]). In più **completa** le ricette d'esempio già presenti per id ma non classificate (`courses` vuoto, cioè salvate prima della feature): chiama `setRecipeClassification` con portate ed etichette del file e incrementa `recipesClassified`. Il resto della ricetta non si tocca; la ricetta conta comunque anche in `recipesSkipped`. Così "dopo `pnpm db:seed` nessuna ricetta d'esempio è non classificata" vale anche per un DB di sviluppo già popolato (requirements P16). Una ricetta trovata solo per slug viene saltata come prima.
+   - **Dalla Feature 8** il seed scrive `courses = normalizeCourses(r.courses)` e `tags = deriveStyleTags(r.tags, r.courses, r.ingredients)` ([[courses]]); dalla Feature 11 `deriveStyleTags(r.tags, r.ingredients)`, e `fixtures/recipes.json` non contiene più l'etichetta `piatto-unico` nei `tags` (le portate non sono cambiate). In più **completa** le ricette d'esempio già presenti per id ma non classificate (`courses` vuoto, cioè salvate prima della feature): chiama `setRecipeClassification` con portate ed etichette del file e incrementa `recipesClassified`. Il resto della ricetta non si tocca; la ricetta conta comunque anche in `recipesSkipped`. Così "dopo `pnpm db:seed` nessuna ricetta d'esempio è non classificata" vale anche per un DB di sviluppo già popolato (requirements P16). Una ricetta trovata solo per slug viene saltata come prima.
 3. **Caricamento Alias Ingredienti**:
    - Esegue una `INSERT` batch sulla tabella `ingredient_aliases`. Fino alla Feature 6 la clausola era `ON CONFLICT DO NOTHING`; **dalla Feature 7 è un upsert**:
      ```sql
@@ -223,3 +223,4 @@ Il limite annotato alla Feature 6 ("`seedIngredientAliases` inserisce soltanto")
 - [[courses]] — Regole derivate applicate dal seed (Feature 8)
 - [[f8-portate-etichette]] — Panoramica della Feature 8
 - [[recipe-pack]] — Feature 10: pacchetto iniziale di 200 ricette e tabella degli ingredienti
+- [[f11-composizione-pasto]] — Feature 11: etichetta `piatto-unico` tolta dalle fixture

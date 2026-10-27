@@ -2,8 +2,8 @@
 title: Ricette su Richiesta — Proposta, Salvataggio, Errori e Rotte (recipe-proposal-service)
 type: entity
 created: 2026-10-14
-updated: 2026-10-26
-tags: [recipes, llm, proposal, service, api-route, errors, advisory-lock, validation, courses, feature-8, feature-9, feature-10]
+updated: 2026-10-27
+tags: [recipes, llm, proposal, service, api-route, errors, advisory-lock, validation, courses, side-dish, feature-8, feature-9, feature-10, feature-11]
 ---
 
 ## File e Responsabilità
@@ -47,6 +47,7 @@ Un `LlmError` dell'adapter risale così com'è.
 - `requestConstraints` passa a `buildConstraints` anche le portate: `MAIN_COURSE_VALUES` se `mealType` è indicato (richiesta dal selettore del Piano), `null` altrimenti (richiesta dalla Libreria). Dal Piano una proposta solo contorno viola «portata non adatta al pasto» e finisce in `proposal_unsuitable` come le altre violazioni (spec FR-3.4); dalla Libreria qualsiasi portata è ammessa, contorno compreso, che entra in libreria e resta fuori dal piano (FR-3.5). Il prompt riceve la riga *Portata* solo nel primo caso ([[llm-adapter]]).
 - Al passo 5 la ricetta restituita ha già le etichette derivate (`deriveStyleTags`, [[courses]]): la proposta mostrata coincide con la ricetta che `insertGeneratedRecipe` salverà (requirements P5 della Feature 8).
 - Il ricontrollo di `saveProposedRecipe` usa `requestConstraints(current, null)`, quindi portate `null`: la proposta è già stata accettata nel suo contesto.
+- **Dalla Feature 11** ([[f11-composizione-pasto]]) c'è un terzo caso: la richiesta dal **selettore del contorno**. `ProposeRecipeRequestSchema` ha `side_dish: boolean` (default `false`), la rotta lo passa come `sideDish` in `ProposeRecipeInput`, e `requestConstraints(household, mealType, sideDish)` chiede le portate `['contorno']` (costante privata `SIDE_DISH_COURSES`) quando `sideDish` è vero, altrimenti come prima (`MAIN_COURSE_VALUES` con il tipo di pasto, `null` senza). Dal selettore del contorno una proposta che non è un contorno risponde `proposal_unsuitable`; da quello del principale resta vietato il contorno. Il prompt riceve la riga *Portata* con `contorno` ([[llm-adapter]]). Il ricontrollo di `saveProposedRecipe` chiama `requestConstraints(current, null, false)`: nessuna portata imposta, come prima. Il client manda `side_dish: true` solo quando serve, così i corpi delle richieste esistenti non cambiano (requirements P15). Le etichette derivate della proposta usano `deriveStyleTags(tags, ingredients)`, senza più la regola su `piatto-unico`.
 - `SavedRecipeInputSchema` richiede da 1 a 4 portate ([[domain-types]]).
 
 ## Salvataggio (`saveProposedRecipe`)
@@ -133,3 +134,4 @@ Entrambe le rotte hanno `runtime = 'nodejs'` e `dynamic = 'force-dynamic'` e leg
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[f8-portate-etichette]] — Feature 8: portate richieste dal Piano, etichette derivate nella proposta
 - [[recipe-pack]] — Feature 10: il pacchetto scritto con `insertGeneratedRecipe` e `source: 'manual'`
+- [[f11-composizione-pasto]] — Feature 11: proposta di un contorno (`side_dish`)

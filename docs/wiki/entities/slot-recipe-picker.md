@@ -2,8 +2,8 @@
 title: Selettore di una Ricetta per lo Slot — SlotRecipePicker (slot-recipe-picker)
 type: entity
 created: 2026-10-14
-updated: 2026-10-21
-tags: [ui, components, plan, manual-choice, picker, sheet, search, llm, accessibility, courses, feature-8, feature-9]
+updated: 2026-10-27
+tags: [ui, components, plan, manual-choice, picker, sheet, search, llm, accessibility, courses, side-dish, feature-8, feature-9, feature-11]
 ---
 
 ## File e Responsabilità
@@ -42,6 +42,13 @@ Tre sheet impilate, gestite dalla pila della primitiva ([[sheet-primitive]]): l'
 3. **Proposta**: [[recipe-proposal-sheet]] con `mealType = slot.meal`, `servings = slot.servings`, `acceptLabel = 'Metti nel piano'`, `onAccept = acceptProposal`, `onClose` che porta `requestText` a `null` (nessun ritorno del focus qui).
 
 **Dalla Feature 8** (senza modifiche al componente): le ricette solo contorno non arrivano tra le candidate, perché `manualChoiceExclusionReason` le esclude ([[planner]]); le card mostrano il badge di portata di `RecipeCard` ([[library-screen]]) e la proposta chiesta da qui deve avere una portata principale, altrimenti `proposal_unsuitable` ([[recipe-proposal-service]]). Nei test il nome accessibile atteso di una card ammette il badge di portata tra il tempo e il titolo.
+
+**Dalla Feature 11** ([[f11-composizione-pasto]]) il selettore serve anche il contorno: `PlanSlotCard` lo monta con lo slot del contorno quando si tocca la lente della riga ([[side-dish-row]]). Il componente lo riconosce da `slot.course === 'contorno'`, senza props nuove:
+- titolo `` `Scegli il contorno per ${formatDayLabel(slot.day)} · ${MEAL_TYPE_LABELS[slot.meal]}` `` invece di `Scegli per …`;
+- elenco vuoto: `Nessun altro contorno adatto a questo pasto`;
+- la proposta riceve `sideDish={true}`, quindi il modello deve proporre un contorno ([[recipe-proposal-sheet]], [[recipe-proposal-service]]).
+
+L'elenco lo filtra il server per portata ([[plan-service]]): sul principale tutte le ricette con una portata principale (la composizione segue la ricetta scelta), sul contorno solo i contorni; in entrambi i casi senza la ricetta dell'altro piatto dello stesso pasto. La frase della Feature 8 sui contorni che non arrivano tra le candidate vale ora solo per il principale. Al posto della costante locale `STALE_PLAN_CODES` il componente importa `STALE_PLAN_ERROR_CODES` da `lib/plans/errors.ts`, che contiene anche `side_exists`, `side_not_allowed` e `not_a_side_dish` (proposta P3 della review architetturale della Feature 11): nella tabella degli esiti più sotto, «piano non più modificabile» vuol dire ora questi otto codici.
 
 ### Caricamento e filtro
 - `load()` chiama `fetchSlotCandidates(planId, slotId)`; un contatore (`loadIdRef`) scarta le risposte di una richiesta superata (*Riprova* rapido, ricarica dopo un errore) e `mountedRef` quelle arrivate dopo lo smontaggio.
@@ -87,3 +94,4 @@ Il selettore è montato **dentro** l'elenco delle card, ma dalla revisione UI de
 - [[toast]] — Dove finiscono i messaggi di `onNotify`
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
 - [[f8-portate-etichette]] — Feature 8: contorni fuori dalle candidate, badge di portata
+- [[f11-composizione-pasto]] — Feature 11: selettore del contorno e candidate per portata

@@ -2,8 +2,8 @@
 title: Schema del Database Relazionale Drizzle (db/schema)
 type: entity
 created: 2026-09-15
-updated: 2026-10-21
-tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans, ingredient-prefs, shopping-list, courses]
+updated: 2026-10-27
+tags: [database, schema, drizzle, tables, relations, postgresql, migrations, onboarding, meal-plans, ingredient-prefs, shopping-list, courses, compositions]
 ---
 
 ## File e Responsabilità
@@ -54,7 +54,8 @@ Anagrafica dei nuclei domestici (in v1 contiene il record singleton standard).
   - `persons`: `integer` not null
   - `meals`: `text[]` array not null
   - `diet_tags`: `text[]` array default `[]`
-  - `meal_style_tags`: `text[]` array default `[]`
+  - `meal_style_tags`: `text[]` array default `[]` — dalla Feature 11 senza `piatto-unico` (migrazione `0006`)
+  - `meal_compositions`: `jsonb` not null (Feature 11, migrazione `0007`), default `{"pranzo": [le cinque composizioni], "cena": [le cinque composizioni]}` — composizioni ammesse per pasto ([[compositions]]). In Drizzle è `jsonb(...).$type<Record<string, string[]>>()`: il tipo vero lo dà `MealCompositionsSchema` alla lettura (`HouseholdSchema`) e alla scrittura (`HouseholdSettingsSchema`) ([[domain-types]])
   - `appliances`: `text[]` array default `[]`
   - `onboarded_at`: `timestamp with time zone` **nullable**, senza default (Feature 3, migrazione `0002`) — istante di completamento del wizard di primo avvio; `null` = onboarding da fare. È il segnale letto dalla guardia di onboarding ([[onboarding-guard]]), necessario perché l'household di default esiste già prima del primo avvio.
   - `created_at`: `timestamp with time zone` default now
@@ -71,7 +72,7 @@ Libreria permanente delle ricette.
   - `steps`: `jsonb` array di stringhe
   - `meal_types`: `text[]` array not null
   - `courses`: `text[]` not null default `ARRAY[]::text[]` (Feature 8, migrazione `0005`) — portate della ricetta tra `piatto-unico`, `primo`, `secondo`, `contorno`; vuoto = ricetta **non classificata** ([[courses]]). Nessun indice: il filtro della Libreria lavora in memoria. Le ricette senza portata si trovano con `cardinality(courses) = 0` ([[recipe-repo]])
-  - `tags`: `text[]` array default `[]` — dalla Feature 8 dodici valori possibili, tra cui `pochi-ingredienti`, calcolato per regola
+  - `tags`: `text[]` array default `[]` — dalla Feature 8 dodici valori possibili, tra cui `pochi-ingredienti`, calcolato per regola; dalla Feature 11 undici, senza `piatto-unico` (migrazione `0006`)
   - `diet_flags`: `text[]` array default `[]`
   - `appliances_required`: `text[]` array default `[]`
   - `servings_base`: `integer` not null
@@ -130,11 +131,13 @@ Singoli slot pasto all'interno di una settimana.
   - `plan_id`: `uuid` references `meal_plans.id` (`ON DELETE CASCADE`)
   - `day`: `date` not null
   - `meal`: `text` not null (`pranzo | cena`)
+  - `course`: `text` not null (Feature 11, migrazione `0007`) — portata del piatto nel pasto (`piatto-unico | primo | secondo | contorno`). Dalla Feature 11 uno slot è un **piatto**: il pasto è il gruppo di slot con lo stesso `(plan_id, day, meal)`, e la sua composizione si ricava dalle portate ([[compositions]])
   - `recipe_id`: `uuid` references `recipes.id` (`ON DELETE SET NULL`)
   - `servings`: `integer` not null
-  - `locked`: `boolean` not null default `false`
+  - `locked`: `boolean` not null default `false` — dalla Feature 11 il blocco vale per il pasto: il servizio scrive lo stesso valore su tutti i suoi slot ([[plan-repo]], `setMealLocked`)
 - **Indici**:
   - `plan_slots_plan_day_meal_idx`: indice UNIQUE composto `(plan_id, day, meal)`
+  - **Dalla Feature 11** quell'indice non c'è più: lo sostituisce `plan_slots_plan_day_meal_side_idx`, UNIQUE su `(plan_id, day, meal, (course = 'contorno'))`. L'espressione booleana separa principale e contorno, quindi un pasto ha al più un principale e un contorno (spec D3, requirements P7). È l'ultima difesa contro un doppio «+ Contorno» concorrente. In `schema.ts` l'espressione è un `sql` dentro `uniqueIndex(...).on(...)`, come per `recipes_title_trgm_idx`; la via d'uscita con due indici parziali prevista dalla review (R4) non è servita
 
 ### 7. `shopping_lists`
 Contenitore della lista della spesa generata da un piano.
@@ -201,6 +204,8 @@ File SQL in `lib/db/migrations/` generati da `pnpm db:generate` (drizzle-kit) e 
 | `0003` | `0003_add_plan_generation_tracking` | Due `ALTER TABLE … ADD COLUMN` (Feature 4): `meal_plans.generated_at timestamp with time zone DEFAULT now() NOT NULL` e `shopping_lists.needs_regeneration boolean DEFAULT false NOT NULL`. Additiva: i piani esistenti ricevono `generated_at` = istante della migrazione. |
 | `0004` | `0004_add_ingredient_prefs` | `CREATE TABLE "ingredient_prefs"` con le 4 colonne e la chiave primaria `("household_id","canonical_name")`, più la chiave esterna verso `households` con `ON DELETE cascade` (Feature 5). Additiva: nessuna modifica alle altre tabelle. |
 | `0005` | `0005_add_recipe_courses` | Colonna `recipes.courses` e `UPDATE` della regola "pochi ingredienti" sulle etichette esistenti (Feature 8; dettagli più sotto). La prima migrazione che cambia dati oltre allo schema |
+| `0006` | `0006_remove_piatto_unico_tag` | Solo due `UPDATE` con `array_remove(…, 'piatto-unico')` su `households.meal_style_tags` e `recipes.tags` (Feature 11; dettagli più sotto) |
+| `0007` | `0007_add_meal_compositions` | Colonne `households.meal_compositions` e `plan_slots.course`, portata degli slot esistenti, indice unico nuovo al posto di `plan_slots_plan_day_meal_idx` (Feature 11; dettagli più sotto) |
 
 La Feature 6 (lista della spesa) **non aggiunge migrazioni**: usa `shopping_lists` e `shopping_items` così come sono dalla migrazione `0000`, con la colonna `needs_regeneration` della `0003` (requirements P2 della Feature 6).
 
@@ -219,6 +224,23 @@ Due istruzioni:
 È idempotente rispetto alla regola: ripetere l'`UPDATE` non cambia nulla. `tests/db/recipe-courses-migration.test.ts` la prova su un database usa-e-getta migrato fino alla `0004` (journal filtrato a `idx < 5`, come in `tests/db/bootstrap.test.ts`): colonna non nulla e vuota per ogni ricetta, `pochi-ingredienti` secondo la regola, nessun'altra etichetta toccata, seconda esecuzione senza effetti.
 
 **Non si torna indietro senza il dump**: dopo questa migrazione, e dopo la classificazione, le ricette contengono etichette e portate che le versioni precedenti alla 0.8 non conoscono. La loro lettura con lo schema Zod fallirebbe e la Libreria non si aprirebbe. `docs/DEPLOY.md §6` chiede di ripristinare sempre il dump `predeploy` (innesto R3 della review architetturale della Feature 8).
+
+### `0006_remove_piatto_unico_tag` e `0007_add_meal_compositions` (Feature 11)
+
+Due migrazioni invece di una (requirements P2 della Feature 11): togliere `piatto-unico` da `MEAL_STYLE_TAG_VALUES` fa fallire la lettura di ogni riga che lo contiene (`toRecipeWithDetails`, `HouseholdSchema.parse`), quindi la pulizia dei dati è arrivata nello stesso work package che cambia l'enum (WP1); le colonne nuove servono solo dal WP2.
+
+`0006` sono due `UPDATE` con `array_remove`: l'etichetta esce da `households.meal_style_tags` e da `recipes.tags`, le altre restano. È idempotente. `tests/db/piatto-unico-tag-migration.test.ts` la prova su un database usa-e-getta migrato fino alla `0005` (journal filtrato a `idx < 6`).
+
+`0007`, nell'ordine:
+1. `households.meal_compositions jsonb NOT NULL` con il default di tutte e cinque le composizioni: anche l'household esistente le riceve tutte (spec D4).
+2. `plan_slots.course text`, ancora nullable.
+3. Un `UPDATE` che dà a ogni slot esistente la portata del principale ricavata dalla ricetta: la prima tra `piatto-unico`, `primo` e `secondo` che la ricetta ha, altrimenti `piatto-unico` (ricetta non classificata, solo contorno o eliminata). È la stessa regola di `mainCourseOf` ([[compositions]]). Nessun piano esistente riceve contorni (spec D8): restano piani a un piatto per pasto, e li ricompone solo *Rigenera*.
+4. `course` diventa `NOT NULL`.
+5. `DROP INDEX plan_slots_plan_day_meal_idx` e `CREATE UNIQUE INDEX plan_slots_plan_day_meal_side_idx` sull'espressione.
+
+`tests/db/meal-compositions-migration.test.ts` la prova allo stesso modo (journal filtrato a `idx < 7`): portata attesa per ogni slot (principale in ordine canonico, `piatto-unico` per una non classificata o mancante), composizioni di default su ogni household, secondo principale e secondo contorno nello stesso pasto rifiutati dall'indice, contorno accanto al principale accettato.
+
+**Non si torna indietro senza il dump**, come dalla 0.8: le versioni precedenti alla 0.10 non scrivono `plan_slots.course` (`NOT NULL` senza default) e leggerebbero due slot per lo stesso pasto. `docs/DEPLOY.md §6` lo dice per la 0.10.
 
 Nel journal il `when` della migrazione `0000` è `1700000000000`, un valore scritto a mano (osservazione della review architetturale della Feature 7): l'ordine attuale è comunque crescente e il test lo conferma.
 
@@ -240,3 +262,5 @@ Nel journal il `when` della migrazione `0000` è `1700000000000`, un valore scri
 - [[e6-deploy]] — Panoramica della Feature 7
 - [[courses]] — Significato di `recipes.courses` e regole derivate (Feature 8)
 - [[f8-portate-etichette]] — Panoramica della Feature 8
+- [[compositions]] — Significato di `plan_slots.course` e `households.meal_compositions` (Feature 11)
+- [[f11-composizione-pasto]] — Panoramica della Feature 11

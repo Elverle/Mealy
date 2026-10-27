@@ -2,8 +2,8 @@
 title: Form di Modifica delle Impostazioni (settings-editor)
 type: entity
 created: 2026-09-28
-updated: 2026-10-05
-tags: [ui, components, settings, forms, banner, accessibility, router-cache, feature-3]
+updated: 2026-10-27
+tags: [ui, components, settings, forms, banner, accessibility, router-cache, compositions, feature-3, feature-11]
 ---
 
 ## File e Responsabilità
@@ -29,6 +29,7 @@ export function SettingsEditor({ initialSettings, initialIngredientPrefs }: Sett
 - `saved` e `draft`: due copie di `HouseholdSettings` estratte da `initialSettings` (senza `onboarded` / `updated_at`).
 - `status: 'idle' | 'saving' | 'error'`, `showBanner: boolean` (iniziale `false`).
 - `dirty = !settingsEqual(draft, saved)`; `valid` = tutti i campi validi secondo `isSettingsFieldValid`; `canSave = dirty && valid && status !== 'saving'`. Selezionare e poi deselezionare lo stesso chip riporta `dirty` a `false`.
+- **Dalla Feature 11** `toHouseholdSettings(view)` copia anche `meal_compositions`. Cambiare una composizione rende il form `dirty` (`settingsEqual` confronta anche le composizioni, [[settings-service]]); togliere tutte le composizioni di un pasto selezionato disattiva *Salva* (`isSettingsFieldValid`, [[settings-fields]]). Dopo il salvataggio vale il banner di sempre: il prossimo piano userà i nuovi vincoli, e la bozza risulta superata.
 
 ## Flusso di Salvataggio
 
@@ -53,6 +54,7 @@ export function SettingsEditor({ initialSettings, initialIngredientPrefs }: Sett
 ## Test
 
 - `tests/ui/settings-editor.test.tsx` (jsdom, `putSettings` e `useRouter` mockati): Salva disabilitato all'avvio e senza modifiche nette, corpo inviato senza `complete_onboarding`, banner solo con `changed: true` e chiudibile, errore e suo reset, pasti vuoti, stato "Salvataggio…", `router.refresh()` chiamato una volta sui successi e mai sui fallimenti; dalla Feature 5, uno scarto passato con `initialIngredientPrefs` compare sotto `Scartati` e *Salva* resta disabilitato.
+- Dalla Feature 11, in `tests/ui/settings-editor.test.tsx`: *Salva* attivo dopo aver cambiato una composizione, disattivato togliendo tutte le composizioni di un pasto selezionato, composizioni cambiate nel corpo inviato.
 - `tests/app/settings-page.test.tsx` (node): la pagina server ritorna un `SettingsEditor` con `initialSettings` pari al valore di `getSettings` e, dalla Feature 5, `initialIngredientPrefs` pari al valore di `listIngredientPrefs` (chiamata una volta).
 - `tests/ui/shell.test.tsx`: il test della schermata Impostazioni rende direttamente `SettingsEditor` con una fixture `SettingsView`.
 
@@ -65,3 +67,4 @@ export function SettingsEditor({ initialSettings, initialIngredientPrefs }: Sett
 - [[onboarding-guard]] — Layout `(app)` che protegge `/impostazioni`
 - [[e5-impostazioni]] — Panoramica della Feature 3
 - [[e2-libreria-preferenze]] — Panoramica della Feature 5
+- [[f11-composizione-pasto]] — Feature 11: composizioni dei pasti nel campo «Pasti da pianificare»

@@ -2,8 +2,8 @@
 title: Classificazione delle Ricette Esistenti — classifyPendingRecipes, Avvio e Script (recipe-classification)
 type: entity
 created: 2026-10-21
-updated: 2026-10-26
-tags: [recipes, llm, classification, courses, style-tags, startup, instrumentation, script, batches, feature-8, feature-10]
+updated: 2026-10-27
+tags: [recipes, llm, classification, courses, style-tags, startup, instrumentation, script, batches, feature-8, feature-10, feature-11]
 ---
 
 ## File e Responsabilità
@@ -45,7 +45,7 @@ Passi:
 5. **Lotti in sequenza**, mai in parallelo: sul Raspberry 26 ricette sono 3 chiamate una dopo l'altra (spec §5). Ogni ricetta del lotto riceve un riferimento `r1`…`r10`. Il modello vede titolo, descrizione, pasti, etichette attuali e nomi degli ingredienti (normalizzati e senza doppioni). Un lotto che fallisce (timeout, rete, risposta non valida dopo la riparazione) scrive `[classify] lotto i/n non classificato: <codice>: <messaggio>` (`warn`), conta in `failedBatches` e si salta: le sue ricette si riprovano all'esecuzione successiva (FR-4.4).
 6. **Scrittura riga per riga**, senza una transazione unica. Si scartano le righe con riferimento sconosciuto, quelle con un riferimento già visto (vince la prima) e quelle con portate vuote dopo `normalizeCourses`. Per le altre:
    - portate = `normalizeCourses(row.courses)`;
-   - etichette = `deriveStyleTags([...etichette attuali, ...row.style_tags], portate, ingredienti)`. Le etichette del modello si **aggiungono**: nessuna viene tolta, tranne quelle che correggono le regole derivate (per esempio `piatto-unico` su una ricetta classificata `secondo`);
+   - etichette = `deriveStyleTags([...etichette attuali, ...row.style_tags], portate, ingredienti)`. Le etichette del modello si **aggiungono**: nessuna viene tolta, tranne quelle che correggono le regole derivate (per esempio `piatto-unico` su una ricetta classificata `secondo`). Dalla Feature 11 la chiamata è `deriveStyleTags([...etichette attuali, ...row.style_tags], ingredienti)`: l'etichetta `piatto-unico` non esiste più e l'unica regola derivata è quella dei pochi ingredienti;
    - `setRecipeClassification`, che scrive solo se la ricetta è ancora non classificata.
 7. **Fine**: `[classify] classificate: X, rimaste: Y` e il rapporto.
 
@@ -95,7 +95,7 @@ Chiude sempre la connessione nel `finally`. Serve una chiave API del provider at
 
 ## Test
 
-- `tests/recipes/classify.test.ts` (DB reale, `classify` finto iniettato): 23 ricette in lotti da 10, 10 e 3, in sequenza; etichette conservate e aggiunte; `piatto-unico` tolto a una ricetta classificata `secondo`; un lotto fallito lascia non classificate solo le sue ricette; motivo di un errore generico nel log; righe con riferimento sconosciuto, ripetuto o con portate vuote ignorate; nessuna sovrascrittura di una ricetta classificata nel frattempo; modello non configurato senza chiamate e con `notConfigured`; nessuna ricetta in attesa senza risolvere il modello; `batchSize` fuori da 1..10 rifiutato prima di chiamare il modello.
+- `tests/recipes/classify.test.ts` (DB reale, `classify` finto iniettato): 23 ricette in lotti da 10, 10 e 3, in sequenza; etichette conservate e aggiunte; `piatto-unico` tolto a una ricetta classificata `secondo` (caso rimosso nella Feature 11, con l'etichetta); un lotto fallito lascia non classificate solo le sue ricette; motivo di un errore generico nel log; righe con riferimento sconosciuto, ripetuto o con portate vuote ignorate; nessuna sovrascrittura di una ricetta classificata nel frattempo; modello non configurato senza chiamate e con `notConfigured`; nessuna ricetta in attesa senza risolvere il modello; `batchSize` fuori da 1..10 rifiutato prima di chiamare il modello.
 - `tests/instrumentation.test.ts` (servizio mockato): una sola classificazione dopo un bootstrap riuscito; l'avvio non la aspetta; un errore viene scritto nel log senza uscire; nessuna classificazione se il bootstrap fallisce o fuori dal bootstrap di produzione.
 - `tests/db/recipe-classification-repo.test.ts`: le due funzioni del repository ([[recipe-repo]]).
 - `tests/llm/adapter.test.ts` e `tests/llm/prompts.test.ts`: `classifyRecipes` e i prompt ([[llm-adapter]]).
@@ -111,3 +111,4 @@ Non coperto dai test automatici: la classificazione con un modello reale e lo st
 - [[db-bootstrap]] — Hook di avvio che lancia la classificazione
 - [[e6-deploy]] — Produzione sul Raspberry
 - [[recipe-pack]] — Feature 10: il pacchetto caricato prima della classificazione
+- [[f11-composizione-pasto]] — Feature 11: `deriveStyleTags` senza la portata

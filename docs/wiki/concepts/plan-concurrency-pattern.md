@@ -2,8 +2,8 @@
 title: Generazione Fuori, Selezione Dentro il Lock
 type: concept
 created: 2026-09-29
-updated: 2026-10-14
-tags: [architecture, concurrency, transactions, advisory-lock, llm, planner, shopping-list, manual-choice, feature-4]
+updated: 2026-10-27
+tags: [architecture, concurrency, transactions, advisory-lock, llm, planner, shopping-list, manual-choice, side-dish, feature-4, feature-11]
 ---
 
 ## Il Problema
@@ -91,6 +91,19 @@ Conseguenze:
 - un'assegnazione sovrapposta a uno swap, a una rigenerazione o a un'altra assegnazione vede lo stato già aggiornato; le candidate mostrate dal selettore possono essere superate nel frattempo, e l'assegnazione risponde `recipe_not_eligible` o con un codice di piano non più modificabile;
 - `assignSlotRecipe` legge l'intera libreria **dentro** il lock per trovare una sola ricetta (requirements P10); la review architetturale (R7) la indica come la lettura evitabile, da sostituire con una lettura per id quando la libreria crescerà.
 
+### Esito nella Feature 11
+La Feature 11 ([[f11-composizione-pasto]]) aggiunge tre scritture sui piani e cambia due di quelle esistenti, tutte con la stessa regola:
+
+| Operazione | Fase 1 | Fase 2 |
+|---|---|---|
+| `generatePlan` / `repeatPlan` | come prima; le composizioni si estraggono con un **seme fissato** all'inizio della costruzione | la nuova `computeSelection` sotto lock usa lo stesso seme, quindi le composizioni sono le stesse decise fuori (requirements P5) |
+| `swapSlot` e `addSideDish` (funzione privata `fillDish`) | scelta di prova per la portata del piatto, eventuale generazione di `generationMin` ricette di quella portata (anche contorni) | rilettura di piano, slot e vincoli, controlli di `addSideDish` ripetuti (`side_not_allowed`, `side_exists`), nuova scelta, scrittura |
+| `removeSideDish` | — | tutto sotto lock: rilettura, controlli (`slot_locked`, `slot_past`, `not_a_side_dish`), `deleteSlots` |
+| `assignSlotRecipe` | — | come dalla Feature 9; in più la portata del principale e, per un piatto unico, la cancellazione del contorno nella stessa transazione |
+| `setSlotLock` | — | blocca o sblocca tutti i piatti del pasto (`setMealLocked`) |
+
+L'indice unico `plan_slots_plan_day_meal_side_idx` ([[database-schema]]) è l'ultima difesa: due «+ Contorno» concorrenti sullo stesso pasto si serializzano sul lock, e il secondo vede il contorno del primo e risponde `side_exists`; se una via di scrittura saltasse il lock, l'indice rifiuterebbe comunque un secondo contorno. Lato client la regola ha un corrispettivo: `withMealFrom` non prende il blocco dalla risposta di un'azione sul pasto, così una risposta lenta non annulla un blocco arrivato prima ([[plan-screen]], innesto R1 della review architetturale).
+
 ## Vedi anche
 
 - [[plan-service]] — Implementazione di generazione, swap, conferma e blocco
@@ -104,3 +117,4 @@ Conseguenze:
 - [[e4-lista-spesa]] — Panoramica della Feature 6
 - [[recipe-proposal-service]] — Salvataggio di una ricetta chiesta sotto il lock di generazione (Feature 9)
 - [[f9-ricette-su-richiesta]] — Panoramica della Feature 9
+- [[f11-composizione-pasto]] — Feature 11: contorni, blocco per pasto e seme delle composizioni

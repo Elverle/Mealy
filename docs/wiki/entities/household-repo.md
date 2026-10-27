@@ -2,8 +2,8 @@
 title: Repository Nucleo Domestico (household-repo)
 type: entity
 created: 2026-09-15
-updated: 2026-10-26
-tags: [database, repository, household, singleton, drizzle, onboarding, contract-u1, executor, recipe-pack]
+updated: 2026-10-27
+tags: [database, repository, household, singleton, drizzle, onboarding, contract-u1, executor, recipe-pack, compositions]
 ---
 
 ## File e Responsabilità
@@ -24,6 +24,8 @@ Garantisce in modo **idempotente** che il nucleo familiare di default (`DEFAULT_
 2. In caso di assenza, tenta l'inserimento con `.onConflictDoNothing()`, con `onboarded_at: null` (il singleton appena creato non ha completato l'onboarding) e `created_at`/`updated_at` fissi da `DEFAULT_HOUSEHOLD` (`2026-01-01T00:00:00Z`).
 3. Gestisce eventuali race-condition concorrenti recuperando il record appena creato.
 
+Dalla Feature 11 il singleton nasce con `meal_compositions` = copia di `DEFAULT_HOUSEHOLD.meal_compositions` (tutte e cinque per pranzo e per cena); il default della colonna è lo stesso ([[database-schema]]).
+
 Dalla Feature 10 la chiama anche `loadRecipePack` all'avvio in produzione, quando il pacchetto non è vuoto: su un database nuovo il singleton nasce all'avvio, senza onboarding (`onboarded_at: null`), e riceve le ricette del pacchetto prima che l'utente apra l'app ([[recipe-pack]]). Scrive con il `db` globale, fuori dalla transazione del caricamento: in produzione il pool è un singleton (Feature 8).
 
 ### `getDefaultHousehold(): Promise<Household>`
@@ -38,7 +40,7 @@ Introdotta dalla proposta P1 della review architetturale della Feature 3, sostit
 
 ### `updateHousehold(data: Partial<Omit<Household, 'id' | 'created_at' | 'updated_at'>>, id?: string): Promise<Household>`
 Aggiorna i parametri di configurazione del nucleo (default: `DEFAULT_HOUSEHOLD_ID`):
-- Supporta aggiornamenti parziali di: `persons`, `meals`, `diet_tags`, `meal_style_tags`, `appliances` e, dalla Feature 3, `onboarded_at`.
+- Supporta aggiornamenti parziali di: `persons`, `meals`, `diet_tags`, `meal_style_tags`, `appliances` e, dalla Feature 3, `onboarded_at`. Dalla Feature 11 anche `meal_compositions`, scritto come oggetto nuovo `{ pranzo: [...], cena: [...] }`: cambiare le composizioni aggiorna `updated_at` come gli altri vincoli, quindi una bozza risulta superata (spec FR-2.5).
 - Invoca `ensureDefaultHousehold()` **solo** quando `id === DEFAULT_HOUSEHOLD_ID` (fix P15 dei requirements di F3: prima creava il singleton anche aggiornando un altro household, con effetti collaterali nei test).
 - Scrive `updated_at` con l'espressione SQL `now()`, cioè con l'**orologio del database** e non con `new Date()` di Node. Il tipo interno `HouseholdUpdateValues` impone che `updated_at` sia un'espressione `SQL`.
 - Solleva un errore esplicito (`Household with id … not found for update`) qualora l'ID indicato non esista.
@@ -67,6 +69,7 @@ Per modificare i vincoli dall'applicazione si passa da `saveSettings` ([[setting
 - [[database-schema]] — Tabella `households` in Drizzle
 - [[database-architecture]] — Strategia relazionale e migrazioni
 - [[settings-service]] — Servizio impostazioni che usa `loadHousehold` e `updateHousehold`
+- [[f11-composizione-pasto]] — Feature 11: composizioni dei pasti nell'household
 - [[recipe-generation]] — Generazione ricette che usa `loadHousehold`
 - [[plan-service]] — Servizio dei piani: `loadHousehold` e rilettura sotto lock con `getHouseholdById(id, tx)`
 - [[library-service]] e [[prefs-service]] — Servizi di libreria e preferenze, che risolvono l'household con `loadHousehold` (Feature 5)

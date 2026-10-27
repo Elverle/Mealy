@@ -2,8 +2,8 @@
 title: Repository dei Piani Settimanali (plan-repo)
 type: entity
 created: 2026-09-29
-updated: 2026-10-09
-tags: [database, repository, meal-plans, plan-slots, drizzle, advisory-lock, recipe-usage, feature-4]
+updated: 2026-10-27
+tags: [database, repository, meal-plans, plan-slots, drizzle, advisory-lock, recipe-usage, feature-4, feature-11]
 ---
 
 ## File e Responsabilità
@@ -22,6 +22,8 @@ tags: [database, repository, meal-plans, plan-slots, drizzle, advisory-lock, rec
 | `PlanWithSlots` | `PlanRecord` + `slots` (ordinati per giorno, poi pranzo → cena) + `shopping_list: { exists, needs_regeneration }` |
 | `NewSlotInput` | `day`, `meal`, `recipe_id`, `servings`, `locked` |
 | `RecipeUsageInput` | `recipeId`, `day` (giorno del pasto, `YYYY-MM-DD`) |
+
+**Dalla Feature 11** `PlanSlotRecord` e `NewSlotInput` hanno anche `course: Course`, letto con `CourseSchema`; `slots` di `PlanWithSlots` è ordinato per giorno, poi pranzo → cena, poi **principale → contorno** (`compareSlots` mette per ultimo lo slot con `course === 'contorno'`).
 
 `status` e `meal` sono validati con `PlanStatusSchema` / `MealTypeSchema`; la ricetta di ogni slot è convertita con `toRecipeWithDetails` (esportata da [[recipe-repo]] dalla Feature 4, prima era la funzione interna `formatRecipe`).
 
@@ -49,8 +51,9 @@ tags: [database, repository, meal-plans, plan-slots, drizzle, advisory-lock, rec
 | `insertSlots(executor, planId, slots)` | Inserimento multiplo; array vuoto → nessuna query |
 | `deleteSlots(executor, slotIds)` | Array vuoto → nessuna query |
 | `updateSlotsServings(executor, slotIds, servings)` | Array vuoto → nessuna query |
-| `updateSlotRecipe(executor, slotId, recipeId)` | Nuova ricetta dello slot (swap) |
-| `setSlotLocked(executor, slotId, locked)` | `true` se lo slot esisteva ed è stato aggiornato |
+| `updateSlotRecipe(executor, slotId, recipeId)` | Nuova ricetta dello slot (swap). Dalla Feature 11 `updateSlotRecipe(executor, slotId, recipeId, course?)`: con `course` definito cambia anche la portata dello slot (scelta a mano sul principale, [[plan-service]]) |
+| `setSlotLocked(executor, slotId, locked)` | `true` se lo slot esisteva ed è stato aggiornato. Dalla Feature 11 il servizio non la usa più |
+| `setMealLocked(executor, planId, day, meal, locked)` (Feature 11) | Blocca o sblocca **tutti** gli slot del pasto `(planId, day, meal)`; restituisce quanti ne ha aggiornati. È quella che usa `setSlotLock` ([[plan-service]]) |
 
 ### Uso delle ricette e lista della spesa
 - **`incrementRecipeUsage(executor, usages: RecipeUsageInput[])`** (Addendum D3): raggruppa per ricetta tenendo il giorno **più recente**; un'unica `insert … on conflict (recipe_id) do update` su `recipe_prefs` con `times_used + 1` (una volta per ricetta e per chiamata, anche se la ricetta è in più slot) e `last_used_at = greatest(coalesce(recipe_prefs.last_used_at, x), x)` dove `x = '<day>T12:00:00Z'::timestamptz`. Il mezzogiorno UTC basta a contare i giorni senza aritmetica di fuso nel DB; `last_used_at` **non torna mai indietro**. Un giorno non `YYYY-MM-DD` lancia un errore; array vuoto → nessuna query.
@@ -76,7 +79,7 @@ await db.transaction(async (tx) => {
 
 ## Test
 
-`tests/db/plan-repo.test.ts` (node, DB reale, `describe.skipIf(!dbUp)`, household dedicati eliminati in `afterEach`): inserimento e rilettura, ordinamento degli slot, `touchPlanGeneratedAt`, `archivePlansBefore`, `listPlanWeeks`, `activateDraftPlan`, `incrementRecipeUsage` con giorni (deduplica, giorno più recente, nessun arretramento), `markShoppingListStale` con e senza lista, `setSlotLocked` su id inesistente. Gli helper `insertTestRecipe` / `insertTestRecipes` sono in `tests/helpers/plans.ts`.
+`tests/db/plan-repo.test.ts` (node, DB reale, `describe.skipIf(!dbUp)`, household dedicati eliminati in `afterEach`): inserimento e rilettura, ordinamento degli slot, `touchPlanGeneratedAt`, `archivePlansBefore`, `listPlanWeeks`, `activateDraftPlan`, `incrementRecipeUsage` con giorni (deduplica, giorno più recente, nessun arretramento), `markShoppingListStale` con e senza lista, `setSlotLocked` su id inesistente. Dalla Feature 11: principale letto prima del contorno anche se il contorno è stato inserito prima, `updateSlotRecipe` che cambia la portata solo quando la riceve, `setMealLocked` su tutti gli slot di un pasto e non sull'altro pasto. Gli helper `insertTestRecipe` / `insertTestRecipes` sono in `tests/helpers/plans.ts`.
 
 ## Vedi anche
 
@@ -87,3 +90,4 @@ await db.transaction(async (tx) => {
 - [[shopping-repo]] — Repository di liste e articoli, con `markShoppingListGenerated`
 - [[plan-concurrency-pattern]] — Uso del lock e delle transizioni condizionate
 - [[e3-pianificatore]] — Panoramica della Feature 4
+- [[f11-composizione-pasto]] — Feature 11: uno slot per piatto, blocco per pasto

@@ -2,8 +2,8 @@
 title: F10 Pacchetto Ricette — 200 Ricette dal Dataset, Diete per Regola e Caricamento all'Avvio
 type: topic
 created: 2026-10-26
-updated: 2026-10-26
-tags: [recipes, recipe-pack, dataset, llm, diet-flags, ingredients, startup, instrumentation, fixtures, cli, feature-10]
+updated: 2026-10-27
+tags: [recipes, recipe-pack, dataset, llm, diet-flags, ingredients, startup, instrumentation, fixtures, cli, feature-10, feature-11]
 ---
 
 ## Panoramica
@@ -139,6 +139,7 @@ All'avvio in produzione (instrumentation.ts, DB_BOOTSTRAP_ON_START=true)
 ## Contratti Consegnati alle Feature Successive
 
 - **Feature 11 (composizione del pasto)**: 60 ricette con portata `contorno` in libreria dopo il deploy, pronte per "secondo + contorno". Il caricatore resta invariato: una versione nuova del pacchetto aggiunge solo i titoli nuovi.
+  - **Esito nella Feature 11** ([[f11-composizione-pasto]]): i 60 contorni sono la riserva dei contorni del piano. Con le cinque composizioni di default e il pacchetto vero un piano completo esce senza chiamare il modello (`tests/plans/compose.test.ts`). Il caricatore non è cambiato; `fixtures/recipe-pack.json` è stato riscritto (stesso formato, `JSON.stringify(…, null, 2) + '\n'`) solo per togliere l'etichetta di stile `piatto-unico` dai `tags`, che nessuna ricetta del file conserva; le portate non sono cambiate. Le ricette già caricate sul Raspberry perdono l'etichetta con la migrazione `0006`.
 - **V2 (cancellazione delle ricette o catalogo)**: non esiste un segno di "pacchetto caricato". Prima di permettere la cancellazione va introdotto (per esempio una tabella `recipe_pack_loads`), altrimenti una ricetta del pacchetto cancellata torna al riavvio. Gli strumenti di `lib/recipes/pack/` e `deriveDietFlags` sono quelli da riusare per l'intero dataset.
 - **Diete delle ricette generate** (review P3, nota per la V2): oggi convivono due fonti, il modello per le ricette generate e la tabella per quelle del pacchetto. La tabella è il primo passo verso diete per regola anche per le generate, a patto di gestire i nomi senza voce, che `deriveDietFlags` rifiuta.
 - **Esito del contratto della Feature 8**: la Feature 8 indicava `insertGeneratedRecipe` come via di scrittura del pacchetto, mentre la Feature 9 avvertiva che scrive sempre `source: 'llm'`. Conciliati con l'opzione `source` (spec D9).
@@ -177,3 +178,4 @@ La suite conta **113 file di test** (98 alla fine della Feature 8). Nuovi file:
 - [[f9-ricette-su-richiesta]] — Feature 9: richieste dell'utente, la via delle ricette nuove
 - [[e3-pianificatore]] — Feature 4: il planner e la soglia di generazione
 - [[e6-deploy]] — Feature 7: bootstrap all'avvio e produzione sul Raspberry
+- [[f11-composizione-pasto]] — Feature 11: i contorni del pacchetto nei pasti composti

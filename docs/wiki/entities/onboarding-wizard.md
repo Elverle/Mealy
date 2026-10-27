@@ -2,8 +2,8 @@
 title: Wizard di Primo Avvio (onboarding-wizard)
 type: entity
 created: 2026-09-28
-updated: 2026-09-28
-tags: [ui, components, onboarding, wizard, settings, accessibility, focus-management, feature-3]
+updated: 2026-10-27
+tags: [ui, components, onboarding, wizard, settings, accessibility, focus-management, compositions, feature-3, feature-11]
 ---
 
 ## File e Responsabilità
@@ -39,6 +39,7 @@ export function OnboardingWizard({ initialSettings }: OnboardingWizardProps): Re
 - Pulsante principale (`flex-1`): "Avanti" nei passi 0–3, "Inizia a pianificare" all'ultimo ("Un attimo…" durante il salvataggio); disabilitato se il campo corrente non è valido (`isSettingsFieldValid`) o durante il salvataggio. Es.: al passo 2 senza pasti selezionati "Avanti" è disabilitato e compare "Scegli almeno un pasto.".
 - "Indietro" (`variant="outline"`) visibile solo da `step > 0`, disabilitato durante il salvataggio; riporta anche `status` a `'idle'`.
 - Nessun salvataggio parziale per passo: i dati restano nel `draft` fino all'ultimo passo.
+- **Dalla Feature 11** il `draft` comprende anche `meal_compositions` (preselezionate dal default: tutte e cinque per pranzo e per cena). Il secondo passo, «Pasti da pianificare», mostra anche le composizioni di ogni pasto scelto, e *Avanti* è disattivato se un pasto selezionato non ne ha nessuna: lo decide `isSettingsFieldValid` ([[settings-fields]]), senza codice nuovo nel wizard. I passi restano cinque. Al completamento le composizioni scelte vanno nel corpo di `putSettings`.
 
 ## Render
 
@@ -62,6 +63,7 @@ Lato server, `saveSettings` imposta `onboarded_at` solo se era `null` e aggiorna
 ## Test
 
 - `tests/ui/onboarding-wizard.test.tsx` (jsdom, `useRouter` e `putSettings` mockati): contenuto del passo 1, navigazione avanti/indietro, blocco su pasti vuoti, corpo di `putSettings` con `complete_onboarding: true` e ordine `replace` → `refresh`, errore senza redirect, focus sull'`h1` dopo "Avanti".
+- Dalla Feature 11, in `tests/ui/onboarding-wizard.test.tsx`: *Avanti* disattivato con un pasto senza composizioni e riattivato quando se ne sceglie una; composizioni scelte salvate al completamento.
 - `tests/app/benvenuto-page.test.tsx` (node): `redirect('/')` se già onboardato, altrimenti `OnboardingWizard` con le impostazioni correnti.
 
 ## Vedi anche
@@ -71,3 +73,4 @@ Lato server, `saveSettings` imposta `onboarded_at` solo se era `null` e aggiorna
 - [[settings-editor]] — Modifica successiva degli stessi vincoli
 - [[settings-service]] — `putSettings` e `saveSettings`
 - [[e5-impostazioni]] — Panoramica della Feature 3
+- [[f11-composizione-pasto]] — Feature 11: composizioni dei pasti nel campo «Pasti da pianificare»
