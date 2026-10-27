@@ -511,6 +511,33 @@ describe('lib/domain/planner', () => {
         expect(result.assignments.filter((a) => a.recipeId !== null)).toHaveLength(12);
       }
     });
+
+    it.each([
+      [4, 3],
+      [3, 4],
+    ])('fills %i + %i contorno slots with the fixture library and no needMore, for 20 seeds', (pranzo, cena) => {
+      // Con le cinque composizioni di default un pasto ha da 2 a 4 contorni a settimana. I contorni
+      // d'esempio valgono quasi tutti per pranzo e cena e non si ripetono nel piano: bastano fino a
+      // 7 contorni; 4 + 4 (circa una settimana su cento) chiede ancora il modello.
+      const library = fixtureRecipesAsDomain();
+      const slots: PlannerSlot[] = [...slotsFor('pranzo', pranzo, 'contorno'), ...slotsFor('cena', cena, 'contorno')];
+      for (let seed = 1; seed <= 20; seed++) {
+        const result = selectRecipes({
+          ...makeCtx({
+            household: {
+              diet_tags: DEFAULT_HOUSEHOLD.diet_tags,
+              appliances: DEFAULT_HOUSEHOLD.appliances,
+            },
+          }),
+          slots,
+          candidates: library,
+          now: NOW,
+          rng: createRng(seed),
+        });
+        expect(result.needMore).toEqual([]);
+        expect(result.assignments.filter((a) => a.recipeId !== null)).toHaveLength(pranzo + cena);
+      }
+    });
   });
 
   describe('8b. scarcest meal type first', () => {

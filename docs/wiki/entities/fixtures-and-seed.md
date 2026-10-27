@@ -9,7 +9,7 @@ tags: [fixtures, seed, database, testing, offline, household, aliases, ingredien
 ## File e Responsabilità
 
 - **Percorsi file**:
-  - `fixtures/recipes.json`: file JSON con 18 ricette casalinghe italiane predefinite.
+  - `fixtures/recipes.json`: file JSON con 24 ricette casalinghe italiane predefinite.
   - `fixtures/ingredient-aliases.json`: dizionario di sinonimi e varianti di ingredienti mappati sui loro nomi canonici: **35 voci** dalla Feature 6 (24 fino alla Feature 5).
   - `fixtures/index.ts`: modulo TypeScript che carica, valida ed esporta le costanti delle fixtures e la funzione loader `fixtureRecipesAsDomain`.
   - `lib/db/seed-core.ts`: logica transazionale idempotente di popolamento database (`seedDatabase`) e, dalla Feature 6, `seedIngredientAliases` (dalla Feature 7 un upsert).
@@ -24,7 +24,7 @@ tags: [fixtures, seed, database, testing, offline, household, aliases, ingredien
 I dati statici sono conformi alle stringenti regole di dominio:
 
 ### 1. Ricette Casalinghe (`fixtures/recipes.json`)
-Contiene 18 ricette rappresentative della cucina casalinga italiana (primi piatti, secondi, contorni, piatti unici) con caratteristiche diversificate:
+Contiene 24 ricette rappresentative della cucina casalinga italiana (primi piatti, secondi, contorni, piatti unici) con caratteristiche diversificate:
 - **Validazione**: validato a runtime da `FixtureFileSchema` in `fixtures/index.ts` (richiede tra 15 e 20 ricette).
 - **Normalizzazione ingredienti**:
   - `canonical_name`: singolare, minuscolo, senza aggettivi di preparazione (es. `pomodoro`, `pasta`, `petto di pollo`).
@@ -45,7 +45,7 @@ Dalla Feature 8 ogni ricetta del file ha `courses` (obbligatorio: `FixtureRecipe
 | `piatto-unico` e `primo` | Pasta e ceci |
 | `contorno` (solo) | Patate e zucchine croccanti |
 
-Una sola ricetta è solo contorno: rende visibile in sviluppo la regola "mai un contorno da solo nel piano" ([[planner]]). Dalla Feature 11 è l'unico contorno della libreria d'esempio: basta per un «+ Contorno» in sviluppo, ma un piano generato con le composizioni di default su un DB con le sole ricette d'esempio chiede contorni al modello. Le etichette rispettano già le regole derivate di [[courses]] (`pochi-ingredienti` con al massimo 6 ingredienti misurati, `piatto-unico` solo con quella portata): un test lo controlla (requirements P18). Il seed applica comunque le regole, quindi un errore nel file non arriverebbe al database.
+Sette ricette sono solo contorno. La prima (*Patate e zucchine croccanti*, solo cena) rendeva visibile in sviluppo la regola "mai un contorno da solo nel piano" ([[planner]]). Dopo la Feature 11 se ne sono aggiunte sei, per pranzo e cena e senza frullatore (*Fagiolini all'aglio e limone*, *Cicoria ripassata*, *Carote glassate al burro*, *Insalata di finocchi e arance*, *Peperonata*, *Cavolfiore gratinato al forno*): con le composizioni di default un pasto ha da 2 a 4 contorni a settimana e il planner ne vuole slot + minPoolSize - 1 freschi per pasto, e i contorni non si ripetono nel piano. Bastano fino a 7 contorni nella settimana; con 4 a pranzo e 4 a cena (circa una settimana su cento) il piano chiede ancora un contorno al modello. Per far posto alle nuove ricette FixtureFileSchema ammette da 15 a 30 ricette (prima 20). Le etichette rispettano già le regole derivate di [[courses]] (`pochi-ingredienti` con al massimo 6 ingredienti misurati, `piatto-unico` solo con quella portata): un test lo controlla (requirements P18). Il seed applica comunque le regole, quindi un errore nel file non arriverebbe al database.
 
 La frase iniziale "primi piatti, secondi, contorni, piatti unici" ora corrisponde a un campo: prima della Feature 8 la portata non esisteva come dato.
 
@@ -84,7 +84,7 @@ La funzione esportata da `fixtures/index.ts`:
 export function fixtureRecipesAsDomain(householdId: string = DEFAULT_HOUSEHOLD_ID): Recipe[]
 ```
 
-Trasforma le 18 ricette fixtures nel tipo completo di dominio `Recipe` associandole all'household desiderato:
+Trasforma le ricette fixtures nel tipo completo di dominio `Recipe` associandole all'household desiderato:
 - Assegna `household_id` (default `DEFAULT_HOUSEHOLD_ID`).
 - Imposta `source: 'manual'`.
 - Imposta `macros_est: null` e `prefs: null`.
@@ -104,7 +104,7 @@ Lo script (`lib/db/seed.ts`) carica le variabili d'ambiente (`.env.local` / `.en
 ### Fasi Operative Idempotenti:
 1. **Verifica Household**: controlla se esiste il record con `DEFAULT_HOUSEHOLD_ID` (`00000000-0000-0000-0000-000000000001`). Se assente, lo crea invocando `ensureDefaultHousehold()` da [[household-repo]].
 2. **Inserimento Ricette**:
-   - Per ciascuna delle 18 ricette, verifica preventivamente se esiste già un record con lo stesso UUID (`getRecipeById`) o lo stesso slug (`getRecipeBySlug`).
+   - Per ciascuna ricetta d'esempio, verifica preventivamente se esiste già un record con lo stesso UUID (`getRecipeById`) o lo stesso slug (`getRecipeBySlug`).
    - Se presente, la ricetta viene saltata incrementando il contatore `recipesSkipped`.
    - Se assente, viene inserita in modo atomico assieme ai suoi ingredienti tramite `insertRecipe` da [[recipe-repo]], incrementando `recipesInserted`.
    - **Dalla Feature 8** il seed scrive `courses = normalizeCourses(r.courses)` e `tags = deriveStyleTags(r.tags, r.courses, r.ingredients)` ([[courses]]); dalla Feature 11 `deriveStyleTags(r.tags, r.ingredients)`, e `fixtures/recipes.json` non contiene più l'etichetta `piatto-unico` nei `tags` (le portate non sono cambiate). In più **completa** le ricette d'esempio già presenti per id ma non classificate (`courses` vuoto, cioè salvate prima della feature): chiama `setRecipeClassification` con portate ed etichette del file e incrementa `recipesClassified`. Il resto della ricetta non si tocca; la ricetta conta comunque anche in `recipesSkipped`. Così "dopo `pnpm db:seed` nessuna ricetta d'esempio è non classificata" vale anche per un DB di sviluppo già popolato (requirements P16). Una ricetta trovata solo per slug viene saltata come prima.
@@ -134,7 +134,7 @@ Lo script (`lib/db/seed.ts`) carica le variabili d'ambiente (`.env.local` / `.en
 
 Grazie a questa strategia a prova di riesecuzione, il comando `pnpm db:seed` può essere lanciato in qualsiasi momento (all'avvio di un container dev, dopo una migrazione o in pipeline CI) senza rischiare corruzione o duplicazione di dati.
 
-`pnpm db:seed` resta un comando **di sviluppo**: inserisce anche l'household di default e le 18 ricette di esempio. In produzione non va usato (v. sotto).
+`pnpm db:seed` resta un comando **di sviluppo**: inserisce anche l'household di default e le ricette di esempio. In produzione non va usato (v. sotto).
 
 ## Pacchetto iniziale di ricette (Feature 10)
 
@@ -205,7 +205,7 @@ Il limite annotato alla Feature 6 ("`seedIngredientAliases` inserisce soltanto")
 - `tests/fixtures-data/recipes-fixtures.test.ts`: validazione delle fixture e le regole sugli alias descritte sopra.
 - `tests/db/seed.test.ts` (DB reale): seed idempotente, presenza di ogni alias del file e, dalla Feature 6, `seedIngredientAliases` idempotente (la seconda chiamata scrive 0 voci) e **senza ricette**: il numero di ricette fixture nel DB non cambia e il repository delle ricette non viene mai chiamato (`getRecipeById` e `insertRecipe` sotto `vi.spyOn`). Dalla Feature 7 un caso in più: dentro una transazione poi annullata, il nome canonico di un alias viene cambiato a mano e una nuova chiamata lo riporta a quello del file, restituendo 1.
 - `tests/domain/generation-contracts.test.ts`: dalla Feature 7, `IngredientAliasesFileSchema` rifiuta un file con lo stesso alias due volte.
-- Feature 8: `tests/fixtures-data/recipes-fixtures.test.ts` controlla che ogni ricetta abbia almeno una portata, già in ordine canonico, con etichette uguali (come insieme) a quelle di `deriveStyleTags`, e che una sola ricetta sia solo contorno. `tests/db/seed.test.ts` controlla che dopo il seed ogni ricetta d'esempio abbia una portata e che una ricetta d'esempio con `courses` azzerato a mano venga completata. Il caso azzera **solo** `courses`, non le etichette (innesto P5 della review architetturale della Feature 8); come gli altri casi del file, gira sui dati condivisi del DB di sviluppo.
+- Feature 8: `tests/fixtures-data/recipes-fixtures.test.ts` controlla che ogni ricetta abbia almeno una portata, già in ordine canonico, con etichette uguali (come insieme) a quelle di `deriveStyleTags`, e che una sola ricetta sia solo contorno (dopo la Feature 11: sette, di cui almeno sei per ciascun pasto). `tests/db/seed.test.ts` controlla che dopo il seed ogni ricetta d'esempio abbia una portata e che una ricetta d'esempio con `courses` azzerato a mano venga completata. Il caso azzera **solo** `courses`, non le etichette (innesto P5 della review architetturale della Feature 8); come gli altri casi del file, gira sui dati condivisi del DB di sviluppo. Per questo il controllo sulle preferenze verifica solo che la riga esista: preferita e utilizzi cambiano con le prove manuali, e il seed non li tocca; i valori di default di una ricetta nuova li controlla `tests/db/schema.test.ts`.
 - `tests/db/bootstrap.test.ts` (Feature 7): su un database usa-e-getta ancora senza alias il bootstrap scrive tutti quelli delle fixture, su uno già allineato ne scrive 0 ([[db-bootstrap]]).
 
 ## Vedi anche

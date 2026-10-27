@@ -1373,6 +1373,406 @@
           "note": null
         }
       ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000119",
+      "slug": "fagiolini-all-aglio-e-limone",
+      "title": "Fagiolini all'aglio e limone",
+      "description": "Fagiolini teneri saltati in padella con aglio e una spruzzata di limone.",
+      "steps": [
+        "Spunta i fagiolini e lessali in acqua salata per 8 minuti.",
+        "Scolali e passali sotto acqua fredda per fermare la cottura.",
+        "In una padella scalda l'olio con lo spicchio d'aglio schiacciato.",
+        "Aggiungi i fagiolini e saltali per 3 minuti a fuoco vivace.",
+        "Togli l'aglio, condisci con il succo di limone e regola di sale."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "courses": ["contorno"],
+      "tags": ["veloce", "salutare", "leggero", "pochi-ingredienti"],
+      "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 20,
+      "kcal_est": 110,
+      "ingredients": [
+        {
+          "canonical_name": "fagiolino",
+          "display_name": "fagiolini",
+          "qty": 300,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "aglio",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "spicchio"
+        },
+        {
+          "canonical_name": "limone",
+          "display_name": "succo di limone",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "mezzo limone"
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000120",
+      "slug": "cicoria-ripassata",
+      "title": "Cicoria ripassata",
+      "description": "Cicoria lessata e poi ripassata con aglio e peperoncino, come nella tradizione romana.",
+      "steps": [
+        "Lava bene la cicoria ed elimina le foglie rovinate.",
+        "Lessala in acqua salata per 10 minuti, poi scolala e strizzala.",
+        "In una padella scalda l'olio con l'aglio a fettine e il peperoncino.",
+        "Aggiungi la cicoria e ripassala per 5 minuti mescolando.",
+        "Regola di sale e servi calda."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "courses": ["contorno"],
+      "tags": ["leggero", "tradizionale", "pochi-ingredienti"],
+      "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 25,
+      "kcal_est": 120,
+      "ingredients": [
+        {
+          "canonical_name": "cicoria",
+          "display_name": "cicoria",
+          "qty": 500,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "aglio",
+          "display_name": "aglio a fettine",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "spicchio"
+        },
+        {
+          "canonical_name": "peperoncino",
+          "display_name": "peperoncino",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 20,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000121",
+      "slug": "carote-glassate-al-burro",
+      "title": "Carote glassate al burro",
+      "description": "Carote morbide e lucide, cotte in padella con burro e un pizzico di zucchero.",
+      "steps": [
+        "Pela le carote e tagliale a bastoncini.",
+        "Mettile in padella con il burro, lo zucchero e un dito di acqua.",
+        "Cuoci a fuoco medio con il coperchio per 12 minuti.",
+        "Togli il coperchio e lascia evaporare l'acqua finché le carote sono lucide.",
+        "Regola di sale e completa con il prezzemolo tritato."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "courses": ["contorno"],
+      "tags": ["veloce", "comfort-food", "pochi-ingredienti"],
+      "diet_flags": ["vegetariano", "senza-glutine", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 25,
+      "kcal_est": 150,
+      "ingredients": [
+        {
+          "canonical_name": "carota",
+          "display_name": "carote a bastoncini",
+          "qty": 400,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "burro",
+          "display_name": "burro",
+          "qty": 20,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "zucchero",
+          "display_name": "zucchero",
+          "qty": 5,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "prezzemolo",
+          "display_name": "prezzemolo tritato",
+          "qty": 5,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000122",
+      "slug": "insalata-di-finocchi-e-arance",
+      "title": "Insalata di finocchi e arance",
+      "description": "Insalata fresca e croccante di finocchi, arance e olive, senza cottura.",
+      "steps": [
+        "Pulisci i finocchi e tagliali a fettine sottili.",
+        "Pela le arance a vivo e tagliale a spicchi.",
+        "Raccogli finocchi, arance e olive in una ciotola.",
+        "Condisci con l'olio, il sale e il pepe e mescola con delicatezza."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "courses": ["contorno"],
+      "tags": ["veloce", "salutare", "leggero", "pochi-ingredienti", "piatto-freddo"],
+      "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
+      "appliances_required": [],
+      "servings_base": 2,
+      "prep_minutes": 15,
+      "kcal_est": 140,
+      "ingredients": [
+        {
+          "canonical_name": "finocchio",
+          "display_name": "finocchi",
+          "qty": 2,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "arancia",
+          "display_name": "arance",
+          "qty": 2,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "oliva taggiasca",
+          "display_name": "olive taggiasche",
+          "qty": 30,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe nero",
+          "display_name": "pepe nero macinato",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000123",
+      "slug": "peperonata",
+      "title": "Peperonata",
+      "description": "Peperoni rossi e gialli stufati in padella con cipolla e basilico.",
+      "steps": [
+        "Lava i peperoni, elimina semi e filamenti e tagliali a falde.",
+        "Affetta la cipolla e falla appassire nell'olio per 5 minuti.",
+        "Aggiungi i peperoni e cuoci a fuoco medio con il coperchio per 25 minuti.",
+        "Mescola ogni tanto e aggiungi poca acqua se serve.",
+        "Regola di sale e completa con il basilico spezzettato."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "courses": ["contorno"],
+      "tags": ["tradizionale", "in-anticipo", "pochi-ingredienti"],
+      "diet_flags": ["vegetariano", "vegano", "senza-glutine", "senza-lattosio", "pescetariano"],
+      "appliances_required": ["fornelli"],
+      "servings_base": 2,
+      "prep_minutes": 40,
+      "kcal_est": 160,
+      "ingredients": [
+        {
+          "canonical_name": "peperone rosso",
+          "display_name": "peperone rosso a falde",
+          "qty": 300,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "peperone giallo",
+          "display_name": "peperone giallo a falde",
+          "qty": 300,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "cipolla",
+          "display_name": "cipolla affettata",
+          "qty": 1,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "basilico",
+          "display_name": "basilico",
+          "qty": 4,
+          "unit": "pz",
+          "category": "ortofrutta",
+          "note": "foglie"
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 20,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000124",
+      "slug": "cavolfiore-gratinato-al-forno",
+      "title": "Cavolfiore gratinato al forno",
+      "description": "Cimette di cavolfiore gratinate con pangrattato e parmigiano.",
+      "steps": [
+        "Dividi il cavolfiore in cimette e lessale in acqua salata per 6 minuti.",
+        "Scolale e disponile in una pirofila unta di olio.",
+        "Mescola pangrattato, parmigiano e pepe e distribuiscili sulle cimette.",
+        "Completa con un filo d'olio e inforna a 200 gradi per 20 minuti, finché la superficie è dorata."
+      ],
+      "meal_types": ["pranzo", "cena"],
+      "courses": ["contorno"],
+      "tags": ["comfort-food", "tradizionale", "pochi-ingredienti"],
+      "diet_flags": ["vegetariano", "pescetariano"],
+      "appliances_required": ["fornelli", "forno"],
+      "servings_base": 2,
+      "prep_minutes": 40,
+      "kcal_est": 210,
+      "ingredients": [
+        {
+          "canonical_name": "cavolfiore",
+          "display_name": "cavolfiore",
+          "qty": 600,
+          "unit": "g",
+          "category": "ortofrutta",
+          "note": null
+        },
+        {
+          "canonical_name": "pangrattato",
+          "display_name": "pangrattato",
+          "qty": 30,
+          "unit": "g",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "parmigiano reggiano",
+          "display_name": "parmigiano reggiano grattugiato",
+          "qty": 30,
+          "unit": "g",
+          "category": "banco-frigo",
+          "note": null
+        },
+        {
+          "canonical_name": "olio extravergine di oliva",
+          "display_name": "olio extravergine di oliva",
+          "qty": 15,
+          "unit": "ml",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "sale",
+          "display_name": "sale",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        },
+        {
+          "canonical_name": "pepe nero",
+          "display_name": "pepe nero macinato",
+          "qty": null,
+          "unit": "qb",
+          "category": "dispensa",
+          "note": null
+        }
+      ]
     }
   ]
 }

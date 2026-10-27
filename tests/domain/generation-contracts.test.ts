@@ -327,7 +327,7 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
       expect(FixtureRecipeSchema.safeParse(validRecipe).success).toBe(false); // missing id and slug
     });
 
-    it('validates FixtureFileSchema bounds (15-20 recipes)', () => {
+    it('validates FixtureFileSchema bounds (15-30 recipes)', () => {
       const recipesUnder = Array.from({ length: 14 }, () => ({
         ...fixtureRecipe,
         id: crypto.randomUUID(),
@@ -340,7 +340,7 @@ describe('Recipe Generation Contracts (Feature 2)', () => {
       }));
       expect(FixtureFileSchema.safeParse({ recipes: recipesValid }).success).toBe(true);
 
-      const recipesOver = Array.from({ length: 21 }, () => ({
+      const recipesOver = Array.from({ length: 31 }, () => ({
         ...fixtureRecipe,
         id: crypto.randomUUID(),
       }));

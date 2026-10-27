@@ -32,20 +32,20 @@ function stripIdSlug(r: FixtureRecipe): GeneratedRecipe {
 describe('Fixtures Data & Validation', () => {
   it('raw fixtures parse successfully against their Zod schemas', () => {
     const parsedRecipes = FixtureFileSchema.parse(rawRecipes);
-    expect(parsedRecipes.recipes).toHaveLength(18);
+    expect(parsedRecipes.recipes).toHaveLength(24);
 
     const parsedAliases = IngredientAliasesFileSchema.parse(rawAliases);
     expect(parsedAliases.aliases.length).toBeGreaterThanOrEqual(15);
   });
 
-  it('contains exactly 18 recipes with unique IDs and slugs', () => {
-    expect(FIXTURE_RECIPES).toHaveLength(18);
+  it('contains exactly 24 recipes with unique IDs and slugs', () => {
+    expect(FIXTURE_RECIPES).toHaveLength(24);
 
     const ids = FIXTURE_RECIPES.map((r) => r.id);
     const slugs = FIXTURE_RECIPES.map((r) => r.slug);
 
-    expect(new Set(ids).size).toBe(18);
-    expect(new Set(slugs).size).toBe(18);
+    expect(new Set(ids).size).toBe(24);
+    expect(new Set(slugs).size).toBe(24);
 
     for (const r of FIXTURE_RECIPES) {
       expect(r.slug).toBe(slugify(r.title));
@@ -54,7 +54,7 @@ describe('Fixtures Data & Validation', () => {
 
   it('has unique normalized titles', () => {
     const normalizedTitles = FIXTURE_RECIPES.map((r) => normalizeTitle(r.title));
-    expect(new Set(normalizedTitles).size).toBe(18);
+    expect(new Set(normalizedTitles).size).toBe(24);
   });
 
   it('all recipes are already normalized (normalizeGeneratedRecipe leaves them identical)', () => {
@@ -73,9 +73,15 @@ describe('Fixtures Data & Validation', () => {
     }
   });
 
-  it('exactly one recipe is only a side dish', () => {
+  it('has enough side dishes for both meals, so the first plan needs no model for them', () => {
+    // Con le cinque composizioni di default un pasto ha da 2 a 4 contorni a settimana, e il
+    // planner ne vuole slot + minPoolSize - 1 (fino a 6) freschi per pasto prima di chiamare il
+    // modello (v. il test del planner sui contorni delle fixture).
     const sideOnly = FIXTURE_RECIPES.filter((r) => !isMainDish(r.courses));
-    expect(sideOnly).toHaveLength(1);
+    expect(sideOnly).toHaveLength(7);
+    for (const meal of ['pranzo', 'cena'] as const) {
+      expect(sideOnly.filter((r) => r.meal_types.includes(meal)).length).toBeGreaterThanOrEqual(6);
+    }
   });
 
   it('satisfies meal_type distribution constraints (solo-pranzo >= 5, solo-cena >= 5, both >= 3)', () => {
@@ -218,9 +224,9 @@ describe('Fixtures Data & Validation', () => {
     }
   });
 
-  it('fixtureRecipesAsDomain returns 18 Recipe objects with default household id', () => {
+  it('fixtureRecipesAsDomain returns 24 Recipe objects with default household id', () => {
     const domainRecipes = fixtureRecipesAsDomain();
-    expect(domainRecipes).toHaveLength(18);
+    expect(domainRecipes).toHaveLength(24);
 
     for (const r of domainRecipes) {
       expect(r.household_id).toBe(DEFAULT_HOUSEHOLD_ID);

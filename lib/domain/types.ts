@@ -415,7 +415,7 @@ export const FixtureRecipeSchema = GeneratedRecipeSchema.extend({
 });
 export type FixtureRecipe = z.infer<typeof FixtureRecipeSchema>;
 export const FixtureFileSchema = z.object({
-  recipes: z.array(FixtureRecipeSchema).min(15).max(20),
+  recipes: z.array(FixtureRecipeSchema).min(15).max(30),
 });
 export const IngredientAliasesFileSchema = z.object({
   aliases: z
