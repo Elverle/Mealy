@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const TAG = '[api/recipes/id]';
-const UuidSchema = z.string().uuid();
+const UuidSchema = z.guid();
 const RECIPE_NOT_FOUND = () => errorResponse(404, 'recipe_not_found', 'Ricetta non trovata.');
 
 export async function GET(

@@ -185,8 +185,8 @@ export type IngredientPref = z.infer<typeof IngredientPrefSchema>;
 // ============================================================================
 
 export const IngredientSchema = z.object({
-  id: z.string().uuid().optional(),
-  recipe_id: z.string().uuid().optional(),
+  id: z.guid().optional(),
+  recipe_id: z.guid().optional(),
   canonical_name: z.string().min(1),
   display_name: z.string().min(1),
   qty: z.coerce.number().nullable().optional(),
@@ -206,7 +206,7 @@ export const MacrosEstSchema = z
 export type MacrosEst = z.infer<typeof MacrosEstSchema>;
 
 export const RecipePrefSchema = z.object({
-  recipe_id: z.string().uuid(),
+  recipe_id: z.guid(),
   rating: z.number().int().min(1).max(5).nullable().optional(),
   favorite: z.boolean().default(false),
   blocked: z.boolean().default(false),
@@ -216,8 +216,8 @@ export const RecipePrefSchema = z.object({
 export type RecipePref = z.infer<typeof RecipePrefSchema>;
 
 export const RecipeSchema = z.object({
-  id: z.string().uuid(),
-  household_id: z.string().uuid(),
+  id: z.guid(),
+  household_id: z.guid(),
   title: z.string().min(1),
   slug: z.string().min(1),
   description: z.string().default(''),
@@ -244,7 +244,7 @@ export const PERSONS_MIN = 1;
 export const PERSONS_MAX = 12;
 
 export const HouseholdSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   persons: z.number().int().min(1),
   meals: z.array(MealTypeSchema),
   diet_tags: z.array(DietFlagSchema).default([]),
@@ -258,8 +258,8 @@ export const HouseholdSchema = z.object({
 export type Household = z.infer<typeof HouseholdSchema>;
 
 export const MealPlanSchema = z.object({
-  id: z.string().uuid(),
-  household_id: z.string().uuid(),
+  id: z.guid(),
+  household_id: z.guid(),
   week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   status: PlanStatusSchema.default('draft'),
   created_at: z.coerce.date().default(() => new Date()),
@@ -267,34 +267,34 @@ export const MealPlanSchema = z.object({
 export type MealPlan = z.infer<typeof MealPlanSchema>;
 
 export const PlanSlotSchema = z.object({
-  id: z.string().uuid(),
-  plan_id: z.string().uuid(),
+  id: z.guid(),
+  plan_id: z.guid(),
   day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   meal: MealTypeSchema,
   course: CourseSchema,
-  recipe_id: z.string().uuid().nullable().optional(),
+  recipe_id: z.guid().nullable().optional(),
   servings: z.number().int().min(1),
   locked: z.boolean().default(false),
 });
 export type PlanSlot = z.infer<typeof PlanSlotSchema>;
 
 export const ShoppingListSchema = z.object({
-  id: z.string().uuid(),
-  plan_id: z.string().uuid(),
+  id: z.guid(),
+  plan_id: z.guid(),
   generated_at: z.coerce.date().default(() => new Date()),
 });
 export type ShoppingList = z.infer<typeof ShoppingListSchema>;
 
 export const ShoppingItemSchema = z.object({
-  id: z.string().uuid(),
-  list_id: z.string().uuid(),
+  id: z.guid(),
+  list_id: z.guid(),
   canonical_name: z.string().min(1),
   qty: z.coerce.number().nullable().optional(),
   unit: z.string().nullable().optional(),
   category: CategorySchema,
   checked: z.boolean().default(false),
   manual: z.boolean().default(false),
-  recipe_ids: z.array(z.string().uuid()).default([]),
+  recipe_ids: z.array(z.guid()).default([]),
 });
 export type ShoppingItem = z.infer<typeof ShoppingItemSchema>;
 
@@ -410,7 +410,7 @@ export type GenerationSkip = z.infer<typeof GenerationSkipSchema>;
 
 // Fixtures (fixtures/recipes.json, fixtures/ingredient-aliases.json)
 export const FixtureRecipeSchema = GeneratedRecipeSchema.extend({
-  id: z.string().uuid(),
+  id: z.guid(),
   slug: z.string().min(1),
 });
 export type FixtureRecipe = z.infer<typeof FixtureRecipeSchema>;
@@ -486,7 +486,7 @@ export const PlanWeekSchema = z.object({
 export type PlanWeek = z.infer<typeof PlanWeekSchema>;
 
 export const PlanSlotViewSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   day: IsoDateSchema,
   meal: MealTypeSchema,
   course: CourseSchema,
@@ -503,7 +503,7 @@ export const PlanShoppingListStateSchema = z.object({
 export type PlanShoppingListState = z.infer<typeof PlanShoppingListStateSchema>;
 
 export const PlanViewSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   week_start: IsoDateSchema,
   status: PlanStatusSchema,
   created_at: z.string().datetime(),
@@ -537,7 +537,7 @@ export const PlanScreenViewSchema = z.object({
   prev_week_start: IsoDateSchema.nullable(),
   next_week_start: IsoDateSchema.nullable(),
   target_plan_status: PlanStatusSchema.nullable(), // stato del piano della settimana obiettivo; null se non esiste
-  current_plan_id: z.string().uuid().nullable(), // piano della settimana corrente ripetibile sull'obiettivo (weekend); null altrimenti
+  current_plan_id: z.guid().nullable(), // piano della settimana corrente ripetibile sull'obiettivo (weekend); null altrimenti
 });
 export type PlanScreenView = z.infer<typeof PlanScreenViewSchema>;
 
@@ -565,7 +565,7 @@ export type PlanResult = z.infer<typeof PlanResultSchema>;
 export const SWAP_EXCLUDE_MAX = 50;
 export const SwapSlotRequestSchema = z
   .object({
-    exclude_recipe_ids: z.array(z.string().uuid()).max(SWAP_EXCLUDE_MAX).default([]),
+    exclude_recipe_ids: z.array(z.guid()).max(SWAP_EXCLUDE_MAX).default([]),
   })
   .strict();
 export type SwapSlotRequest = z.infer<typeof SwapSlotRequestSchema>;
@@ -613,7 +613,7 @@ export const EMPTY_LIBRARY_FILTER: LibraryFilter = {
 
 // Vista leggera di una ricetta per la griglia della Libreria.
 export const LibraryRecipeCardSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   title: z.string().min(1),
   prep_minutes: z.number().int().min(1),
   meal_types: z.array(MealTypeSchema),
@@ -708,25 +708,25 @@ export const SHOPPING_ITEM_NAME_MAX = 80;
 // Un articolo della lista. `unit` è null solo per gli articoli aggiunti a mano;
 // `qty` è null per 'qb' e per gli articoli a mano.
 export const ShoppingItemViewSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   canonical_name: z.string().min(1), // normalizzato; alias risolti negli articoli generati, non in quelli a mano
   qty: z.number().positive().nullable(),
   unit: UnitSchema.nullable(),
   category: CategorySchema,
   checked: z.boolean(),
   manual: z.boolean(),
-  recipe_ids: z.array(z.string().uuid()), // ricette per cui serve; vuoto per gli articoli a mano
+  recipe_ids: z.array(z.guid()), // ricette per cui serve; vuoto per gli articoli a mano
 });
 export type ShoppingItemView = z.infer<typeof ShoppingItemViewSchema>;
 
 export const ShoppingRecipeRefSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   title: z.string().min(1),
 });
 export type ShoppingRecipeRef = z.infer<typeof ShoppingRecipeRefSchema>;
 
 export const ShoppingListViewSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   generated_at: z.string().datetime(),
   needs_regeneration: z.boolean(), // il piano è cambiato dopo l'ultima costruzione
   items: z.array(ShoppingItemViewSchema), // ordinati per reparto, nome, unità
@@ -735,7 +735,7 @@ export const ShoppingListViewSchema = z.object({
 export type ShoppingListView = z.infer<typeof ShoppingListViewSchema>;
 
 export const ShoppingPlanRefSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   week_start: IsoDateSchema, // lunedì
   last_day: IsoDateSchema, // domenica = week_start + 6
   status: PlanStatusSchema,
@@ -774,7 +774,7 @@ export const ShoppingItemResultSchema = z.object({ item: ShoppingItemViewSchema 
 export type ShoppingItemResult = z.infer<typeof ShoppingItemResultSchema>;
 
 // Risposta di DELETE /api/shopping-items/:id
-export const DeleteShoppingItemResultSchema = z.object({ id: z.string().uuid() });
+export const DeleteShoppingItemResultSchema = z.object({ id: z.guid() });
 export type DeleteShoppingItemResult = z.infer<typeof DeleteShoppingItemResultSchema>;
 
 // ============================================================================
@@ -807,7 +807,7 @@ export const RecipeProposalSchema = z
   .object({
     recipe: GeneratedRecipeSchema,
     duplicate_of: z
-      .object({ id: z.string().uuid(), title: z.string().min(1) })
+      .object({ id: z.guid(), title: z.string().min(1) })
       .strict()
       .nullable(),
   })
@@ -853,14 +853,14 @@ export const SaveRecipeResultSchema = z.object({ recipe: RecipeSchema }).strict(
 export type SaveRecipeResult = z.infer<typeof SaveRecipeResultSchema>;
 
 // Body di PUT /api/plans/:id/slots/:slotId/recipe (la risposta è PlanResultSchema)
-export const AssignSlotRecipeRequestSchema = z.object({ recipe_id: z.string().uuid() }).strict();
+export const AssignSlotRecipeRequestSchema = z.object({ recipe_id: z.guid() }).strict();
 export type AssignSlotRecipeRequest = z.infer<typeof AssignSlotRecipeRequestSchema>;
 
 // Risposta di GET /api/plans/:id/slots/:slotId/candidates
 export const SlotCandidatesSchema = z
   .object({
     recipes: z.array(LibraryRecipeCardSchema), // adatte al pasto, senza quella dello slot, nell'ordine della Libreria
-    in_plan_recipe_ids: z.array(z.string().uuid()), // ricette degli altri slot dello stesso piano, senza doppioni
+    in_plan_recipe_ids: z.array(z.guid()), // ricette degli altri slot dello stesso piano, senza doppioni
   })
   .strict();
 export type SlotCandidates = z.infer<typeof SlotCandidatesSchema>;

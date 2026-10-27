@@ -52,7 +52,7 @@ describe('readJsonFile', () => {
     fs.writeFileSync(filePath, JSON.stringify({ items: [{ name: 'a' }] }), 'utf8');
     await expect(readJsonFile(filePath, ItemsSchema, () => ({ items: [] }))).rejects.toThrow(
       new PackError(
-        `File non valido: ${filePath}: items.0.name: String must contain at least 2 character(s)`
+        `File non valido: ${filePath}: items.0.name: Too small: expected string to have >=2 characters`
       )
     );
   });

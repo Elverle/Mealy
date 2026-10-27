@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const TAG = '[api/plans/shopping-list]';
-const UuidSchema = z.string().uuid();
+const UuidSchema = z.guid();
 
 export async function GET(
   _request: Request,

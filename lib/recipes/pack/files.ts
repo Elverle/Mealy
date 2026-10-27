@@ -23,7 +23,7 @@ function errorMessage(error: unknown): string {
  */
 export async function readJsonFile<T>(
   filePath: string,
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  schema: z.ZodType<T, unknown>,
   onMissing: () => T
 ): Promise<T> {
   let text: string;

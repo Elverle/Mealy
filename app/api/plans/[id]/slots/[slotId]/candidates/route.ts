@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const TAG = '[api/plans/candidates]';
-const UuidSchema = z.string().uuid();
+const UuidSchema = z.guid();
 
 export async function GET(
   _request: Request,
