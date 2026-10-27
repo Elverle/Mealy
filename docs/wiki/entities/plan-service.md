@@ -9,7 +9,11 @@ tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat
 ## File e Responsabilità
 
 - **Percorsi file**:
-  - `lib/plans/service.ts`: orchestratore **solo lato server** (schermata, generazione, *Ripeti*, conferma, blocco, swap). Unico modulo che chiama `generateAndStoreRecipes` ([[recipe-generation]]), sempre fuori da transazioni.
+  - `lib/plans/service.ts`: punto d'ingresso **solo lato server** del servizio, importato da rotte e test. Dal 27 ottobre 2026 (review P1 della Feature 11) non contiene codice: riesporta l'API pubblica dai tre moduli qui sotto, che restano interni a `lib/plans/`. Rotte, test e `vi.mock('@/lib/plans/service')` non sono cambiati.
+    - `lib/plans/shared.ts`: `PlanServiceOptions`, `GenerateRecipesFn`, chiavi di pasto e di slot, `sameMeal`, `courseFilterOf`, `toPlanView`, `resolveClock`, `loadConstraints`, `loadOpenOwnedPlan`.
+    - `lib/plans/build.ts`: il piano intero. Schermata (`getPlanScreen`), costruzione della settimana obiettivo (`computeSelection`, `buildTargetPlan`, `generatePlan`, `repeatPlan`) e conferma (`confirmPlan`).
+    - `lib/plans/dishes.ts`: operazioni sui piatti di un piano aperto. Blocco del pasto (`setSlotLock`), `findSwappableSlot`, `fillDish` con `swapSlot` e `addSideDish`, `removeSideDish`, `listSlotCandidates`, `assignSlotRecipe`.
+    - `build.ts` e `dishes.ts` sono gli unici moduli che chiamano `generateAndStoreRecipes` ([[recipe-generation]]), sempre fuori da transazioni.
   - `lib/plans/errors.ts`: codici e classe `PlanError`, tabella `PLAN_ERROR_HTTP`. Nessun import dal DB: usabile dal client.
   - `lib/plans/http.ts`: `handlePlanRouteError(err, tag)`, gestione errori comune alle rotte dei piani (solo server).
   - `lib/plans/client.ts`: funzioni fetch per i componenti client, costruite su `requestJson` di [[http-helpers]].
@@ -18,7 +22,7 @@ tags: [plans, service, api-route, client-fetch, errors, generation, swap, repeat
   - `app/api/plans/**`: route handler HTTP.
 - **Regola di confine client/server** (requirements P1): i componenti `"use client"` importano da `lib/plans/` **solo** `client.ts`, `format.ts` ed `errors.ts`. Non esiste un barrel `lib/plans/index.ts`, come per `lib/settings/` ([[settings-service]]).
 
-## Servizio (`service.ts`)
+## Servizio (`service.ts`, `build.ts`, `dishes.ts`)
 
 ```ts
 export interface PlanServiceOptions {

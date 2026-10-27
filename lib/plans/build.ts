@@ -1,0 +1,581 @@
+// Solo lato server. Il piano intero: schermata, costruzione della settimana obiettivo
+// (generatePlan, repeatPlan) e conferma. Le operazioni sui singoli piatti sono in dishes.ts.
+
+import { db, type DbExecutor } from '@/lib/db';
+import { loadHousehold } from '@/lib/db/repositories/household-repo';
+import {
+  acquirePlanLock,
+  activateDraftPlan,
+  archivePlansBefore,
+  deleteSlots,
+  findPlanByWeek,
+  getPlanById,
+  incrementRecipeUsage,
+  insertPlan,
+  insertSlots,
+  listPlanWeeks,
+  markShoppingListStale,
+  touchPlanGeneratedAt,
+  updateSlotsServings,
+  type PlanSlotRecord,
+  type PlanWithSlots,
+} from '@/lib/db/repositories/plan-repo';
+import { listRecipesWith, type RecipeWithDetails } from '@/lib/db/repositories/recipe-repo';
+import { isPlanClosed } from '@/lib/domain/plan-status';
+import { PLANNER_CONFIG, type PlannerConfig } from '@/lib/domain/planner-config';
+import {
+  compositionDishes,
+  distributeCompositions,
+  filterCourses,
+  mealCompositionOf,
+} from '@/lib/domain/compositions';
+import {
+  exclusionReason,
+  planGeneration,
+  selectRecipes,
+  splitGenerationBatches,
+  type IngredientPreferenceSets,
+  type MealTypeShortage,
+  type PlannerResult,
+  type PlannerSlot,
+} from '@/lib/domain/planner';
+import { createRng, randomSeed, type Rng } from '@/lib/domain/rng';
+import {
+  IsoDateSchema,
+  MEAL_TYPE_VALUES,
+  type Course,
+  type GeneratePlanResult,
+  type Household,
+  type MealComposition,
+  type MealType,
+  type PlanAction,
+  type PlanResult,
+  type PlanScreenView,
+  type PlanStatus,
+  type PlanWeek,
+  type PlanWeekView,
+} from '@/lib/domain/types';
+import { addDays, isoWeekday, listDays, mondayOf } from '@/lib/domain/week';
+import { isLlmError, type LlmError } from '@/lib/llm/errors';
+import { loadIngredientPreferences } from '@/lib/prefs/ingredient-prefs';
+import { generateAndStoreRecipes } from '@/lib/recipes';
+import { PlanError } from './errors';
+import {
+  loadConstraints,
+  loadOpenOwnedPlan,
+  mealKey,
+  resolveClock,
+  slotKey,
+  toPlanView,
+  type GenerateRecipesFn,
+  type PlanServiceOptions,
+} from './shared';
+
+const DAYS_PER_WEEK = 7;
+const COMPOSITION_SEED_RANGE = 0x1_0000_0000;
+
+/** Data `YYYY-MM-DD` reale (rifiuta 2026-02-31). */
+function isValidIsoDate(value: string): boolean {
+  return IsoDateSchema.safeParse(value).success && addDays(value, 0) === value;
+}
+
+/** Settimana richiesta -> lunedì, oppure `undefined` se non valida o oltre la settimana obiettivo. */
+function normalizeRequestedWeek(week: string | undefined, targetWeekStart: string): string | undefined {
+  if (week === undefined || !isValidIsoDate(week)) return undefined;
+  const monday = mondayOf(week);
+  return monday > targetWeekStart ? undefined : monday;
+}
+
+function assertTargetPlanWritable(plan: { status: PlanStatus } | null): void {
+  if (plan?.status === 'active') throw new PlanError('plan_confirmed');
+  if (plan?.status === 'archived') throw new PlanError('plan_archived');
+}
+
+// ============================================================================
+// Schermata
+// ============================================================================
+
+export async function getPlanScreen(
+  options: PlanServiceOptions & { week?: string } = {}
+): Promise<PlanScreenView> {
+  const household = await loadHousehold(options.householdId);
+  const { today, currentWeekStart, target } = resolveClock(options);
+
+  const planWeeks = await listPlanWeeks(db, household.id);
+  const requested = normalizeRequestedWeek(options.week, target.week_start);
+  const shownWeekStart =
+    requested ?? (planWeeks.includes(currentWeekStart) ? currentWeekStart : target.week_start);
+  const isTargetShown = shownWeekStart === target.week_start;
+
+  const shownPlan = await findPlanByWeek(db, household.id, shownWeekStart);
+  const targetPlan = isTargetShown
+    ? shownPlan
+    : await findPlanByWeek(db, household.id, target.week_start);
+
+  const week: PlanWeek = isTargetShown
+    ? target
+    : {
+        week_start: shownWeekStart,
+        first_day: shownWeekStart,
+        last_day: addDays(shownWeekStart, DAYS_PER_WEEK - 1),
+      };
+
+  let action: PlanAction = 'none';
+  if (isTargetShown) {
+    action = !shownPlan ? 'generate' : shownPlan.status === 'draft' ? 'regenerate' : 'none';
+  }
+
+  const targetBlocksRepeat =
+    targetPlan !== null &&
+    (targetPlan.status === 'active' || isPlanClosed(targetPlan, currentWeekStart));
+  const canRepeat =
+    shownPlan !== null &&
+    shownPlan.slots.some((slot) => slot.recipe_id !== null) &&
+    !isTargetShown &&
+    !targetBlocksRepeat;
+
+  const view: PlanWeekView = {
+    week,
+    plan: shownPlan ? toPlanView(shownPlan, household) : null,
+    action,
+    editable: shownPlan !== null && !isPlanClosed(shownPlan, currentWeekStart),
+    can_repeat: canRepeat,
+  };
+
+  // Settimane raggiungibili: con un piano, corrente, obiettivo; mai oltre l'obiettivo.
+  const reachable = [...new Set([...planWeeks, currentWeekStart, target.week_start])]
+    .filter((weekStart) => weekStart <= target.week_start)
+    .sort();
+  const prev = reachable.filter((weekStart) => weekStart < shownWeekStart).at(-1) ?? null;
+  const next = reachable.find((weekStart) => weekStart > shownWeekStart) ?? null;
+
+  // Sorgente di "Ripeti questa settimana" (weekend: obiettivo = settimana successiva).
+  let currentPlanId: string | null = null;
+  if (currentWeekStart !== target.week_start && !targetBlocksRepeat) {
+    const currentPlan =
+      shownWeekStart === currentWeekStart
+        ? shownPlan
+        : await findPlanByWeek(db, household.id, currentWeekStart);
+    if (currentPlan && currentPlan.slots.some((slot) => slot.recipe_id !== null)) {
+      currentPlanId = currentPlan.id;
+    }
+  }
+
+  return {
+    today,
+    current_week_start: currentWeekStart,
+    target,
+    view,
+    prev_week_start: prev,
+    next_week_start: next,
+    target_plan_status: targetPlan?.status ?? null,
+    current_plan_id: currentPlanId,
+  };
+}
+
+// ============================================================================
+// Costruzione del piano della settimana obiettivo (generatePlan, repeatPlan)
+// ============================================================================
+
+interface PlanContext {
+  household: Household;
+  today: string;
+  currentWeekStart: string;
+  target: PlanWeek;
+  now: Date;
+  rng: Rng;
+  config: PlannerConfig;
+  generate: GenerateRecipesFn;
+  prefs: IngredientPreferenceSets;
+}
+
+async function resolvePlanContext(options: PlanServiceOptions): Promise<PlanContext> {
+  const household = await loadHousehold(options.householdId);
+  const clock = resolveClock(options);
+  return {
+    household,
+    today: clock.today,
+    currentWeekStart: clock.currentWeekStart,
+    target: clock.target,
+    now: clock.now,
+    rng: options.rng ?? createRng(randomSeed()),
+    config: options.config ?? PLANNER_CONFIG,
+    generate: options.generate ?? ((input) => generateAndStoreRecipes(input)),
+    prefs: await loadIngredientPreferences(household.id),
+  };
+}
+
+interface BuildTargetPlanOptions {
+  /** Chiave slot `${day}|${meal}|${course}` -> id ricetta da assegnare in anticipo (validata qui). */
+  preassigned?: ReadonlyMap<string, string>;
+  /** Chiave pasto `${day}|${meal}` -> composizione imposta (Ripeti). */
+  presetCompositions?: ReadonlyMap<string, MealComposition>;
+  /**
+   * `needMore`: genera finché il planner segnala carenza (generatePlan).
+   * `unfilledOnly`: genera solo finché resta uno slot senza ricetta (repeatPlan).
+   */
+  generation: 'needMore' | 'unfilledOnly';
+  /** Tetto ai giri di generazione. */
+  maxRounds: number;
+}
+
+/** Pasto da riempire: giorno e tipo. */
+interface MealSlot {
+  day: string;
+  meal: MealType;
+}
+
+/** Piatto da riempire: uno slot del planner con la portata concreta. */
+type DishSlot = PlannerSlot & { course: Course };
+
+/** Esito di una selezione sullo stato (piano corrente + libreria) letto in un dato istante. */
+interface Selection {
+  /** Slot mantenuti: pasti con un piatto passato o bloccato (tutti i piatti del pasto). */
+  kept: PlanSlotRecord[];
+  /** Piatti da riempire, con la ricetta scelta (pre-assegnata o dal planner), `null` se manca. */
+  fills: { slot: DishSlot; recipeId: string | null }[];
+  /** Risultato del planner sui piatti non pre-assegnati. */
+  planner: PlannerResult;
+}
+
+/**
+ * Composizione di ogni pasto da riempire. Per ogni tipo di pasto: i pasti con una composizione
+ * imposta (Ripeti) la tengono; gli altri ricevono le composizioni ammesse, bilanciate, in
+ * ordine di giorno. Il seme fissa le estrazioni: a parità di input il risultato è lo stesso.
+ */
+function assignCompositions(
+  ctx: PlanContext,
+  meals: readonly MealSlot[],
+  preset: ReadonlyMap<string, MealComposition> | undefined,
+  compositionSeed: number
+): Map<string, MealComposition> {
+  const rng = createRng(compositionSeed);
+  const assigned = new Map<string, MealComposition>();
+  for (const meal of MEAL_TYPE_VALUES) {
+    const free: MealSlot[] = [];
+    for (const slot of meals.filter((candidate) => candidate.meal === meal)) {
+      const imposed = preset?.get(mealKey(slot.day, slot.meal));
+      if (imposed === undefined) free.push(slot);
+      else assigned.set(mealKey(slot.day, slot.meal), imposed);
+    }
+    if (free.length === 0) continue;
+    const drawn = distributeCompositions(ctx.household.meal_compositions[meal], free.length, rng);
+    free.forEach((slot, index) => assigned.set(mealKey(slot.day, slot.meal), drawn[index]!));
+  }
+  return assigned;
+}
+
+/**
+ * Calcola kept, piatti da riempire e ricette dal piano `existing`, valida le pre-assegnazioni
+ * sulla `library` e riempie il resto con il planner. Pura rispetto al DB: la chiamano sia la
+ * fase che decide se generare sia la transazione che scrive.
+ */
+function computeSelection(
+  ctx: PlanContext,
+  existing: PlanWithSlots | null,
+  library: readonly RecipeWithDetails[],
+  build: BuildTargetPlanOptions,
+  compositionSeed: number
+): Selection {
+  // Un pasto si tiene per intero se ha un piatto passato o bloccato (requirements P6).
+  const keptMealKeys = new Set(
+    (existing?.slots ?? [])
+      .filter((slot) => slot.day < ctx.target.first_day || slot.locked)
+      .map((slot) => mealKey(slot.day, slot.meal))
+  );
+  const kept = (existing?.slots ?? []).filter((slot) => keptMealKeys.has(mealKey(slot.day, slot.meal)));
+
+  const meals = MEAL_TYPE_VALUES.filter((meal) => ctx.household.meals.includes(meal));
+  const mealsToFill: MealSlot[] = listDays(ctx.target.first_day, ctx.target.last_day).flatMap((day) =>
+    meals.filter((meal) => !keptMealKeys.has(mealKey(day, meal))).map((meal) => ({ day, meal }))
+  );
+
+  const compositions = assignCompositions(ctx, mealsToFill, build.presetCompositions, compositionSeed);
+  const dishes: DishSlot[] = mealsToFill.flatMap(({ day, meal }) => {
+    const { main, side } = compositionDishes(compositions.get(mealKey(day, meal))!);
+    const courses: Course[] = side ? [main, 'contorno'] : [main];
+    return courses.map((course) => ({ key: slotKey(day, meal, course), day, meal, course }));
+  });
+
+  const usedRecipeIds = new Set(
+    kept.map((slot) => slot.recipe_id).filter((id): id is string => id !== null)
+  );
+  const libraryById = new Map(library.map((recipe) => [recipe.id, recipe]));
+
+  const fixed = new Map<string, string>();
+  for (const slot of dishes) {
+    const recipeId = build.preassigned?.get(slot.key);
+    const recipe = recipeId === undefined ? undefined : libraryById.get(recipeId);
+    if (recipeId === undefined || recipe === undefined) continue;
+    const reason = exclusionReason(recipe, slot.meal, slot.course, {
+      household: ctx.household,
+      ingredientPrefs: ctx.prefs,
+      excludeRecipeIds: usedRecipeIds,
+    });
+    if (reason !== null) continue;
+    fixed.set(slot.key, recipeId);
+    usedRecipeIds.add(recipeId);
+  }
+
+  const planner = selectRecipes({
+    slots: dishes.filter((slot) => !fixed.has(slot.key)),
+    candidates: library,
+    household: ctx.household,
+    ingredientPrefs: ctx.prefs,
+    excludeRecipeIds: usedRecipeIds,
+    now: ctx.now,
+    rng: ctx.rng,
+    config: ctx.config,
+  });
+  const selected = new Map(planner.assignments.map((a) => [a.key, a.recipeId]));
+
+  return {
+    kept,
+    fills: dishes.map((slot) => ({
+      slot,
+      recipeId: fixed.get(slot.key) ?? selected.get(slot.key) ?? null,
+    })),
+    planner,
+  };
+}
+
+const hasGap = (selection: Selection): boolean =>
+  selection.fills.some((fill) => fill.recipeId === null);
+
+function shortagesToGenerate(
+  selection: Selection,
+  mode: BuildTargetPlanOptions['generation']
+): MealTypeShortage[] {
+  if (mode === 'needMore') return selection.planner.needMore;
+  return selection.planner.needMore.filter((shortage) => shortage.unfilled > 0);
+}
+
+function needsGeneration(selection: Selection, mode: BuildTargetPlanOptions['generation']): boolean {
+  return shortagesToGenerate(selection, mode).length > 0;
+}
+
+/**
+ * Costruisce e scrive il piano della settimana obiettivo.
+ *
+ * 1. Fuori dalla transazione: selezione e generazione LLM (a lotti, in parallelo) servono
+ *    solo a decidere se e quanto generare.
+ * 2. Dentro la transazione, dopo il lock: si rileggono piano, libreria e impostazioni
+ *    (salvate magari durante la generazione) e si rifà la selezione sullo stato riletto,
+ *    poi si scrive. Se resta uno slot vuoto, rollback.
+ */
+async function buildTargetPlan(
+  ctx: PlanContext,
+  build: BuildTargetPlanOptions
+): Promise<GeneratePlanResult['generation']> {
+  const { household, target, config } = ctx;
+
+  assertTargetPlanWritable(await findPlanByWeek(db, household.id, target.week_start));
+
+  // Un solo seme per tutta la costruzione: le composizioni restano le stesse tra un giro e l'altro.
+  const compositionSeed = Math.floor(ctx.rng() * COMPOSITION_SEED_RANGE);
+
+  const loadLibrary = (executor: DbExecutor) =>
+    listRecipesWith(executor, { household_id: household.id });
+  const select = async (): Promise<Selection> =>
+    computeSelection(
+      ctx,
+      await findPlanByWeek(db, household.id, target.week_start),
+      await loadLibrary(db),
+      build,
+      compositionSeed
+    );
+
+  let selection = await select();
+  let rounds = 0;
+  let created = 0;
+  let llmError: LlmError | null = null;
+  let stop = false;
+
+  while (needsGeneration(selection, build.generation) && rounds < build.maxRounds && !stop) {
+    rounds++;
+    // Richieste per gruppo (pasto, portata), al più `generationMax` per tipo di pasto; poi lotti
+    // (<= generationBatchSize ricette) di tutte le richieste in parallelo.
+    const batches = planGeneration(shortagesToGenerate(selection, build.generation), config).flatMap(
+      (request) =>
+        splitGenerationBatches(request.count, config).map((count) => ({ request, count }))
+    );
+    const outcomes = await Promise.allSettled(
+      batches.map(({ request, count }) =>
+        ctx.generate({
+          householdId: household.id,
+          count,
+          mealType: request.meal_type,
+          courses: filterCourses(request.course),
+        })
+      )
+    );
+
+    let createdThisRound = 0;
+    for (const outcome of outcomes) {
+      if (outcome.status === 'fulfilled') {
+        createdThisRound += outcome.value.created.length;
+      } else if (!isLlmError(outcome.reason)) {
+        throw outcome.reason;
+      } else {
+        llmError ??= outcome.reason;
+        stop = true;
+      }
+    }
+    created += createdThisRound;
+    if (createdThisRound === 0) stop = true;
+
+    selection = await select();
+  }
+
+  // Uscita rapida: niente da scrivere se la libreria non basta.
+  if (hasGap(selection)) throw llmError ?? new PlanError('insufficient_recipes');
+
+  await db.transaction(async (tx) => {
+    await acquirePlanLock(tx, household.id);
+    const current = await findPlanByWeek(tx, household.id, target.week_start);
+    assertTargetPlanWritable(current);
+
+    // `generated_at` (now() della transazione) coprirà solo le impostazioni lette qui.
+    const constraints = await loadConstraints(household.id, tx);
+    const finalCtx: PlanContext = { ...ctx, ...constraints };
+    const persons = constraints.household.persons;
+
+    const library = await loadLibrary(tx);
+    const finalSelection = computeSelection(finalCtx, current, library, build, compositionSeed);
+    if (hasGap(finalSelection)) throw llmError ?? new PlanError('insufficient_recipes');
+
+    let planId: string;
+    if (current === null) {
+      planId = (await insertPlan(tx, household.id, target.week_start)).id;
+      // Solo le settimane concluse: nel weekend il piano in corso resta consultabile e modificabile.
+      await archivePlansBefore(tx, household.id, ctx.currentWeekStart);
+    } else {
+      planId = current.id;
+      await touchPlanGeneratedAt(tx, current.id);
+      // Le liste sono legate al piano (`/lista?piano=`): anche quella di una bozza va rifatta.
+      await markShoppingListStale(tx, current.id);
+      const keptIds = new Set(finalSelection.kept.map((slot) => slot.id));
+      await deleteSlots(
+        tx,
+        current.slots.filter((slot) => !keptIds.has(slot.id)).map((slot) => slot.id)
+      );
+      await updateSlotsServings(
+        tx,
+        finalSelection.kept.filter((slot) => slot.day >= target.first_day).map((slot) => slot.id),
+        persons
+      );
+    }
+
+    await insertSlots(
+      tx,
+      planId,
+      finalSelection.fills.map(({ slot, recipeId }) => ({
+        day: slot.day,
+        meal: slot.meal,
+        course: slot.course,
+        recipe_id: recipeId,
+        servings: persons,
+        locked: false,
+      }))
+    );
+  });
+
+  return { rounds, created, failed: llmError !== null };
+}
+
+/**
+ * Genera (o rigenera) il piano della settimana obiettivo. Gli slot dei giorni passati e
+ * quelli bloccati restano; la libreria è la fonte, l'LLM interviene solo se non basta.
+ */
+export async function generatePlan(options: PlanServiceOptions = {}): Promise<GeneratePlanResult> {
+  const ctx = await resolvePlanContext(options);
+  const generation = await buildTargetPlan(ctx, {
+    generation: 'needMore',
+    maxRounds: ctx.config.maxGenerationRoundsPlan,
+  });
+  const screen = await getPlanScreen({ ...options, week: ctx.target.week_start });
+  return { screen, generation };
+}
+
+// ============================================================================
+// Conferma
+// ============================================================================
+
+/**
+ * Conferma una bozza: `active` + uso delle ricette (`times_used`, `last_used_at` = giorno
+ * del pasto). Idempotente anche con richieste sovrapposte: l'uso si conta una volta sola.
+ */
+export async function confirmPlan(
+  planId: string,
+  options: PlanServiceOptions = {}
+): Promise<PlanResult> {
+  const household = await loadHousehold(options.householdId);
+  const { currentWeekStart } = resolveClock(options);
+
+  const plan = await loadOpenOwnedPlan(db, planId, household, currentWeekStart);
+  if (plan.status === 'active') return { plan: toPlanView(plan, household) };
+
+  const confirmed = await db.transaction(async (tx) => {
+    await acquirePlanLock(tx, household.id);
+    const locked = await loadOpenOwnedPlan(tx, planId, household, currentWeekStart);
+    if (locked.status === 'draft' && (await activateDraftPlan(tx, planId))) {
+      await incrementRecipeUsage(
+        tx,
+        locked.slots.flatMap((slot) =>
+          slot.recipe_id === null ? [] : [{ recipeId: slot.recipe_id, day: slot.day }]
+        )
+      );
+    }
+    const fresh = await getPlanById(tx, planId);
+    if (!fresh) throw new PlanError('plan_not_found');
+    return fresh;
+  });
+  return { plan: toPlanView(confirmed, household) };
+}
+
+// ============================================================================
+// Ripeti un piano sulla settimana da pianificare
+// ============================================================================
+
+/**
+ * Copia un piano (anche di una settimana conclusa) sulla settimana obiettivo: per ogni pasto la
+ * composizione dello stesso giorno della settimana, e per ogni piatto la ricetta se ancora
+ * ammessa. Un piatto non più idoneo si riempie con il planner nella stessa portata; l'LLM
+ * interviene solo se resta uno slot vuoto.
+ */
+export async function repeatPlan(
+  sourcePlanId: string,
+  options: PlanServiceOptions = {}
+): Promise<GeneratePlanResult> {
+  const ctx = await resolvePlanContext(options);
+
+  const source = await getPlanById(db, sourcePlanId);
+  if (!source || source.household_id !== ctx.household.id) throw new PlanError('plan_not_found');
+  if (source.week_start === ctx.target.week_start) throw new PlanError('repeat_same_week');
+
+  const preassigned = new Map<string, string>();
+  const sourceCourses = new Map<string, Course[]>();
+  for (const slot of source.slots) {
+    const day = addDays(ctx.target.week_start, isoWeekday(slot.day) - 1);
+    const key = mealKey(day, slot.meal);
+    sourceCourses.set(key, [...(sourceCourses.get(key) ?? []), slot.course]);
+    if (slot.recipe_id !== null) {
+      preassigned.set(slotKey(day, slot.meal, slot.course), slot.recipe_id);
+    }
+  }
+  // La composizione si copia anche se non è più ammessa (D10); una sorgente non valida non ne impone una.
+  const presetCompositions = new Map<string, MealComposition>();
+  for (const [key, courses] of sourceCourses) {
+    const composition = mealCompositionOf(courses);
+    if (composition !== null) presetCompositions.set(key, composition);
+  }
+
+  const generation = await buildTargetPlan(ctx, {
+    preassigned,
+    presetCompositions,
+    generation: 'unfilledOnly',
+    maxRounds: ctx.config.maxGenerationRoundsSwap,
+  });
+  const screen = await getPlanScreen({ ...options, week: ctx.target.week_start });
+  return { screen, generation };
+}

@@ -57,7 +57,14 @@ const DAY_TUE_BEFORE = '2026-09-29';
 const DAY_WED = '2026-09-30';
 const DAY_THU = '2026-10-01';
 
-const FORBIDDEN_IMPORT_PREFIXES = ['lib/plans/service', 'lib/recipes', 'lib/llm'];
+const FORBIDDEN_IMPORT_PREFIXES = [
+  'lib/plans/service',
+  'lib/plans/build',
+  'lib/plans/dishes',
+  'lib/plans/shared',
+  'lib/recipes',
+  'lib/llm',
+];
 const SERVICE_SOURCE = readFileSync(new URL('../../lib/shopping/service.ts', import.meta.url), 'utf8');
 const IMPORT_SPECIFIER_PATTERN = /(?:\bfrom|\bimport)\s+'([^']+)'/g;
 
