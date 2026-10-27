@@ -40,7 +40,9 @@ Spaziatura su griglia 4 px; raggio 12 px per le card, 999 px per chip/badge; omb
 
 ## 3. Elemento firma
 
-**La card-pasto con lo swap sempre a portata di pollice.** Ogni slot del piano è una card con: giorno/pasto in eyebrow, titolo Fraunces, chip dei tag (tempo, dieta), e tre azioni — ⟳ *Cambia* (in `tomato`), *Scegli* (in colore neutro) e ★ (preferenza rapida), in quest'ordine. Cambiare idea su una cena deve costare un tap, non un menù: *Cambia* resta a un tap, *Scegli* è la strada per chi vuole una ricetta precisa. Durante lo swap la card fa un flip breve e mostra la nuova proposta con *Tieni / Cambia ancora* e, tra i due, il pulsante con la lente per scegliere dalla libreria.
+**La card-pasto con lo swap sempre a portata di pollice.** Ogni pasto del piano è una card con il suo piatto principale: giorno/pasto in eyebrow, titolo Fraunces, badge della portata del piatto, chip dei tag (tempo, dieta), e tre azioni — ⟳ *Cambia* (in `tomato`), *Scegli* (in colore neutro) e ★ (preferenza rapida), in quest'ordine. Cambiare idea su una cena deve costare un tap, non un menù: *Cambia* resta a un tap, *Scegli* è la strada per chi vuole una ricetta precisa. Durante lo swap la card fa un flip breve e mostra la nuova proposta con *Tieni / Cambia ancora* e, tra i due, il pulsante con la lente per scegliere dalla libreria.
+
+**Pasto con contorno.** Un pasto ha uno o due piatti, ma resta una card sola. Se ha il contorno, sotto il principale c'è una riga contorno, separata da un divisore tratteggiato: eyebrow «Contorno», titolo della ricetta (il tap apre il dettaglio) e tre azioni a icona da 44 px, ⟳ *Cambia contorno*, lente *Scegli contorno* e ✕ *Togli contorno*. Il contorno non ha flip: *Cambia contorno* sostituisce subito la ricetta. Se il principale è un primo o un secondo senza contorno, sotto c'è il pulsante secondario «+ Contorno»; con un piatto unico non c'è. Il lucchetto, e il long-press, bloccano tutti i piatti del pasto. Mentre un'azione è in corso su un piatto, le altre azioni della card sono disattivate, lucchetto e long-press compresi. Su un pasto bloccato, su un giorno passato o su un piano non modificabile la riga contorno resta in sola lettura e non c'è «+ Contorno». Il badge di portata sulla card indica la portata del piatto nel pasto (principale o contorno); la Libreria, il selettore e il dettaglio mostrano tutte le portate della ricetta. La ★ del contorno si mette dal dettaglio.
 
 ## 4. Mappa delle schermate
 
@@ -48,9 +50,9 @@ Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Im
 
 ### 4.1 Piano (home)
 - Header: navigatore ‹ settimana › (storico in sola lettura) + CTA *Genera piano* / *Rigenera* sulla settimana da pianificare
-- Lista verticale di card-pasto raggruppate per giorno (pranzo/cena secondo impostazioni)
-- Slot con lucchetto (long-press) → sopravvive alla rigenerazione
-- *Scegli* apre il selettore *Scegli per ‹giorno› · ‹pasto›*: le ricette della libreria adatte a quel pasto, con ricerca; il tap su una ricetta apre il dettaglio con *Metti nel piano*; le ricette già in un altro pasto della settimana hanno l'etichetta *Già nel piano* e restano selezionabili. Se la ricetta voluta non c'è, dal selettore si chiede all'LLM (vedi 4.4).
+- Lista verticale di card-pasto raggruppate per giorno (pranzo/cena secondo impostazioni): un pasto è una card con 1 o 2 piatti, il principale e, se c'è, il contorno
+- Pasto con lucchetto (lucchetto o long-press sulla card, blocca tutti i piatti del pasto) → sopravvive alla rigenerazione
+- *Scegli* apre il selettore *Scegli per ‹giorno› · ‹pasto›*: le ricette della libreria adatte a quel pasto, con ricerca; il tap su una ricetta apre il dettaglio con *Metti nel piano*; le ricette già in un altro pasto della settimana hanno l'etichetta *Già nel piano* e restano selezionabili. Se la ricetta voluta non c'è, dal selettore si chiede all'LLM (vedi 4.4). Sul principale il selettore elenca le ricette adatte al pasto con una qualsiasi portata principale; la ricetta scelta fissa la portata del piatto, e può cambiare la composizione (un piatto unico toglie il contorno). *Scegli contorno* apre lo stesso selettore con il titolo *Scegli il contorno per ‹giorno› · ‹pasto›* e i soli contorni, e la richiesta all'LLM chiede un contorno.
 - Footer sticky: *Crea lista della spesa* quando il piano è confermato
 
 ### 4.2 Dettaglio ricetta (sheet a tutta altezza)
@@ -75,6 +77,7 @@ Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Im
 
 ### 4.5 Impostazioni (wizard al primo avvio, poi form)
 - Persone · Pasti da pianificare · Tipo pasti · Esigenze alimentari · Elettrodomestici
+- *Pasti da pianificare* comprende le composizioni di ogni pasto scelto: sotto i chip Pranzo / Cena, per ogni pasto selezionato un gruppo di cinque chip a scelta multipla (Piatto unico, Primo, Primo + contorno, Secondo, Secondo + contorno). Un pasto non selezionato non ha il gruppo, che compare o sparisce quando si attiva o si disattiva il pasto. Il campo è valido con almeno un pasto e almeno una composizione per ogni pasto scelto: nel wizard *Avanti* è disattivato, nelle Impostazioni *Salva*; sotto il gruppo vuoto compare «Scegli almeno una composizione.». Il campo resta il secondo passo del wizard, senza passi in più, e la sua descrizione è «Quali pasti vuoi trovare nel piano, e come li componi?». *Tipo pasti* non ha più il chip «Piatto unico»: la composizione lo sostituisce.
 - Sezione *I miei ingredienti*: due liste (mi piacciono / scartati) con rimozione a un tap — è la vista d'insieme delle preferenze espresse dalle ricette
 - Stesso componente per onboarding (a step) e modifica (form unico)
 
@@ -85,6 +88,10 @@ Navigazione: **tab bar inferiore a 4 voci** — Piano · Lista · Libreria · Im
 - **Errore LLM**: cosa è successo e cosa fare — "La generazione non è andata a buon fine. Riprova." (niente scuse, niente gergo)
 - **Richiesta di una ricetta (10–30 s)**: sheet con "Cerco una ricetta…" e la stessa rotazione di microcopy; in caso di errore il messaggio e *Riprova*. Se la ricetta proposta è già in libreria: "Questa ce l'hai già: «…»"
 - Azioni con lo stesso nome per tutto il flusso: *Genera piano* → toast "Piano generato"
+- **Composizioni** (etichette di `MEAL_COMPOSITION_LABELS`): «Piatto unico», «Primo», «Primo + contorno», «Secondo», «Secondo + contorno». Descrizione del campo «Pasti da pianificare»: «Quali pasti vuoi trovare nel piano, e come li componi?». Gruppo vuoto: «Scegli almeno una composizione.»
+- **Riga contorno**: eyebrow «Contorno» (maiuscolo, come `LUN · CENA`); aria-label «Cambia contorno: ‹titolo›», «Scegli contorno: ‹titolo›», «Togli contorno: ‹titolo›». Pulsante «Contorno» con icona +, aria-label «Aggiungi un contorno». Attese: «Cerco un contorno…» (aggiunta e cambio), «Tolgo il contorno…» (rimozione)
+- **Selettore del contorno**: titolo «Scegli il contorno per ‹giorno› · ‹pasto›»; elenco vuoto «Nessun altro contorno adatto a questo pasto»
+- **Errori sui piatti** (risposta 409): «Questo pasto non prevede un contorno.» (aggiunta su un piatto unico), «Questo pasto ha già un contorno.» (secondo contorno), «Si può togliere solo il contorno.» (rimozione di un principale)
 
 ## 6. Qualità minima (non negoziabile)
 

@@ -173,6 +173,8 @@ Le migrazioni del database non tornano indietro: se la versione nuova aveva camb
 
 Anche i dati possono impedire il ritorno: dalla 0.8 le ricette e le Impostazioni contengono etichette e portate che le versioni precedenti non conoscono, e la Libreria non si aprirebbe. Tornando a una versione precedente alla 0.8, ripristina sempre il dump `mealy-predeploy-…`.
 
+Dalla 0.10 (Feature 11) i piani hanno una portata per piatto e l'household le composizioni dei pasti: tornando a una versione precedente alla 0.10, ripristina sempre il dump `mealy-predeploy-…`.
+
 ## 7. Backup e ripristino
 
 I dump stanno in `/opt/mealy/backups/` (o in `BACKUP_DIR`):
