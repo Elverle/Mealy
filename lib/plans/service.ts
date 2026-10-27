@@ -884,6 +884,7 @@ export async function removeSideDish(
  * di pasto dello slot, che rispettano diete ed elettrodomestici. Gli ingredienti «non mi
  * piace» non le escludono. Manca quella già nello slot; l'ordine è quello della Libreria.
  * Il filtro segue il piatto: un contorno per il contorno, una qualsiasi principale per il principale.
+ * Esclude anche la ricetta dell'altro piatto dello stesso pasto: non può essere principale e contorno insieme.
  */
 export async function listSlotCandidates(
   planId: string,
@@ -895,12 +896,14 @@ export async function listSlotCandidates(
 
   const plan = await loadOpenOwnedPlan(db, planId, household, currentWeekStart);
   const slot = findSwappableSlot(plan, slotId, today);
+  const sibling = plan.slots.find((other) => other.id !== slot.id && sameMeal(other, slot));
 
   const library = await listRecipesWith(db, { household_id: household.id });
   const recipes = library
     .filter(
       (recipe) =>
         recipe.id !== slot.recipe_id &&
+        recipe.id !== sibling?.recipe_id &&
         manualChoiceExclusionReason(recipe, slot.meal, courseFilterOf(slot), household) === null
     )
     .map(toLibraryCard)
@@ -943,6 +946,9 @@ export async function assignSlotRecipe(
     if (manualChoiceExclusionReason(recipe, slot.meal, courseFilterOf(slot), current) !== null) {
       throw new PlanError('recipe_not_eligible');
     }
+    // Il piatto gemello dello stesso pasto non può avere la stessa ricetta.
+    const sibling = plan.slots.find((candidate) => candidate.id !== slot.id && sameMeal(candidate, slot));
+    if (sibling?.recipe_id === recipeId) throw new PlanError('recipe_not_eligible');
 
     const side = plan.slots.find((candidate) => sameMeal(candidate, slot) && candidate.course === 'contorno');
     const course: Course =

@@ -43,6 +43,9 @@ vi.mock("@/components/plan/slot-recipe-picker", () => ({
   }) => (
     <div data-testid="picker" data-slot-id={props.slot.id}>
       <button onClick={() => props.onAssigned(makeResult(RECIPE_C).plan)}>finto-assegna</button>
+      <button onClick={() => props.onAssigned(resultWith(makeSlot(RECIPE_A, false, "secondo"), makeSide(SIDE_C)).plan)}>
+        finto-assegna-contorno
+      </button>
       <button onClick={props.onClose}>finto-chiudi</button>
       <button onClick={() => { props.onPlanStale(); props.onClose(); }}>finto-scaduto</button>
       <button onClick={() => props.onNotify("avviso dal selettore")}>finto-avviso</button>
@@ -802,6 +805,56 @@ describe("PlanSlotCard — contorno", () => {
     expect(screen.getByRole("button", { name: "Blocca pasto" })).toBeDisabled();
   });
 
+  it("disables the lock and ignores a long-press while the main swap is pending", () => {
+    vi.useFakeTimers();
+    const onToggleLock = vi.fn();
+    vi.mocked(requestSwapSlot).mockReturnValueOnce(new Promise<PlanMutationResult>(() => {}));
+    render(
+      <Harness
+        initial={makeSlot(RECIPE_A, false, "secondo")}
+        side={makeSide(SIDE_A)}
+        onToggleLock={onToggleLock}
+      />
+    );
+    const card = screen.getByTestId(`meal-card-${SLOT_ID}`);
+
+    // Controllo: fuori da un'azione la pressione lunga blocca il pasto.
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onToggleLock).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(card);
+    onToggleLock.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+    expect(screen.getByText("Cerco un'alternativa…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Blocca pasto" })).toBeDisabled();
+
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onToggleLock).not.toHaveBeenCalled();
+  });
+
+  it("re-enables the lock once the main swap reaches review, while the side row stays disabled", async () => {
+    vi.mocked(requestSwapSlot).mockResolvedValueOnce(
+      resultWith(makeSlot(RECIPE_B, false, "secondo"), makeSide(SIDE_A))
+    );
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: `Cambia ${RECIPE_A.title}` }));
+    await screen.findByRole("button", { name: "Tieni" });
+
+    expect(screen.getByRole("button", { name: "Blocca pasto" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: sideSwapName })).toBeDisabled();
+    expect(screen.getByRole("button", { name: sidePickName })).toBeDisabled();
+    expect(screen.getByRole("button", { name: sideRemoveName })).toBeDisabled();
+  });
+
   it("disables the lock while adding a side dish, and a long-press does not toggle it", () => {
     vi.useFakeTimers();
     const onToggleLock = vi.fn();
@@ -858,6 +911,82 @@ describe("PlanSlotCard — contorno", () => {
     expect(screen.queryByTestId("picker")).toBeNull();
     await waitFor(() =>
       expect(document.activeElement).toBe(screen.getByRole("button", { name: sidePickName }))
+    );
+  });
+
+  it("moves the focus to the add button after removing the side dish", async () => {
+    vi.mocked(requestRemoveSideDish).mockResolvedValueOnce({
+      plan: planOf([makeSlot(RECIPE_A, false, "secondo")]),
+    });
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    const remove = screen.getByRole("button", { name: sideRemoveName });
+    remove.focus();
+    fireEvent.click(remove);
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: ADD_LABEL }))
+    );
+  });
+
+  it("moves the focus back to the side swap button after a side swap", async () => {
+    vi.mocked(requestSwapSlot).mockResolvedValueOnce(
+      resultWith(makeSlot(RECIPE_A, false, "secondo"), makeSide(SIDE_B))
+    );
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    const swap = screen.getByRole("button", { name: sideSwapName });
+    swap.focus();
+    fireEvent.click(swap);
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: `Cambia contorno: ${SIDE_B.title}` })
+      )
+    );
+  });
+
+  it("brings the focus back to the side remove button after a failed removal", async () => {
+    vi.mocked(requestRemoveSideDish).mockRejectedValueOnce(
+      new PlanRequestError(500, "internal_error", "Errore.")
+    );
+    const onError = vi.fn();
+    render(
+      <Harness
+        initial={makeSlot(RECIPE_A, false, "secondo")}
+        side={makeSide(SIDE_A)}
+        onError={onError}
+      />
+    );
+
+    const remove = screen.getByRole("button", { name: sideRemoveName });
+    remove.focus();
+    fireEvent.click(remove);
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("Errore."));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: sideRemoveName }))
+    );
+  });
+
+  it("brings the focus back to the side library icon after an assignment from the side picker", async () => {
+    render(
+      <Harness initial={makeSlot(RECIPE_A, false, "secondo")} side={makeSide(SIDE_A)} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: sidePickName }));
+    fireEvent.click(screen.getByRole("button", { name: "finto-assegna-contorno" }));
+
+    expect(screen.queryByTestId("picker")).toBeNull();
+    expect(screen.getByText(SIDE_C.title)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: `Scegli contorno: ${SIDE_C.title}` })
+      )
     );
   });
 

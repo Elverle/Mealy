@@ -27,9 +27,14 @@ import {
 } from '@/tests/helpers/db';
 import { insertTestRecipe, insertTestRecipes } from '@/tests/helpers/plans';
 
+// Questo file fa più generazioni di piano per test sul database: nella suite completa, con i
+// file in parallelo, i 5 s di default di Vitest non bastano sempre.
+vi.setConfig({ testTimeout: 15_000 });
+
 const WED = () => new Date('2026-09-30T10:00:00Z'); // settimana 28/09, dal 30/09
 const DAY = '2026-09-30';
 const PAST_DAY = '2026-09-28';
+const OTHER_DAY = '2026-10-01';
 const MEAL: MealType = 'cena';
 const SERVINGS = 2;
 const NO_EXCLUSIONS = { exclude_recipe_ids: [] as string[] };
@@ -322,6 +327,86 @@ describe.skipIf(!dbUp)('contorni e portate nei piani', () => {
     const newSide = result.plan.slots.find((s) => s.course === 'contorno')!.recipe!.id;
     expect(others.map((r) => r.id)).toContain(newSide);
     expect(result.plan.slots.find((s) => s.course === 'secondo')!.recipe!.id).toBe(main.id);
+  });
+
+  /** Slot del piano (id, portata, ricetta) ordinati per id: per dire che il piano non è cambiato. */
+  async function slotState(planId: string) {
+    const plan = (await getPlanById(db, planId))!;
+    return plan.slots
+      .map((slot) => ({ id: slot.id, course: slot.course, recipe_id: slot.recipe_id }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  it('refuses to put on the side the recipe already served as main of the same meal, with recipe_not_eligible', async () => {
+    const householdId = await dinnerHousehold();
+    const both = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo', 'contorno'] });
+    const other = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['contorno'] });
+    const plan = await writePlan(householdId, [
+      { course: 'secondo', recipe: both },
+      { course: 'contorno', recipe: other },
+    ]);
+    const before = await slotState(plan.id);
+
+    await expect(
+      assignSlotRecipe(plan.id, slotOf(plan, 'contorno').id, both.id, opts(householdId, WED))
+    ).rejects.toMatchObject({ code: 'recipe_not_eligible' });
+    expect(await slotState(plan.id)).toEqual(before);
+  });
+
+  it('refuses to put on the main the recipe already served as side of the same meal, with recipe_not_eligible', async () => {
+    const householdId = await dinnerHousehold();
+    const both = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo', 'contorno'] });
+    const main = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo'] });
+    const plan = await writePlan(householdId, [
+      { course: 'secondo', recipe: main },
+      { course: 'contorno', recipe: both },
+    ]);
+    const before = await slotState(plan.id);
+
+    await expect(
+      assignSlotRecipe(plan.id, slotOf(plan, 'secondo').id, both.id, opts(householdId, WED))
+    ).rejects.toMatchObject({ code: 'recipe_not_eligible' });
+    expect(await slotState(plan.id)).toEqual(before);
+  });
+
+  it('does not list, on a side or on a main, the recipe of the other dish of the same meal', async () => {
+    const householdId = await dinnerHousehold();
+    const mainBoth = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo', 'contorno'] });
+    const sideBoth = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo', 'contorno'] });
+    const otherSide = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['contorno'] });
+    const otherMain = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo'] });
+    const plan = await writePlan(householdId, [
+      { course: 'secondo', recipe: mainBoth },
+      { course: 'contorno', recipe: sideBoth },
+    ]);
+
+    const onSide = (await listSlotCandidates(plan.id, slotOf(plan, 'contorno').id, opts(householdId, WED))).recipes.map((r) => r.id);
+    expect(onSide).toContain(otherSide.id);
+    expect(onSide).not.toContain(mainBoth.id);
+
+    const onMain = (await listSlotCandidates(plan.id, slotOf(plan, 'secondo').id, opts(householdId, WED))).recipes.map((r) => r.id);
+    expect(onMain).toContain(otherMain.id);
+    expect(onMain).not.toContain(sideBoth.id);
+  });
+
+  it('still lists and accepts, flagged as in plan, a recipe used in another meal of the plan', async () => {
+    const householdId = await dinnerHousehold();
+    const main = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo'] });
+    const side = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['contorno'] });
+    const elsewhere = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo', 'contorno'] });
+    const plan = await writePlan(householdId, [
+      { course: 'secondo', recipe: main },
+      { course: 'contorno', recipe: side },
+      { course: 'secondo', recipe: elsewhere, day: OTHER_DAY },
+    ]);
+    const sideSlot = plan.slots.find((s) => s.day === DAY && s.course === 'contorno')!;
+
+    const candidates = await listSlotCandidates(plan.id, sideSlot.id, opts(householdId, WED));
+    expect(candidates.recipes.map((r) => r.id)).toContain(elsewhere.id);
+    expect(candidates.in_plan_recipe_ids).toContain(elsewhere.id);
+
+    const result = await assignSlotRecipe(plan.id, sideSlot.id, elsewhere.id, opts(householdId, WED));
+    expect(result.plan.slots.find((s) => s.id === sideSlot.id)!.recipe!.id).toBe(elsewhere.id);
   });
 
   it('the shopping list of a confirmed plan includes the ingredients of the side dish', async () => {

@@ -282,6 +282,63 @@ describe('PUT /api/settings', () => {
     expect(saveSettings).not.toHaveBeenCalled();
   });
 
+  it('returns 400 for an empty composition group and does not save', async () => {
+    const { saveSettings } = await import('@/lib/settings/service');
+
+    const request = new Request('http://localhost/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        persons: 2,
+        meals: ['pranzo', 'cena'],
+        meal_compositions: { pranzo: [], cena: DEFAULT_MEAL_COMPOSITIONS.cena },
+        meal_style_tags: [],
+        diet_tags: [],
+        appliances: [],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const response = await PUT(request);
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data).toEqual({
+      error: expect.objectContaining({
+        code: 'invalid_request',
+        message: 'Richiesta non valida.',
+      }),
+    });
+    expect(data.error.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: 'meal_compositions.pranzo' })])
+    );
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for a composition value outside the known ones and does not save', async () => {
+    const { saveSettings } = await import('@/lib/settings/service');
+
+    const request = new Request('http://localhost/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        persons: 2,
+        meals: ['pranzo', 'cena'],
+        meal_compositions: { pranzo: DEFAULT_MEAL_COMPOSITIONS.pranzo, cena: ['tris'] },
+        meal_style_tags: [],
+        diet_tags: [],
+        appliances: [],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const response = await PUT(request);
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error.code).toBe('invalid_request');
+    expect(data.error.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: 'meal_compositions.cena.0' })])
+    );
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+
   it('maps a thrown error from saveSettings to 500 internal_error', async () => {
     const { saveSettings } = await import('@/lib/settings/service');
     vi.mocked(saveSettings).mockRejectedValueOnce(new Error('boom'));

@@ -26,6 +26,10 @@ import {
 } from '@/tests/helpers/db';
 import { insertTestRecipes } from '@/tests/helpers/plans';
 
+// Questo file fa più generazioni di piano per test sul database: nella suite completa, con i
+// file in parallelo, i 5 s di default di Vitest non bastano sempre.
+vi.setConfig({ testTimeout: 15_000 });
+
 const MON = () => new Date('2026-09-28T08:00:00Z'); // settimana 28/09 completa: sette giorni
 const DINNERS = 7;
 const SILENT_LOGGER = { log: () => undefined };
@@ -149,9 +153,10 @@ describe.skipIf(!dbUp)('generatePlan con le composizioni del pasto', () => {
     }
   });
 
-  it('asks the model only for contorni, when the library has no side dish', async () => {
+  it('asks the model only for contorni, when the library has too few side dishes', async () => {
     const householdId = await newHousehold(['secondo-contorno']);
     await insertTestRecipes(householdId, 12, { meal_types: ['cena'], courses: ['secondo'] });
+    await insertTestRecipes(householdId, 5, { meal_types: ['cena'], courses: ['contorno'] });
     const generate = creatingGenerate();
 
     const plan = shownPlan((await generatePlan(opts(householdId, MON, generate))).screen);
