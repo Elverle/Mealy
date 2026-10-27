@@ -293,10 +293,11 @@ interface Selection {
   planner: PlannerResult;
 }
 
+// 'any-main' fino alla composizione dei pasti (WP7).
 function desiredSlots(ctx: PlanContext): PlannerSlot[] {
   const meals = MEAL_TYPE_VALUES.filter((meal) => ctx.household.meals.includes(meal));
   return listDays(ctx.target.first_day, ctx.target.last_day).flatMap((day) =>
-    meals.map((meal) => ({ key: slotKey(day, meal), day, meal }))
+    meals.map((meal) => ({ key: slotKey(day, meal), day, meal, course: 'any-main' }))
   );
 }
 
@@ -327,7 +328,7 @@ function computeSelection(
     const recipeId = preassigned?.get(slot.key);
     const recipe = recipeId === undefined ? undefined : libraryById.get(recipeId);
     if (recipeId === undefined || recipe === undefined) continue;
-    const reason = exclusionReason(recipe, slot.meal, {
+    const reason = exclusionReason(recipe, slot.meal, 'any-main', {
       household: ctx.household,
       ingredientPrefs: ctx.prefs,
       excludeRecipeIds: usedRecipeIds,
@@ -631,7 +632,7 @@ export async function swapSlot(
       if (planSlot.recipe_id !== null) exclude.add(planSlot.recipe_id);
     }
     const { assignments } = selectRecipes({
-      slots: [{ key: slot.id, day: slot.day, meal: slot.meal }],
+      slots: [{ key: slot.id, day: slot.day, meal: slot.meal, course: 'any-main' }],
       candidates: library,
       household,
       ingredientPrefs: prefs,
@@ -730,7 +731,7 @@ export async function listSlotCandidates(
     .filter(
       (recipe) =>
         recipe.id !== slot.recipe_id &&
-        manualChoiceExclusionReason(recipe, slot.meal, household) === null
+        manualChoiceExclusionReason(recipe, slot.meal, 'any-main', household) === null
     )
     .map(toLibraryCard)
     .sort(compareLibraryCards);
@@ -767,7 +768,7 @@ export async function assignSlotRecipe(
     const library = await listRecipesWith(tx, { household_id: household.id });
     const recipe = library.find((candidate) => candidate.id === recipeId);
     if (!recipe) throw new PlanError('recipe_not_found');
-    if (manualChoiceExclusionReason(recipe, slot.meal, current) !== null) {
+    if (manualChoiceExclusionReason(recipe, slot.meal, 'any-main', current) !== null) {
       throw new PlanError('recipe_not_eligible');
     }
 

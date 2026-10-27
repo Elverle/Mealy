@@ -7,12 +7,14 @@ import {
   exclusionReason,
   isFresh,
   manualChoiceExclusionReason,
+  planGeneration,
   recipeWeight,
   selectRecipes,
   splitGenerationBatches,
   toIngredientPreferenceSets,
   weightedPick,
   type IngredientPreferenceSets,
+  type MealTypeShortage,
   type PlannerContext,
   type PlannerInput,
   type PlannerSlot,
@@ -24,6 +26,7 @@ import {
   DEFAULT_HOUSEHOLD_ID,
   type Household,
   type Ingredient,
+  type CourseFilter,
   type MealType,
   type Recipe,
   type RecipePref,
@@ -108,10 +111,11 @@ function makeInput(
   return { ...makeCtx(), slots, candidates, now: NOW, rng: createRng(1), ...overrides };
 }
 
-function slotsFor(meal: MealType, count: number): PlannerSlot[] {
+function slotsFor(meal: MealType, count: number, course: CourseFilter = 'any-main'): PlannerSlot[] {
   return Array.from({ length: count }, (_, i) => {
     const day = addDays('2026-09-30', i);
-    return { key: `${day}|${meal}`, day, meal };
+    const key = course === 'any-main' ? `${day}|${meal}` : `${day}|${meal}|${course}`;
+    return { key, day, meal, course };
   });
 }
 
@@ -140,58 +144,58 @@ describe('lib/domain/planner', () => {
       const fine = makeRecipe({ diet_flags: ['vegetariano'] });
       const withExclusion = { ...ctx, excludeRecipeIds: new Set([excluded.id]) };
 
-      expect(exclusionReason(blocked, 'pranzo', withExclusion)).toBe('blocked');
-      expect(exclusionReason(wrongMeal, 'pranzo', withExclusion)).toBe('meal_type');
-      expect(exclusionReason(wrongDiet, 'pranzo', withExclusion)).toBe('diet');
-      expect(exclusionReason(wrongAppliance, 'pranzo', withExclusion)).toBe('appliance');
-      expect(exclusionReason(disliked, 'pranzo', withExclusion)).toBe('disliked_ingredient');
-      expect(exclusionReason(excluded, 'pranzo', withExclusion)).toBe('excluded');
-      expect(exclusionReason(fine, 'pranzo', withExclusion)).toBeNull();
+      expect(exclusionReason(blocked, 'pranzo', 'any-main', withExclusion)).toBe('blocked');
+      expect(exclusionReason(wrongMeal, 'pranzo', 'any-main', withExclusion)).toBe('meal_type');
+      expect(exclusionReason(wrongDiet, 'pranzo', 'any-main', withExclusion)).toBe('diet');
+      expect(exclusionReason(wrongAppliance, 'pranzo', 'any-main', withExclusion)).toBe('appliance');
+      expect(exclusionReason(disliked, 'pranzo', 'any-main', withExclusion)).toBe('disliked_ingredient');
+      expect(exclusionReason(excluded, 'pranzo', 'any-main', withExclusion)).toBe('excluded');
+      expect(exclusionReason(fine, 'pranzo', 'any-main', withExclusion)).toBeNull();
     });
 
     it('reports "blocked" first when blocked and wrong meal type coincide', () => {
       const recipe = makeUsedRecipe({ blocked: true }, { meal_types: ['cena'] });
-      expect(exclusionReason(recipe, 'pranzo', makeCtx())).toBe('blocked');
+      expect(exclusionReason(recipe, 'pranzo', 'any-main', makeCtx())).toBe('blocked');
     });
 
     it('admits a vegan recipe for a vegetarian household', () => {
       const ctx = makeCtx({ household: { diet_tags: ['vegetariano'], appliances: [] } });
-      expect(exclusionReason(makeRecipe({ diet_flags: ['vegano'] }), 'cena', ctx)).toBeNull();
+      expect(exclusionReason(makeRecipe({ diet_flags: ['vegano'] }), 'cena', 'any-main', ctx)).toBeNull();
     });
 
     it('normalizes dislike entries (" Aglio " matches "aglio")', () => {
       const ctx = makeCtx({ ingredientPrefs: toIngredientPreferenceSets([], [' Aglio '])});
       const recipe = makeRecipe({ ingredients: [makeIngredient('aglio')] });
-      expect(exclusionReason(recipe, 'pranzo', ctx)).toBe('disliked_ingredient');
+      expect(exclusionReason(recipe, 'pranzo', 'any-main', ctx)).toBe('disliked_ingredient');
     });
 
     it('does not fail on a recipe without ingredients', () => {
       const ctx = makeCtx({ ingredientPrefs: toIngredientPreferenceSets([], ['aglio']) });
-      expect(exclusionReason(makeRecipe({ ingredients: undefined }), 'pranzo', ctx)).toBeNull();
+      expect(exclusionReason(makeRecipe({ ingredients: undefined }), 'pranzo', 'any-main', ctx)).toBeNull();
     });
 
     it('excludes a side-dish-only recipe with reason course, for both meals', () => {
       const sideDish = makeRecipe({ courses: ['contorno'], meal_types: ['pranzo', 'cena'] });
-      expect(exclusionReason(sideDish, 'pranzo', makeCtx())).toBe('course');
-      expect(exclusionReason(sideDish, 'cena', makeCtx())).toBe('course');
+      expect(exclusionReason(sideDish, 'pranzo', 'any-main', makeCtx())).toBe('course');
+      expect(exclusionReason(sideDish, 'cena', 'any-main', makeCtx())).toBe('course');
     });
 
     it('admits recipes with a main course, even together with a side dish, and unclassified ones', () => {
       const ctx = makeCtx();
-      expect(exclusionReason(makeRecipe({ courses: ['secondo'] }), 'pranzo', ctx)).toBeNull();
-      expect(exclusionReason(makeRecipe({ courses: ['secondo', 'contorno'] }), 'pranzo', ctx)).toBeNull();
-      expect(exclusionReason(makeRecipe({ courses: ['piatto-unico'] }), 'pranzo', ctx)).toBeNull();
-      expect(exclusionReason(makeRecipe({ courses: [] }), 'pranzo', ctx)).toBeNull();
+      expect(exclusionReason(makeRecipe({ courses: ['secondo'] }), 'pranzo', 'any-main', ctx)).toBeNull();
+      expect(exclusionReason(makeRecipe({ courses: ['secondo', 'contorno'] }), 'pranzo', 'any-main', ctx)).toBeNull();
+      expect(exclusionReason(makeRecipe({ courses: ['piatto-unico'] }), 'pranzo', 'any-main', ctx)).toBeNull();
+      expect(exclusionReason(makeRecipe({ courses: [] }), 'pranzo', 'any-main', ctx)).toBeNull();
     });
 
     it('reports "blocked" before "course" for a blocked side dish', () => {
       const recipe = makeUsedRecipe({ blocked: true }, { courses: ['contorno'] });
-      expect(exclusionReason(recipe, 'pranzo', makeCtx())).toBe('blocked');
+      expect(exclusionReason(recipe, 'pranzo', 'any-main', makeCtx())).toBe('blocked');
     });
 
     it('reports "meal_type" before "course" for a side dish of another meal', () => {
       const recipe = makeRecipe({ courses: ['contorno'], meal_types: ['cena'] });
-      expect(exclusionReason(recipe, 'pranzo', makeCtx())).toBe('meal_type');
+      expect(exclusionReason(recipe, 'pranzo', 'any-main', makeCtx())).toBe('meal_type');
     });
 
     it('keeps the side dish out of manual choices too', () => {
@@ -200,7 +204,48 @@ describe('lib/domain/planner', () => {
         appliances: ['fornelli', 'forno'],
       };
       const sideDish = makeRecipe({ courses: ['contorno'], meal_types: ['cena'] });
-      expect(manualChoiceExclusionReason(sideDish, 'cena', household)).toBe('course');
+      expect(manualChoiceExclusionReason(sideDish, 'cena', 'any-main', household)).toBe('course');
+    });
+  });
+
+  describe('1c. course filter', () => {
+    const HOUSEHOLD_PICK: Pick<Household, 'diet_tags' | 'appliances'> = {
+      diet_tags: [],
+      appliances: ['fornelli'],
+    };
+
+    it('admits a side dish only with the contorno filter', () => {
+      const sideDish = makeRecipe({ courses: ['contorno'] });
+      expect(exclusionReason(sideDish, 'pranzo', 'contorno', makeCtx())).toBeNull();
+      expect(exclusionReason(sideDish, 'pranzo', 'primo', makeCtx())).toBe('course');
+      expect(exclusionReason(sideDish, 'pranzo', 'any-main', makeCtx())).toBe('course');
+    });
+
+    it('rejects an unclassified recipe for the contorno filter', () => {
+      expect(exclusionReason(makeRecipe({ courses: [] }), 'cena', 'contorno', makeCtx())).toBe('course');
+    });
+
+    it('admits a secondo + contorno recipe for the contorno filter', () => {
+      const recipe = makeRecipe({ courses: ['secondo', 'contorno'] });
+      expect(exclusionReason(recipe, 'cena', 'contorno', makeCtx())).toBeNull();
+      expect(exclusionReason(recipe, 'cena', 'secondo', makeCtx())).toBeNull();
+    });
+
+    it('with the primo filter, rejects a secondo and admits a primo and an unclassified recipe', () => {
+      expect(exclusionReason(makeRecipe({ courses: ['secondo'] }), 'pranzo', 'primo', makeCtx())).toBe('course');
+      expect(exclusionReason(makeRecipe({ courses: ['primo'] }), 'pranzo', 'primo', makeCtx())).toBeNull();
+      expect(exclusionReason(makeRecipe({ courses: [] }), 'pranzo', 'primo', makeCtx())).toBeNull();
+    });
+
+    it('reports "blocked" before "course" for a blocked recipe of the wrong course', () => {
+      const recipe = makeUsedRecipe({ blocked: true }, { courses: ['secondo'] });
+      expect(exclusionReason(recipe, 'pranzo', 'contorno', makeCtx())).toBe('blocked');
+    });
+
+    it('applies the course filter to manual choices too', () => {
+      const recipe = makeRecipe({ courses: ['secondo'], meal_types: ['cena'] });
+      expect(manualChoiceExclusionReason(recipe, 'cena', 'primo', HOUSEHOLD_PICK)).toBe('course');
+      expect(manualChoiceExclusionReason(recipe, 'cena', 'secondo', HOUSEHOLD_PICK)).toBeNull();
     });
   });
 
@@ -213,6 +258,7 @@ describe('lib/domain/planner', () => {
       expect(result.needMore).toEqual([
         {
           meal_type: 'cena',
+          course: 'any-main',
           slots: 1,
           available: 0,
           required: 1 + PLANNER_CONFIG.minPoolSize - 1,
@@ -233,6 +279,7 @@ describe('lib/domain/planner', () => {
       expect(result.needMore).toEqual([
         {
           meal_type: 'pranzo',
+          course: 'any-main',
           slots: 5,
           available: 3,
           required: 5 + PLANNER_CONFIG.minPoolSize - 1,
@@ -343,7 +390,7 @@ describe('lib/domain/planner', () => {
       for (const assignment of first.assignments) {
         const slot = slots.find((s) => s.key === assignment.key)!;
         const recipe = library.find((r) => r.id === assignment.recipeId)!;
-        expect(exclusionReason(recipe, slot.meal, ctx)).toBeNull();
+        expect(exclusionReason(recipe, slot.meal, 'any-main', ctx)).toBeNull();
       }
     });
   });
@@ -418,7 +465,7 @@ describe('lib/domain/planner', () => {
     it('reports the shortage with 6 candidates', () => {
       const candidates = Array.from({ length: 6 }, () => makeRecipe());
       expect(selectRecipes(makeInput(pranzoSlots, candidates)).needMore).toEqual([
-        { meal_type: 'pranzo', slots: 5, available: 6, required: 7, unfilled: 0 },
+        { meal_type: 'pranzo', course: 'any-main', slots: 5, available: 6, required: 7, unfilled: 0 },
       ]);
     });
 
@@ -430,7 +477,7 @@ describe('lib/domain/planner', () => {
       const result = selectRecipes(makeInput(pranzoSlots, candidates));
       expect(result.assignments.every((a) => a.recipeId !== null)).toBe(true);
       expect(result.needMore).toEqual([
-        { meal_type: 'pranzo', slots: 5, available: 6, required: 7, unfilled: 0 },
+        { meal_type: 'pranzo', course: 'any-main', slots: 5, available: 6, required: 7, unfilled: 0 },
       ]);
     });
 
@@ -479,6 +526,139 @@ describe('lib/domain/planner', () => {
         const result = selectRecipes(makeInput(slots, candidates, { rng: createRng(seed) }));
         expect(result.assignments.every((a) => a.recipeId !== null)).toBe(true);
       }
+    });
+  });
+
+  describe('8c. slots by course', () => {
+    const DAY = '2026-09-30';
+    const courseSlot = (meal: MealType, course: CourseFilter): PlannerSlot => ({
+      key: `${DAY}|${meal}|${course}`,
+      day: DAY,
+      meal,
+      course,
+    });
+
+    it('never puts a side dish in a primo slot, nor an unclassified recipe in a contorno slot', () => {
+      const primoA = makeRecipe({ courses: ['primo'] });
+      const primoB = makeRecipe({ courses: ['primo'] });
+      const unclassified = makeRecipe({ courses: [] });
+      const sideA = makeRecipe({ courses: ['contorno'] });
+      const sideB = makeRecipe({ courses: ['contorno'] });
+      const primoIds = new Set([primoA.id, primoB.id, unclassified.id]);
+      const sideIds = new Set([sideA.id, sideB.id]);
+      const slots = [
+        ...slotsFor('pranzo', 2, 'primo'),
+        ...slotsFor('pranzo', 2, 'contorno'),
+      ];
+      const candidates = [primoA, primoB, unclassified, sideA, sideB];
+
+      for (let seed = 1; seed <= 20; seed++) {
+        const { assignments } = selectRecipes(makeInput(slots, candidates, { rng: createRng(seed) }));
+        for (const assignment of assignments) {
+          const slot = slots.find((s) => s.key === assignment.key)!;
+          expect(assignment.recipeId).not.toBeNull();
+          if (slot.course === 'primo') expect(primoIds.has(assignment.recipeId!)).toBe(true);
+          else expect(sideIds.has(assignment.recipeId!)).toBe(true);
+        }
+        const ids = assignments.map((a) => a.recipeId);
+        expect(new Set(ids).size).toBe(ids.length);
+      }
+    });
+
+    it('never repeats a secondo + contorno recipe across the two slots of a meal', () => {
+      const both = makeRecipe({ courses: ['secondo', 'contorno'] });
+      const slots = [courseSlot('cena', 'secondo'), courseSlot('cena', 'contorno')];
+      for (let seed = 1; seed <= 5; seed++) {
+        const { assignments } = selectRecipes(makeInput(slots, [both], { rng: createRng(seed) }));
+        const filled = assignments.filter((a) => a.recipeId !== null);
+        expect(filled).toHaveLength(1);
+        expect(filled[0].recipeId).toBe(both.id);
+      }
+    });
+
+    it('serves the scarcer course group first, so the shared recipe goes to the rarer slot', () => {
+      const onlySide = makeRecipe({ courses: ['contorno'], meal_types: ['cena'] });
+      const sideAndMain = makeRecipe({ courses: ['contorno', 'secondo'], meal_types: ['cena'] });
+      const slots = [courseSlot('cena', 'contorno'), courseSlot('cena', 'secondo')];
+      for (let seed = 1; seed <= 5; seed++) {
+        const { assignments } = selectRecipes(makeInput(slots, [onlySide, sideAndMain], { rng: createRng(seed) }));
+        const byKey = new Map(assignments.map((a) => [a.key, a.recipeId]));
+        expect(byKey.get(courseSlot('cena', 'secondo').key)).toBe(sideAndMain.id);
+        expect(byKey.get(courseSlot('cena', 'contorno').key)).toBe(onlySide.id);
+      }
+    });
+
+    it('reports needMore per (meal, course) group', () => {
+      const sides = [makeRecipe({ courses: ['contorno'] }), makeRecipe({ courses: ['contorno'] })];
+      const result = selectRecipes(makeInput(slotsFor('cena', 3, 'contorno'), sides));
+      expect(result.needMore).toEqual([
+        {
+          meal_type: 'cena',
+          course: 'contorno',
+          slots: 3,
+          available: 2,
+          required: 3 + PLANNER_CONFIG.minPoolSize - 1,
+          unfilled: 1,
+        },
+      ]);
+    });
+
+    it('stays silent for a group with enough candidates while another group is short', () => {
+      const mains = Array.from({ length: 5 }, () => makeRecipe({ courses: ['secondo'], meal_types: ['cena'] }));
+      const slots = [...slotsFor('cena', 3, 'secondo'), ...slotsFor('cena', 2, 'contorno')];
+      const result = selectRecipes(makeInput(slots, mains));
+      expect(result.needMore).toEqual([
+        { meal_type: 'cena', course: 'contorno', slots: 2, available: 0, required: 2 + PLANNER_CONFIG.minPoolSize - 1, unfilled: 2 },
+      ]);
+    });
+
+    it('lists needMore by meal (pranzo, cena), then course in canonical order', () => {
+      const slots = [
+        ...slotsFor('cena', 1, 'contorno'),
+        ...slotsFor('pranzo', 1, 'secondo'),
+        ...slotsFor('cena', 1, 'any-main'),
+        ...slotsFor('pranzo', 1, 'any-main'),
+        ...slotsFor('cena', 1, 'primo'),
+        ...slotsFor('pranzo', 1, 'contorno'),
+        ...slotsFor('cena', 1, 'secondo'),
+        ...slotsFor('pranzo', 1, 'piatto-unico'),
+        ...slotsFor('pranzo', 1, 'primo'),
+        ...slotsFor('cena', 1, 'piatto-unico'),
+      ];
+      const result = selectRecipes(makeInput(slots, []));
+      expect(result.needMore.map((n) => `${n.meal_type}|${n.course}`)).toEqual([
+        'pranzo|any-main',
+        'pranzo|piatto-unico',
+        'pranzo|primo',
+        'pranzo|secondo',
+        'pranzo|contorno',
+        'cena|any-main',
+        'cena|piatto-unico',
+        'cena|primo',
+        'cena|secondo',
+        'cena|contorno',
+      ]);
+    });
+
+    it('gives identical assignments for the same seed with mixed courses', () => {
+      const library = fixtureRecipesAsDomain();
+      const slots = [
+        ...slotsFor('pranzo', 3, 'primo'),
+        ...slotsFor('pranzo', 3, 'contorno'),
+        ...slotsFor('cena', 3, 'secondo'),
+        ...slotsFor('cena', 3, 'contorno'),
+      ];
+      const run = () =>
+        selectRecipes({
+          ...makeCtx({
+            household: { diet_tags: DEFAULT_HOUSEHOLD.diet_tags, appliances: DEFAULT_HOUSEHOLD.appliances },
+          }),
+          slots,
+          candidates: library,
+          now: NOW,
+          rng: createRng(9),
+        });
+      expect(run()).toEqual(run());
     });
   });
 
@@ -567,13 +747,13 @@ describe('lib/domain/planner', () => {
   describe('11. computeGenerationCount', () => {
     it('adds the extra to the deficit, within min and max', () => {
       expect(
-        computeGenerationCount({ meal_type: 'pranzo', slots: 5, required: 7, available: 6, unfilled: 0 })
+        computeGenerationCount({ meal_type: 'pranzo', course: 'any-main', slots: 5, required: 7, available: 6, unfilled: 0 })
       ).toBe(3);
       expect(
-        computeGenerationCount({ meal_type: 'pranzo', slots: 7, required: 9, available: 0, unfilled: 7 })
+        computeGenerationCount({ meal_type: 'pranzo', course: 'any-main', slots: 7, required: 9, available: 0, unfilled: 7 })
       ).toBe(10);
       expect(
-        computeGenerationCount({ meal_type: 'cena', slots: 1, required: 3, available: 0, unfilled: 1 })
+        computeGenerationCount({ meal_type: 'cena', course: 'any-main', slots: 1, required: 3, available: 0, unfilled: 1 })
       ).toBe(5);
     });
   });
@@ -627,6 +807,94 @@ describe('lib/domain/planner', () => {
     });
   });
 
+  describe('13. planGeneration', () => {
+    // Con i default: deficit max(required - available, unfilled) + generationExtra(2) → 5 per carenza
+    // (required 3, available 0), che è il valore di computeGenerationCount per questa forma.
+    function shortage(overrides: Partial<MealTypeShortage> = {}): MealTypeShortage {
+      return {
+        meal_type: 'cena',
+        course: 'any-main',
+        slots: 1,
+        available: 0,
+        required: 3,
+        unfilled: 1,
+        ...overrides,
+      };
+    }
+
+    it('gives no request when there is no shortage', () => {
+      expect(planGeneration([])).toEqual([]);
+    });
+
+    it('gives a single group the same count as computeGenerationCount', () => {
+      const single = shortage({ course: 'primo', slots: 2, required: 4, available: 1, unfilled: 0 });
+      expect(planGeneration([single])).toEqual([
+        { meal_type: 'cena', course: 'primo', count: computeGenerationCount(single) },
+      ]);
+    });
+
+    it('caps a single group at generationMax', () => {
+      const config = { ...PLANNER_CONFIG, generationMax: 4 };
+      expect(planGeneration([shortage()], config)).toEqual([
+        { meal_type: 'cena', course: 'any-main', count: 4 },
+      ]);
+    });
+
+    it('splits 10 recipes among four dinner groups, serving the groups with empty slots first', () => {
+      const needMore = [
+        shortage({ course: 'primo', unfilled: 0 }),
+        shortage({ course: 'any-main', unfilled: 1 }),
+        shortage({ course: 'secondo', unfilled: 0 }),
+        shortage({ course: 'contorno', unfilled: 1 }),
+      ];
+      expect(planGeneration(needMore)).toEqual([
+        { meal_type: 'cena', course: 'any-main', count: 5 },
+        { meal_type: 'cena', course: 'contorno', count: 5 },
+      ]);
+    });
+
+    it('gives the budget to the empty-slot groups first, but returns the groups in needMore order', () => {
+      const needMore = [
+        shortage({ course: 'primo', unfilled: 0 }),
+        shortage({ course: 'any-main', unfilled: 1 }),
+        shortage({ course: 'secondo', unfilled: 0 }),
+      ];
+      expect(planGeneration(needMore)).toEqual([
+        { meal_type: 'cena', course: 'primo', count: 5 },
+        { meal_type: 'cena', course: 'any-main', count: 5 },
+      ]);
+    });
+
+    it('keeps the budget independent per meal type', () => {
+      const needMore = [
+        shortage({ meal_type: 'pranzo', course: 'any-main', unfilled: 1 }),
+        shortage({ meal_type: 'cena', course: 'any-main', unfilled: 1 }),
+        shortage({ meal_type: 'cena', course: 'primo', unfilled: 0 }),
+        shortage({ meal_type: 'pranzo', course: 'secondo', unfilled: 0 }),
+      ];
+      expect(planGeneration(needMore)).toEqual([
+        { meal_type: 'pranzo', course: 'any-main', count: 5 },
+        { meal_type: 'cena', course: 'any-main', count: 5 },
+        { meal_type: 'cena', course: 'primo', count: 5 },
+        { meal_type: 'pranzo', course: 'secondo', count: 5 },
+      ]);
+    });
+
+    it('never gives one meal type more than generationMax in total', () => {
+      const needMore = [
+        shortage({ course: 'any-main', unfilled: 1 }),
+        shortage({ course: 'primo', unfilled: 1 }),
+        shortage({ course: 'secondo', unfilled: 0 }),
+      ];
+      const requests = planGeneration(needMore);
+      expect(requests).toEqual([
+        { meal_type: 'cena', course: 'any-main', count: 5 },
+        { meal_type: 'cena', course: 'primo', count: 5 },
+      ]);
+      expect(requests.reduce((sum, request) => sum + request.count, 0)).toBe(PLANNER_CONFIG.generationMax);
+    });
+  });
+
   describe('manualChoiceExclusionReason', () => {
     const HOUSEHOLD: Pick<Household, 'diet_tags' | 'appliances'> = {
       diet_tags: [],
@@ -635,31 +903,31 @@ describe('lib/domain/planner', () => {
 
     it('returns null for a recipe that fits the meal, diets and appliances', () => {
       const recipe = makeRecipe({ meal_types: ['cena'], appliances_required: ['forno'] });
-      expect(manualChoiceExclusionReason(recipe, 'cena', HOUSEHOLD)).toBeNull();
+      expect(manualChoiceExclusionReason(recipe, 'cena', 'any-main', HOUSEHOLD)).toBeNull();
     });
 
     it('returns blocked for a blocked recipe', () => {
       const id = nextId();
       const recipe = makeRecipe({ id, meal_types: ['cena'], prefs: makePrefs(id, { blocked: true }) });
-      expect(manualChoiceExclusionReason(recipe, 'cena', HOUSEHOLD)).toBe('blocked');
+      expect(manualChoiceExclusionReason(recipe, 'cena', 'any-main', HOUSEHOLD)).toBe('blocked');
     });
 
     it('returns meal_type when the recipe is not for that meal', () => {
       const recipe = makeRecipe({ meal_types: ['pranzo'] });
-      expect(manualChoiceExclusionReason(recipe, 'cena', HOUSEHOLD)).toBe('meal_type');
+      expect(manualChoiceExclusionReason(recipe, 'cena', 'any-main', HOUSEHOLD)).toBe('meal_type');
     });
 
     it('returns diet when the household diet is not met by the recipe', () => {
       const recipe = makeRecipe({ meal_types: ['cena'], diet_flags: ['vegetariano'] });
       expect(
-        manualChoiceExclusionReason(recipe, 'cena', { diet_tags: ['vegano'], appliances: ['fornelli'] })
+        manualChoiceExclusionReason(recipe, 'cena', 'any-main', { diet_tags: ['vegano'], appliances: ['fornelli'] })
       ).toBe('diet');
     });
 
     it('returns appliance when the recipe needs an appliance the household lacks', () => {
       const recipe = makeRecipe({ meal_types: ['cena'], appliances_required: ['forno'] });
       expect(
-        manualChoiceExclusionReason(recipe, 'cena', { diet_tags: [], appliances: ['fornelli'] })
+        manualChoiceExclusionReason(recipe, 'cena', 'any-main', { diet_tags: [], appliances: ['fornelli'] })
       ).toBe('appliance');
     });
 
@@ -667,8 +935,8 @@ describe('lib/domain/planner', () => {
       const recipe = makeRecipe({ meal_types: ['cena'], ingredients: [makeIngredient('cipolla')] });
       const ctx = makeCtx({ ingredientPrefs: toIngredientPreferenceSets([], ['cipolla']) });
 
-      expect(exclusionReason(recipe, 'cena', ctx)).toBe('disliked_ingredient');
-      expect(manualChoiceExclusionReason(recipe, 'cena', HOUSEHOLD)).toBeNull();
+      expect(exclusionReason(recipe, 'cena', 'any-main', ctx)).toBe('disliked_ingredient');
+      expect(manualChoiceExclusionReason(recipe, 'cena', 'any-main', HOUSEHOLD)).toBeNull();
     });
   });
 });

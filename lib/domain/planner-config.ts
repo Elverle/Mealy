@@ -20,7 +20,7 @@ export interface PlannerConfig {
   generationExtra: number;
   /** Minimo di ricette per chiamata (anche per lo swap). */
   generationMin: number;
-  /** Massimo di ricette richieste in totale per tipo di pasto (= GENERATE_COUNT_MAX). */
+  /** Massimo di ricette richieste in totale per tipo di pasto (= GENERATE_COUNT_MAX) (ripartito tra le portate da planGeneration). */
   generationMax: number;
   /** Dimensione di una singola chiamata LLM di generazione (latenza reale ~38 s per 3 ricette). */
   generationBatchSize: number;
