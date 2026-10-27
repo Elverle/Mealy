@@ -20,17 +20,19 @@ describe.skipIf(!dbUp)('Database Seeding', () => {
   it('runs seedDatabase twice idempotently', async () => {
     const firstReport = await seedDatabase();
     expect(firstReport.household).toMatch(/^(created|existing)$/);
-    expect(firstReport.recipesInserted + firstReport.recipesSkipped).toBe(18);
+    expect(firstReport.recipesInserted + firstReport.recipesSkipped).toBe(FIXTURE_RECIPES.length);
 
     const secondReport = await seedDatabase();
     expect(secondReport.household).toBe('existing');
     expect(secondReport.recipesInserted).toBe(0);
-    expect(secondReport.recipesSkipped).toBe(18);
+    expect(secondReport.recipesSkipped).toBe(FIXTURE_RECIPES.length);
     expect(secondReport.recipesClassified).toBe(0);
     expect(secondReport.aliasesInserted).toBe(0);
   });
 
-  it('verifies all fixture recipes exist with ingredients and default preferences', async () => {
+  it('verifies all fixture recipes exist with ingredients and a preferences row', async () => {
+    // Solo la presenza della riga: preferita e utilizzi cambiano con le prove manuali sul DB di
+    // sviluppo, e il seed non li tocca mai su una ricetta già presente.
     for (const fixture of FIXTURE_RECIPES) {
       const dbRecipe = await getRecipeById(fixture.id);
       expect(dbRecipe).not.toBeNull();
@@ -39,8 +41,6 @@ describe.skipIf(!dbUp)('Database Seeding', () => {
       expect(dbRecipe!.title).toBe(fixture.title);
       expect(dbRecipe!.ingredients).toHaveLength(fixture.ingredients.length);
       expect(dbRecipe!.prefs).not.toBeNull();
-      expect(dbRecipe!.prefs!.favorite).toBe(false);
-      expect(dbRecipe!.prefs!.times_used).toBe(0);
     }
   });
 

@@ -519,5 +519,45 @@ describe.skipIf(!dbUp)('WP2 PostgreSQL Live CRUD', () => {
       await deleteTestHousehold(testId);
     }
   });
+
+  it('gives a recipe inserted without preferences the default preferences', async () => {
+    const recipeRepo = await import('@/lib/db/repositories/recipe-repo');
+    const testId = await createTestHousehold();
+    try {
+      const recipe = await recipeRepo.insertRecipe(
+        {
+          id: crypto.randomUUID(),
+          household_id: testId,
+          title: 'Zucchine trifolate test',
+          slug: `zucchine-trifolate-${Date.now()}`,
+          description: 'Zucchine in padella con aglio e prezzemolo',
+          steps: ['Tagliare le zucchine', 'Cuocerle in padella'],
+          meal_types: ['cena'],
+          tags: [],
+          diet_flags: ['vegano'],
+          appliances_required: ['fornelli'],
+          servings_base: 2,
+          prep_minutes: 20,
+          kcal_est: null,
+          source: 'manual',
+        },
+        [
+          {
+            canonical_name: 'zucchina',
+            display_name: 'zucchine',
+            qty: 400,
+            unit: 'g',
+            category: 'ortofrutta',
+          },
+        ]
+      );
+
+      expect(recipe.prefs).not.toBeNull();
+      expect(recipe.prefs!.favorite).toBe(false);
+      expect(recipe.prefs!.times_used).toBe(0);
+    } finally {
+      await deleteTestHousehold(testId);
+    }
+  });
 });
 
