@@ -226,7 +226,7 @@ Per ogni slot da riempire, il pool di candidate è filtrato per vincoli **duri**
 Esclusioni (hard):
 - `blocked = true`
 - `meal_type` non compatibile con lo slot
-- `course`: la portata della ricetta non fa per lo slot (`fitsCourse`). Uno slot principale di portata `c` vuole una ricetta con `c` tra le sue portate, oppure non classificata. Uno slot contorno vuole una ricetta con `contorno` tra le sue portate: una ricetta non classificata non fa mai da contorno. Una ricetta con più portate (per esempio `['secondo','piatto-unico']`) è candidata per ognuna di esse
+- `course`: la portata della ricetta non fa per lo slot (`fitsCourse`). Uno slot principale di portata `c` vuole una ricetta con `c` tra le sue portate, oppure non classificata. Uno slot contorno vuole una ricetta che è soltanto contorno: una ricetta non classificata non fa mai da contorno, e nemmeno una che è anche primo o secondo (`['secondo','contorno']` fa solo da secondo). Una ricetta con più portate principali (per esempio `['secondo','piatto-unico']`) è candidata per ognuna di esse. La stessa regola vale per la ricetta generata per un contorno (`coursesAllowed`)
 - `diet_flags` che non soddisfano le esigenze household
 - `appliances_required` ⊄ elettrodomestici disponibili
 - contiene almeno un ingrediente con pref `dislike`

@@ -1,4 +1,5 @@
 import {
+  MAIN_COURSE_VALUES,
   MEAL_STYLE_TAG_VALUES,
   PACK_GROUP_LABELS,
   type ClassifyRecipeItem,
@@ -59,6 +60,10 @@ export function buildRecipeInstructions(): string {
 function courseLine(courses: RecipeConstraints['courses'], subject: 'ogni ricetta' | 'la ricetta'): string | null {
   if (courses === null) {
     return null;
+  }
+  // Solo contorno: un piatto che è anche primo o secondo non fa da contorno (coursesAllowed).
+  if (!courses.some((course) => MAIN_COURSE_VALUES.includes(course))) {
+    return `- Portata: in courses ${subject} deve avere solo ${courses.join(', ')}.`;
   }
   return `- Portata: in courses ${subject} deve avere almeno una tra ${courses.join(', ')}.`;
 }

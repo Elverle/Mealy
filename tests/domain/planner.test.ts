@@ -225,9 +225,9 @@ describe('lib/domain/planner', () => {
       expect(exclusionReason(makeRecipe({ courses: [] }), 'cena', 'contorno', makeCtx())).toBe('course');
     });
 
-    it('admits a secondo + contorno recipe for the contorno filter', () => {
+    it('admits a secondo + contorno recipe only as a secondo, never as a contorno', () => {
       const recipe = makeRecipe({ courses: ['secondo', 'contorno'] });
-      expect(exclusionReason(recipe, 'cena', 'contorno', makeCtx())).toBeNull();
+      expect(exclusionReason(recipe, 'cena', 'contorno', makeCtx())).toBe('course');
       expect(exclusionReason(recipe, 'cena', 'secondo', makeCtx())).toBeNull();
     });
 
@@ -565,26 +565,26 @@ describe('lib/domain/planner', () => {
       }
     });
 
-    it('never repeats a secondo + contorno recipe across the two slots of a meal', () => {
+    it('puts a secondo + contorno recipe only in the secondo slot, never in the contorno slot', () => {
       const both = makeRecipe({ courses: ['secondo', 'contorno'] });
       const slots = [courseSlot('cena', 'secondo'), courseSlot('cena', 'contorno')];
       for (let seed = 1; seed <= 5; seed++) {
         const { assignments } = selectRecipes(makeInput(slots, [both], { rng: createRng(seed) }));
-        const filled = assignments.filter((a) => a.recipeId !== null);
-        expect(filled).toHaveLength(1);
-        expect(filled[0].recipeId).toBe(both.id);
+        const byKey = new Map(assignments.map((a) => [a.key, a.recipeId]));
+        expect(byKey.get(courseSlot('cena', 'secondo').key)).toBe(both.id);
+        expect(byKey.get(courseSlot('cena', 'contorno').key)).toBeNull();
       }
     });
 
     it('serves the scarcer course group first, so the shared recipe goes to the rarer slot', () => {
-      const onlySide = makeRecipe({ courses: ['contorno'], meal_types: ['cena'] });
-      const sideAndMain = makeRecipe({ courses: ['contorno', 'secondo'], meal_types: ['cena'] });
-      const slots = [courseSlot('cena', 'contorno'), courseSlot('cena', 'secondo')];
+      const onlyPrimo = makeRecipe({ courses: ['primo'], meal_types: ['cena'] });
+      const primoAndSecondo = makeRecipe({ courses: ['primo', 'secondo'], meal_types: ['cena'] });
+      const slots = [courseSlot('cena', 'primo'), courseSlot('cena', 'secondo')];
       for (let seed = 1; seed <= 5; seed++) {
-        const { assignments } = selectRecipes(makeInput(slots, [onlySide, sideAndMain], { rng: createRng(seed) }));
+        const { assignments } = selectRecipes(makeInput(slots, [onlyPrimo, primoAndSecondo], { rng: createRng(seed) }));
         const byKey = new Map(assignments.map((a) => [a.key, a.recipeId]));
-        expect(byKey.get(courseSlot('cena', 'secondo').key)).toBe(sideAndMain.id);
-        expect(byKey.get(courseSlot('cena', 'contorno').key)).toBe(onlySide.id);
+        expect(byKey.get(courseSlot('cena', 'secondo').key)).toBe(primoAndSecondo.id);
+        expect(byKey.get(courseSlot('cena', 'primo').key)).toBe(onlyPrimo.id);
       }
     });
 

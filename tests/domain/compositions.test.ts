@@ -138,6 +138,13 @@ describe('fitsCourse', () => {
     expect(fitsCourse(['contorno'], 'secondo')).toBe(false);
   });
 
+  it('never accepts a recipe that is also a main course as a contorno', () => {
+    expect(fitsCourse(['secondo', 'contorno'], 'contorno')).toBe(false);
+    expect(fitsCourse(['primo', 'contorno'], 'contorno')).toBe(false);
+    expect(fitsCourse(['secondo', 'contorno'], 'secondo')).toBe(true);
+    expect(fitsCourse(['secondo', 'contorno'], 'any-main')).toBe(true);
+  });
+
   it('accepts a recipe for each of its courses and rejects the others', () => {
     expect(fitsCourse(['secondo', 'piatto-unico'], 'piatto-unico')).toBe(true);
     expect(fitsCourse(['secondo', 'piatto-unico'], 'secondo')).toBe(true);

@@ -62,6 +62,7 @@ Dove si applica:
 - **Planner** ([[planner]]): `exclusionReason` restituisce `'course'` quando `!isMainDish(recipe.courses)`. Da lì l'esclusione arriva a sorteggio, *Rigenera*, *Ripeti*, swap, candidate di *Scegli*, assegnazione a mano e conteggio delle ricette fresche (`needMore`).
   - **Dalla Feature 11** il planner non usa più `isMainDish`: il motivo `'course'` scatta quando `!fitsCourse(recipe.courses, course)`, con la portata dello slot ([[compositions]]). `fitsCourse` delega a `coursesAllowed` per i principali e aggiunge solo l'esclusione delle non classificate dal contorno. `isMainDish` resta nel modulo perché la usano i test delle fixture (requirements P11 della Feature 11).
 - **Vincoli di generazione** ([[recipe-generation]]): `findConstraintViolations` aggiunge la violazione «portata non adatta al pasto» quando `!coursesAllowed(recipe.courses, constraints.courses)`.
+- **Solo contorni nel contorno** (correzione dopo la Feature 11): quando `allowed` non ha portate principali (cioè `['contorno']`), `coursesAllowed` vuole tutte le portate della ricetta in `allowed`, non almeno una. Una ricetta `secondo · contorno` fa da secondo e non da contorno, nel planner come nei vincoli di generazione ([[compositions]]).
 - **Card e dettaglio** ([[library-screen]], [[meal-card]], [[plan-screen]], [[recipe-sheet]]): `courseLabel` dà il testo del badge di portata.
 - **`normalizeGeneratedRecipe`** ([[domain-types]]): `normalizeCourses`.
 

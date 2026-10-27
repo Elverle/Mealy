@@ -59,7 +59,14 @@ describe('lib/domain/courses', () => {
     });
 
     it('accepts when at least one course is allowed', () => {
-      expect(coursesAllowed(['secondo', 'contorno'], ['contorno'])).toBe(true);
+      expect(coursesAllowed(['secondo', 'contorno'], ['secondo'])).toBe(true);
+      expect(coursesAllowed(['secondo', 'contorno'], MAIN_COURSE_VALUES)).toBe(true);
+    });
+
+    it('where only contorno is allowed, accepts only a recipe that is just a contorno', () => {
+      expect(coursesAllowed(['contorno'], ['contorno'])).toBe(true);
+      expect(coursesAllowed(['secondo', 'contorno'], ['contorno'])).toBe(false);
+      expect(coursesAllowed(['primo', 'contorno'], ['contorno'])).toBe(false);
     });
 
     it('rejects when no course is allowed', () => {

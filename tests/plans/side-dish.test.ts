@@ -283,13 +283,14 @@ describe.skipIf(!dbUp)('contorni e portate nei piani', () => {
     const otherSide = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['contorno'] });
     const single = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['piatto-unico'] });
     const primo = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['primo'] });
+    const secondoSide = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo', 'contorno'] });
     const plan = await writePlan(householdId, [
       { course: 'secondo', recipe: main },
       { course: 'contorno', recipe: side },
     ]);
 
     const onMain = (await listSlotCandidates(plan.id, slotOf(plan, 'secondo').id, opts(householdId, WED))).recipes.map((r) => r.id);
-    expect(onMain).toEqual(expect.arrayContaining([single.id, primo.id]));
+    expect(onMain).toEqual(expect.arrayContaining([single.id, primo.id, secondoSide.id]));
     expect(onMain).not.toContain(otherSide.id);
     expect(onMain).not.toContain(side.id);
     expect(onMain).not.toContain(main.id);
@@ -336,6 +337,23 @@ describe.skipIf(!dbUp)('contorni e portate nei piani', () => {
       .map((slot) => ({ id: slot.id, course: slot.course, recipe_id: slot.recipe_id }))
       .sort((a, b) => a.id.localeCompare(b.id));
   }
+
+  it('refuses on the side a recipe that is also a secondo, with recipe_not_eligible', async () => {
+    const householdId = await dinnerHousehold();
+    const main = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo'] });
+    const side = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['contorno'] });
+    const secondoSide = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo', 'contorno'] });
+    const plan = await writePlan(householdId, [
+      { course: 'secondo', recipe: main },
+      { course: 'contorno', recipe: side },
+    ]);
+    const before = await slotState(plan.id);
+
+    await expect(
+      assignSlotRecipe(plan.id, slotOf(plan, 'contorno').id, secondoSide.id, opts(householdId, WED))
+    ).rejects.toMatchObject({ code: 'recipe_not_eligible' });
+    expect(await slotState(plan.id)).toEqual(before);
+  });
 
   it('refuses to put on the side the recipe already served as main of the same meal, with recipe_not_eligible', async () => {
     const householdId = await dinnerHousehold();
@@ -393,11 +411,13 @@ describe.skipIf(!dbUp)('contorni e portate nei piani', () => {
     const householdId = await dinnerHousehold();
     const main = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo'] });
     const side = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['contorno'] });
-    const elsewhere = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo', 'contorno'] });
+    const otherMain = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['secondo'] });
+    const elsewhere = await insertTestRecipe(householdId, { meal_types: [MEAL], courses: ['contorno'] });
     const plan = await writePlan(householdId, [
       { course: 'secondo', recipe: main },
       { course: 'contorno', recipe: side },
-      { course: 'secondo', recipe: elsewhere, day: OTHER_DAY },
+      { course: 'secondo', recipe: otherMain, day: OTHER_DAY },
+      { course: 'contorno', recipe: elsewhere, day: OTHER_DAY },
     ]);
     const sideSlot = plan.slots.find((s) => s.day === DAY && s.course === 'contorno')!;
 

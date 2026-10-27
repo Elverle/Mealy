@@ -89,9 +89,10 @@ export function filterCourses(filter: CourseFilter): Course[] {
 /**
  * true se una ricetta con queste portate può stare in uno slot con questo filtro.
  * Non classificata: ammessa in ogni principale e in 'any-main', mai come contorno.
+ * Contorno: solo una ricetta che è soltanto contorno (non anche primo o secondo).
  */
 export function fitsCourse(courses: readonly Course[], filter: CourseFilter): boolean {
-  if (filter === SIDE_COURSE) return courses.includes(SIDE_COURSE);
+  if (filter === SIDE_COURSE && courses.length === 0) return false;
   return coursesAllowed(courses, filterCourses(filter));
 }
 

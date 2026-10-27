@@ -242,6 +242,16 @@ describe('lib/llm/prompts', () => {
       );
     });
 
+    it('asks for a recipe that is only a contorno when the side dish is requested', () => {
+      const prompt = buildRecipeRequestPrompt(
+        { ...requestConstraints, meal_type: 'cena', courses: ['contorno'] },
+        'zucchine',
+        [],
+      );
+
+      expect(prompt).toContain('- Portata: in courses la ricetta deve avere solo contorno.');
+    });
+
     it('omits the course line when courses is null', () => {
       const prompt = buildRecipeRequestPrompt(requestConstraints, 'lasagne', []);
 

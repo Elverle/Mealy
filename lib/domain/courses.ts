@@ -22,11 +22,15 @@ export function normalizeCourses(courses: readonly Course[]): Course[] {
 /**
  * true se una ricetta con queste portate è ammessa dove valgono le portate `allowed`:
  * `allowed` null (qualsiasi), ricetta non classificata (`courses` vuoto), oppure almeno una
- * portata in comune. È l'unico predicato di portata: lo usano `fitsCourse` (planner) e i
- * vincoli di generazione.
+ * portata in comune. Dove `allowed` non ha portate principali (il contorno) servono invece
+ * tutte le portate in comune: un secondo che è anche contorno non fa da contorno.
+ * È l'unico predicato di portata: lo usano `fitsCourse` (planner) e i vincoli di generazione.
  */
 export function coursesAllowed(courses: readonly Course[], allowed: readonly Course[] | null): boolean {
   if (allowed === null || courses.length === 0) return true;
+  if (!allowed.some((course) => MAIN_COURSE_VALUES.includes(course))) {
+    return courses.every((course) => allowed.includes(course));
+  }
   return courses.some((course) => allowed.includes(course));
 }
 
