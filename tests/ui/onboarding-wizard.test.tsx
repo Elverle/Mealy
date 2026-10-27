@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 import { OnboardingWizard } from "@/components/settings/onboarding-wizard";
 import { putSettings } from "@/lib/settings/client";
@@ -162,6 +162,65 @@ describe("OnboardingWizard", () => {
 
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { level: 1, name: "Pasti da pianificare" })
+    );
+  });
+
+  it("disables Avanti when a selected meal has no composition, and re-enables it once one is chosen", () => {
+    render(<OnboardingWizard initialSettings={INITIAL_SETTINGS} />);
+
+    clickAvanti(); // step 2: Pasti da pianificare
+    const cenaGroup = screen.getByRole("group", { name: "Cena" });
+    for (const chip of within(cenaGroup).getAllByRole("checkbox")) {
+      fireEvent.click(chip);
+    }
+
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
+    expect(screen.getByText("Scegli almeno una composizione.")).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole("group", { name: "Cena" })).getByRole("checkbox", { name: "Primo" }));
+
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeEnabled();
+    expect(screen.queryByText("Scegli almeno una composizione.")).not.toBeInTheDocument();
+  });
+
+  it("saves the chosen compositions of each meal when onboarding is completed", async () => {
+    vi.mocked(putSettings).mockResolvedValueOnce({
+      settings: { ...INITIAL_SETTINGS, onboarded: true },
+      changed: true,
+    });
+
+    render(<OnboardingWizard initialSettings={INITIAL_SETTINGS} />);
+
+    clickAvanti(); // step 2
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Pranzo" })).getByRole("checkbox", {
+        name: "Secondo",
+      })
+    );
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Cena" })).getByRole("checkbox", {
+        name: "Primo",
+      })
+    );
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Cena" })).getByRole("checkbox", {
+        name: "Piatto unico",
+      })
+    );
+    clickAvanti();
+    clickAvanti();
+    clickAvanti();
+    fireEvent.click(screen.getByRole("button", { name: "Inizia a pianificare" }));
+
+    await waitFor(() => expect(putSettings).toHaveBeenCalledTimes(1));
+    expect(putSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meal_compositions: {
+          pranzo: ["piatto-unico", "primo", "primo-contorno", "secondo-contorno"],
+          cena: ["primo-contorno", "secondo", "secondo-contorno"],
+        },
+        complete_onboarding: true,
+      })
     );
   });
 });

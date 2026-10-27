@@ -10,6 +10,8 @@ import {
   APPLIANCE_VALUES,
   DIET_FLAG_LABELS,
   DIET_FLAG_VALUES,
+  MEAL_COMPOSITION_LABELS,
+  MEAL_COMPOSITION_VALUES,
   MEAL_STYLE_TAG_LABELS,
   MEAL_STYLE_TAG_VALUES,
   MEAL_TYPE_LABELS,
@@ -19,6 +21,8 @@ import {
   type Appliance,
   type DietFlag,
   type HouseholdSettings,
+  type MealComposition,
+  type MealCompositions,
   type MealStyleTag,
   type MealType,
 } from "@/lib/domain/types";
@@ -50,7 +54,7 @@ export const SETTINGS_FIELD_COPY: Record<
   },
   meals: {
     title: "Pasti da pianificare",
-    description: "Quali pasti vuoi trovare nel piano settimanale?",
+    description: "Quali pasti vuoi trovare nel piano, e come li componi?",
   },
   meal_style_tags: {
     title: "Tipo di pasti",
@@ -69,8 +73,9 @@ export const SETTINGS_FIELD_COPY: Record<
 
 /**
  * Validità "leggera" di un campo, usata per abilitare Avanti/Salva:
- * `meals` richiede almeno un valore, `persons` deve essere un intero nel
- * range consentito. Gli altri campi sono sempre validi (possono essere vuoti).
+ * `meals` richiede almeno un pasto e almeno una composizione per ogni pasto
+ * scelto, `persons` deve essere un intero nel range consentito. Gli altri
+ * campi sono sempre validi (possono essere vuoti).
  */
 export function isSettingsFieldValid(
   key: SettingsFieldKey,
@@ -78,7 +83,10 @@ export function isSettingsFieldValid(
 ): boolean {
   switch (key) {
     case "meals":
-      return settings.meals.length >= 1;
+      return (
+        settings.meals.length >= 1 &&
+        settings.meals.every((meal) => settings.meal_compositions[meal].length >= 1)
+      );
     case "persons":
       return (
         Number.isInteger(settings.persons) &&
@@ -228,13 +236,46 @@ function ChipGroupField<T extends string>({
   );
 }
 
-/** Campo "Pasti da pianificare": richiede almeno un pasto selezionato. */
+/** Valore del campo "Pasti da pianificare": pasti scelti e composizioni di ciascun pasto. */
+export interface MealsFieldValue {
+  meals: MealType[];
+  compositions: MealCompositions;
+}
+
+/**
+ * Campo "Pasti da pianificare": richiede almeno un pasto selezionato e, per
+ * ogni pasto scelto, almeno una composizione. Le composizioni compaiono sotto
+ * ciascun pasto selezionato.
+ */
 export function MealsField({
   value,
   onChange,
   headingLevel,
   headingRef,
-}: FieldProps<MealType[]>): React.JSX.Element {
+}: FieldProps<MealsFieldValue>): React.JSX.Element {
+  const baseId = React.useId();
+
+  function handleMealsChange(nextMeals: MealType[]): void {
+    const compositions = { ...value.compositions };
+    for (const meal of value.meals) {
+      // Un pasto nascosto non può restare senza composizioni: il server lo rifiuterebbe.
+      if (!nextMeals.includes(meal) && compositions[meal].length === 0) {
+        compositions[meal] = [...MEAL_COMPOSITION_VALUES];
+      }
+    }
+    onChange({ meals: nextMeals, compositions });
+  }
+
+  function toggleComposition(meal: MealType, composition: MealComposition): void {
+    onChange({
+      ...value,
+      compositions: {
+        ...value.compositions,
+        [meal]: toggleInOrder(value.compositions[meal], MEAL_COMPOSITION_VALUES, composition),
+      },
+    });
+  }
+
   return (
     <ChipGroupField
       headingLevel={headingLevel}
@@ -242,14 +283,42 @@ export function MealsField({
       copy={SETTINGS_FIELD_COPY.meals}
       values={MEAL_TYPE_VALUES}
       labels={MEAL_TYPE_LABELS}
-      selected={value}
-      onChange={onChange}
+      selected={value.meals}
+      onChange={handleMealsChange}
       footer={
-        value.length === 0 ? (
-          <p role="alert" className="text-xs text-tomato">
-            Scegli almeno un pasto.
-          </p>
-        ) : null
+        <>
+          {value.meals.length === 0 && (
+            <p role="alert" className="text-xs text-tomato">
+              Scegli almeno un pasto.
+            </p>
+          )}
+          {MEAL_TYPE_VALUES.filter((meal) => value.meals.includes(meal)).map((meal) => {
+            const groupId = `${baseId}-${meal}`;
+            const selected = value.compositions[meal];
+            return (
+              <div key={meal} className="flex flex-col gap-1 pt-3">
+                <p id={groupId} className="text-sm font-semibold text-ink">
+                  {MEAL_TYPE_LABELS[meal]}
+                </p>
+                <div role="group" aria-labelledby={groupId} className="flex flex-wrap gap-2">
+                  {MEAL_COMPOSITION_VALUES.map((c) => (
+                    <ChipFilter
+                      key={c}
+                      label={MEAL_COMPOSITION_LABELS[c]}
+                      isSelected={selected.includes(c)}
+                      onClick={() => toggleComposition(meal, c)}
+                    />
+                  ))}
+                </div>
+                {selected.length === 0 && (
+                  <p role="alert" className="text-xs text-tomato">
+                    Scegli almeno una composizione.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </>
       }
     />
   );
@@ -353,8 +422,14 @@ export function SettingsField({
     case "meals":
       return (
         <MealsField
-          value={settings.meals}
-          onChange={(meals) => onChange({ ...settings, meals })}
+          value={{ meals: settings.meals, compositions: settings.meal_compositions }}
+          onChange={(next) =>
+            onChange({
+              ...settings,
+              meals: next.meals,
+              meal_compositions: next.compositions,
+            })
+          }
           headingLevel={headingLevel}
           headingRef={headingRef}
         />

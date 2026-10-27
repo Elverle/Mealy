@@ -12,7 +12,12 @@ import {
   SETTINGS_FIELD_ORDER,
   isSettingsFieldValid,
 } from "@/components/settings/settings-fields";
-import { DEFAULT_MEAL_COMPOSITIONS, type HouseholdSettings } from "@/lib/domain/types";
+import {
+  DEFAULT_MEAL_COMPOSITIONS,
+  MEAL_COMPOSITION_LABELS,
+  MEAL_COMPOSITION_VALUES,
+  type HouseholdSettings,
+} from "@/lib/domain/types";
 
 const BASE_SETTINGS: HouseholdSettings = {
   persons: 2,
@@ -22,6 +27,8 @@ const BASE_SETTINGS: HouseholdSettings = {
   diet_tags: [],
   appliances: ["fornelli"],
 };
+
+const ALL_COMPOSITION_LABELS = MEAL_COMPOSITION_VALUES.map((c) => MEAL_COMPOSITION_LABELS[c]);
 
 describe("SETTINGS_FIELD_ORDER / SETTINGS_FIELD_COPY", () => {
   it("lists the 5 fields in canonical order", () => {
@@ -40,7 +47,7 @@ describe("SETTINGS_FIELD_ORDER / SETTINGS_FIELD_COPY", () => {
       description: "Serve a calcolare le porzioni e le quantità della spesa.",
     });
     expect(SETTINGS_FIELD_COPY.meals.description).toBe(
-      "Quali pasti vuoi trovare nel piano settimanale?"
+      "Quali pasti vuoi trovare nel piano, e come li componi?"
     );
   });
 });
@@ -52,6 +59,25 @@ describe("isSettingsFieldValid", () => {
 
   it("returns true for meals when at least one meal is selected", () => {
     expect(isSettingsFieldValid("meals", BASE_SETTINGS)).toBe(true);
+  });
+
+  it("returns false for meals when a selected meal has no composition", () => {
+    expect(
+      isSettingsFieldValid("meals", {
+        ...BASE_SETTINGS,
+        meal_compositions: { ...DEFAULT_MEAL_COMPOSITIONS, cena: [] },
+      })
+    ).toBe(false);
+  });
+
+  it("returns true for meals when the meal without compositions is not selected", () => {
+    expect(
+      isSettingsFieldValid("meals", {
+        ...BASE_SETTINGS,
+        meals: ["pranzo"],
+        meal_compositions: { ...DEFAULT_MEAL_COMPOSITIONS, cena: [] },
+      })
+    ).toBe(true);
   });
 
   it("returns false for persons outside [PERSONS_MIN, PERSONS_MAX]", () => {
@@ -105,30 +131,188 @@ describe("PersonsField", () => {
 
 describe("MealsField", () => {
   it("renders unselected chips for meals not present in value", () => {
-    render(<MealsField value={["cena"]} onChange={vi.fn()} />);
+    render(
+      <MealsField
+        value={{ meals: ["cena"], compositions: DEFAULT_MEAL_COMPOSITIONS }}
+        onChange={vi.fn()}
+      />
+    );
 
     const pranzoChip = screen.getByRole("checkbox", { name: "Pranzo" });
     expect(pranzoChip).toHaveAttribute("aria-checked", "false");
   });
 
-  it("calls onChange with the meal added, in canonical order", () => {
+  it("calls onChange with the meal added, in canonical order, keeping compositions", () => {
     const onChange = vi.fn();
-    render(<MealsField value={["cena"]} onChange={onChange} />);
+    render(
+      <MealsField
+        value={{ meals: ["cena"], compositions: DEFAULT_MEAL_COMPOSITIONS }}
+        onChange={onChange}
+      />
+    );
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Pranzo" }));
-    expect(onChange).toHaveBeenCalledWith(["pranzo", "cena"]);
+    expect(onChange).toHaveBeenCalledWith({
+      meals: ["pranzo", "cena"],
+      compositions: DEFAULT_MEAL_COMPOSITIONS,
+    });
   });
 
-  it("shows a warning when no meal is selected", () => {
-    render(<MealsField value={[]} onChange={vi.fn()} />);
+  it("shows a warning when no meal is selected and no composition group", () => {
+    render(
+      <MealsField
+        value={{ meals: [], compositions: DEFAULT_MEAL_COMPOSITIONS }}
+        onChange={vi.fn()}
+      />
+    );
 
     expect(screen.getByRole("alert")).toHaveTextContent("Scegli almeno un pasto.");
+    expect(screen.queryByRole("group", { name: "Pranzo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Cena" })).not.toBeInTheDocument();
   });
 
   it("does not show the warning when at least one meal is selected", () => {
-    render(<MealsField value={["cena"]} onChange={vi.fn()} />);
+    render(
+      <MealsField
+        value={{ meals: ["cena"], compositions: DEFAULT_MEAL_COMPOSITIONS }}
+        onChange={vi.fn()}
+      />
+    );
 
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Scegli almeno un pasto.")).not.toBeInTheDocument();
+  });
+
+  it("shows a composition group with five chips for each selected meal, in order", () => {
+    render(
+      <MealsField
+        value={{ meals: ["pranzo", "cena"], compositions: DEFAULT_MEAL_COMPOSITIONS }}
+        onChange={vi.fn()}
+      />
+    );
+
+    for (const name of ["Pranzo", "Cena"]) {
+      const group = screen.getByRole("group", { name });
+      const chips = within(group).getAllByRole("checkbox");
+      expect(chips.map((chip) => chip.textContent)).toEqual(ALL_COMPOSITION_LABELS);
+      for (const chip of chips) {
+        expect(chip).toHaveAttribute("aria-checked", "true");
+      }
+    }
+  });
+
+  it("hides the composition group of a meal that is not selected", () => {
+    render(
+      <MealsField
+        value={{ meals: ["cena"], compositions: DEFAULT_MEAL_COMPOSITIONS }}
+        onChange={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("group", { name: "Pranzo" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Cena" })).toBeInTheDocument();
+  });
+
+  it("removes the meal and its group when the meal is deselected", () => {
+    const onChange = vi.fn();
+    render(
+      <MealsField
+        value={{ meals: ["pranzo", "cena"], compositions: DEFAULT_MEAL_COMPOSITIONS }}
+        onChange={onChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Pranzo" }));
+    expect(onChange).toHaveBeenCalledWith({
+      meals: ["cena"],
+      compositions: DEFAULT_MEAL_COMPOSITIONS,
+    });
+  });
+
+  it("removes a composition of a meal and keeps the canonical order when re-adding", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <MealsField
+        value={{ meals: ["cena"], compositions: DEFAULT_MEAL_COMPOSITIONS }}
+        onChange={onChange}
+      />
+    );
+
+    const cenaGroup = screen.getByRole("group", { name: "Cena" });
+    fireEvent.click(within(cenaGroup).getByRole("checkbox", { name: "Secondo + contorno" }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      meals: ["cena"],
+      compositions: {
+        ...DEFAULT_MEAL_COMPOSITIONS,
+        cena: ["piatto-unico", "primo", "primo-contorno", "secondo"],
+      },
+    });
+
+    rerender(
+      <MealsField
+        value={{
+          meals: ["cena"],
+          compositions: { ...DEFAULT_MEAL_COMPOSITIONS, cena: ["secondo"] },
+        }}
+        onChange={onChange}
+      />
+    );
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Cena" })).getByRole("checkbox", {
+        name: "Piatto unico",
+      })
+    );
+    expect(onChange).toHaveBeenLastCalledWith({
+      meals: ["cena"],
+      compositions: { ...DEFAULT_MEAL_COMPOSITIONS, cena: ["piatto-unico", "secondo"] },
+    });
+  });
+
+  it("shows a warning in the group of a selected meal left without compositions", () => {
+    render(
+      <MealsField
+        value={{
+          meals: ["pranzo", "cena"],
+          compositions: { ...DEFAULT_MEAL_COMPOSITIONS, cena: [] },
+        }}
+        onChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Scegli almeno una composizione.")).toBeInTheDocument();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  it("resets the compositions of a meal to all five when it is deselected while empty", () => {
+    const onChange = vi.fn();
+    render(
+      <MealsField
+        value={{
+          meals: ["pranzo", "cena"],
+          compositions: { ...DEFAULT_MEAL_COMPOSITIONS, cena: [] },
+        }}
+        onChange={onChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Cena" }));
+    expect(onChange).toHaveBeenCalledWith({
+      meals: ["pranzo"],
+      compositions: DEFAULT_MEAL_COMPOSITIONS,
+    });
+  });
+
+  it("keeps the compositions of a meal deselected while it still has some", () => {
+    const onChange = vi.fn();
+    const compositions = { ...DEFAULT_MEAL_COMPOSITIONS, cena: ["primo" as const] };
+    render(
+      <MealsField
+        value={{ meals: ["pranzo", "cena"], compositions }}
+        onChange={onChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Cena" }));
+    expect(onChange).toHaveBeenCalledWith({ meals: ["pranzo"], compositions });
   });
 });
 
@@ -203,6 +387,32 @@ describe("SettingsField", () => {
     expect(onChange).toHaveBeenCalledWith({
       ...BASE_SETTINGS,
       diet_tags: ["vegano"],
+    });
+  });
+
+  it("updates meals and meal_compositions together when fieldKey='meals'", () => {
+    const onChange = vi.fn();
+    render(
+      <SettingsField
+        fieldKey="meals"
+        settings={{ ...BASE_SETTINGS, meals: ["cena"] }}
+        onChange={onChange}
+      />
+    );
+
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Cena" })).getByRole("checkbox", {
+        name: "Primo",
+      })
+    );
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...BASE_SETTINGS,
+      meals: ["cena"],
+      meal_compositions: {
+        ...DEFAULT_MEAL_COMPOSITIONS,
+        cena: ["piatto-unico", "primo-contorno", "secondo", "secondo-contorno"],
+      },
     });
   });
 
