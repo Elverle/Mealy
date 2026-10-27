@@ -191,8 +191,8 @@ Non provati nemmeno in locale: l'esclusione delle immagini senza tag nella puliz
 - **Sul Raspberry resta solo l'immagine in uso**: tornare indietro richiede la rete e un token GHCR valido. Il token ha una scadenza scelta dall'utente.
 - **Le immagini su GHCR si accumulano**: una per ogni push su `main`, cancellazione a mano (requirements P26).
 - **`DATABASE_URL` assente**: app e bootstrap ripiegano sull'URL di sviluppo (`localhost`) invece di fermarsi con un messaggio. Il compose di produzione la imposta sempre.
-- **`next lint` non guarda la radice, `tests/` e `scripts/`**: `instrumentation.ts` non passa dal lint, solo dal typecheck. Rinviato agli aggiornamenti di dipendenze (review architetturale, P5).
-- **Aggiornamenti di dipendenze e Dependabot**: fuori da questa feature per decisione dell'utente (requirements P25).
+- **`next lint` non guarda la radice, `tests/` e `scripts/`**: `instrumentation.ts` non passa dal lint, solo dal typecheck. Rinviato agli aggiornamenti di dipendenze (review architetturale, P5). *Nota (2026-10-27): risolto, `pnpm lint` è ora `eslint .` con `eslint.config.mjs` e copre tutto il repository.*
+- **Aggiornamenti di dipendenze e Dependabot**: fuori da questa feature per decisione dell'utente (requirements P25). *Nota (2026-10-27): avvisi chiusi tranne zod 4 (PR #23); `.github/dependabot.yml` controlla Node nel `Dockerfile` e le GitHub Actions ([[production-stack]], [[ci-workflows]]).*
 - **Tempi sul Raspberry non misurati**: la durata del primo piano con libreria vuota, le letture complete di libreria e lista annotate in [[e2-libreria-preferenze]] ed [[e4-lista-spesa]]. *Nota (Feature 10): con il pacchetto il primo piano di solito non chiama il modello; restano da misurare il caricamento del pacchetto al primo avvio (la spec chiede meno di 10 s sul Pi 4) e le letture complete su una libreria di oltre 200 ricette ([[recipe-repo]]).*
 
 ## Strategia di Test

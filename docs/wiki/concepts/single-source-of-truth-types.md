@@ -35,14 +35,14 @@ Per garantire la massima prevedibilità nelle logiche di planning e consolidamen
 
 ## Confini controllati dal lint (Feature 10)
 
-Fino alla Feature 9 le regole di confine di `CLAUDE.md` valevano solo per attenzione di chi scrive e di chi rivede. Dalla Feature 10 due di esse sono regole di ESLint, in `.eslintrc.json` (`overrides` con `no-restricted-imports`; review architetturale R5 della Feature 10):
+Fino alla Feature 9 le regole di confine di `CLAUDE.md` valevano solo per attenzione di chi scrive e di chi rivede. Dalla Feature 10 due di esse sono regole di ESLint, in `eslint.config.mjs` (blocchi `files` con `no-restricted-imports`, fino al 2026-10-27 `overrides` di `.eslintrc.json`; review architetturale R5 della Feature 10):
 
 | File | Import vietati | Messaggio |
 |---|---|---|
 | `lib/domain/**/*.ts` | `@/lib/db`, `@/lib/db/*`, `@/lib/llm`, `@/lib/llm/*` | `Il dominio non importa DB né LLM.` |
 | `lib/recipes/pack/**/*.ts` tranne `load.ts` | `@/lib/db`, `@/lib/db/*` | `Gli strumenti del pacchetto non aprono il DB (Feature 10, req. P7).` |
 
-La prima era già rispettata e non ha richiesto modifiche. La seconda impedisce che uno strumento di `pnpm recipes:pack`, importando anche solo un tipo da `@/lib/db`, apra il pool e lasci il comando appeso ([[recipe-pack-tools]]). Restano scritte ma non controllate le altre regole, per esempio "solo `lib/recipes` chiama `lib/llm/`". Il lint di `next lint` non guarda `tests/` e `scripts/` ([[e6-deploy]]).
+La prima era già rispettata e non ha richiesto modifiche. La seconda impedisce che uno strumento di `pnpm recipes:pack`, importando anche solo un tipo da `@/lib/db`, apra il pool e lasci il comando appeso ([[recipe-pack-tools]]). Restano scritte ma non controllate le altre regole, per esempio "solo `lib/recipes` chiama `lib/llm/`". Dal 2026-10-27 il lint (`eslint .`) guarda anche `tests/`, `scripts/` e la radice; prima `next lint` li saltava ([[e6-deploy]]).
 
 ## Il Singleton Household
 
