@@ -14,7 +14,7 @@ import {
   insertSlots,
   listPlanWeeks,
   markShoppingListStale,
-  setSlotLocked,
+  setMealLocked,
   touchPlanGeneratedAt,
   updateSlotRecipe,
   updateSlotsServings,
@@ -26,9 +26,16 @@ import { compareLibraryCards, toLibraryCard } from '@/lib/domain/library';
 import { isPlanClosed } from '@/lib/domain/plan-status';
 import { APP_TIME_ZONE, PLANNER_CONFIG, type PlannerConfig } from '@/lib/domain/planner-config';
 import {
-  computeGenerationCount,
+  compositionDishes,
+  distributeCompositions,
+  filterCourses,
+  mainCourseForChoice,
+  mealCompositionOf,
+} from '@/lib/domain/compositions';
+import {
   exclusionReason,
   manualChoiceExclusionReason,
+  planGeneration,
   selectRecipes,
   splitGenerationBatches,
   type IngredientPreferenceSets,
@@ -40,8 +47,11 @@ import { createRng, randomSeed, type Rng } from '@/lib/domain/rng';
 import {
   IsoDateSchema,
   MEAL_TYPE_VALUES,
+  type Course,
+  type CourseFilter,
   type GeneratePlanResult,
   type Household,
+  type MealComposition,
   type MealType,
   type PlanAction,
   type PlanMutationResult,
@@ -56,7 +66,6 @@ import {
 } from '@/lib/domain/types';
 import { addDays, isoWeekday, listDays, mondayOf, resolveTargetWeek, todayInTimeZone } from '@/lib/domain/week';
 import { isLlmError, type LlmError } from '@/lib/llm/errors';
-import { mainCourseOf } from '@/lib/domain/compositions';
 import { loadIngredientPreferences } from '@/lib/prefs/ingredient-prefs';
 import {
   generateAndStoreRecipes,
@@ -66,6 +75,7 @@ import {
 import { PlanError } from './errors';
 
 const DAYS_PER_WEEK = 7;
+const COMPOSITION_SEED_RANGE = 0x1_0000_0000;
 
 export type GenerateRecipesFn = (input: GenerateAndStoreInput) => Promise<GenerateAndStoreResult>;
 
@@ -86,7 +96,19 @@ export interface PlanServiceOptions {
 // Helper puri
 // ============================================================================
 
-const slotKey = (day: string, meal: MealType): string => `${day}|${meal}`;
+/** Chiave del pasto: `${day}|${meal}`. */
+const mealKey = (day: string, meal: MealType): string => `${day}|${meal}`;
+
+/** Chiave dello slot (un piatto del pasto): `${day}|${meal}|${course}`. */
+const slotKey = (day: string, meal: MealType, course: Course): string =>
+  `${day}|${meal}|${course}`;
+
+const sameMeal = (a: { day: string; meal: MealType }, b: { day: string; meal: MealType }): boolean =>
+  a.day === b.day && a.meal === b.meal;
+
+/** Filtro di portata per la scelta a mano: un contorno per il contorno, una principale altrimenti. */
+const courseFilterOf = (slot: PlanSlotRecord): CourseFilter =>
+  slot.course === 'contorno' ? 'contorno' : 'any-main';
 
 export { isPlanClosed };
 
@@ -272,8 +294,10 @@ async function loadConstraints(
 }
 
 interface BuildTargetPlanOptions {
-  /** Chiave slot `${day}|${meal}` -> id ricetta da assegnare in anticipo (validata qui). */
+  /** Chiave slot `${day}|${meal}|${course}` -> id ricetta da assegnare in anticipo (validata qui). */
   preassigned?: ReadonlyMap<string, string>;
+  /** Chiave pasto `${day}|${meal}` -> composizione imposta (Ripeti). */
+  presetCompositions?: ReadonlyMap<string, MealComposition>;
   /**
    * `needMore`: genera finché il planner segnala carenza (generatePlan).
    * `unfilledOnly`: genera solo finché resta uno slot senza ricetta (repeatPlan).
@@ -283,40 +307,83 @@ interface BuildTargetPlanOptions {
   maxRounds: number;
 }
 
+/** Pasto da riempire: giorno e tipo. */
+interface MealSlot {
+  day: string;
+  meal: MealType;
+}
+
+/** Piatto da riempire: uno slot del planner con la portata concreta. */
+type DishSlot = PlannerSlot & { course: Course };
+
 /** Esito di una selezione sullo stato (piano corrente + libreria) letto in un dato istante. */
 interface Selection {
-  /** Slot mantenuti: giorni passati e bloccati. */
+  /** Slot mantenuti: pasti con un piatto passato o bloccato (tutti i piatti del pasto). */
   kept: PlanSlotRecord[];
-  /** Slot da riempire, con la ricetta scelta (pre-assegnata o dal planner), `null` se manca. */
-  fills: { slot: PlannerSlot; recipeId: string | null }[];
-  /** Risultato del planner sugli slot non pre-assegnati. */
+  /** Piatti da riempire, con la ricetta scelta (pre-assegnata o dal planner), `null` se manca. */
+  fills: { slot: DishSlot; recipeId: string | null }[];
+  /** Risultato del planner sui piatti non pre-assegnati. */
   planner: PlannerResult;
 }
 
-// 'any-main' fino alla composizione dei pasti (WP7).
-function desiredSlots(ctx: PlanContext): PlannerSlot[] {
-  const meals = MEAL_TYPE_VALUES.filter((meal) => ctx.household.meals.includes(meal));
-  return listDays(ctx.target.first_day, ctx.target.last_day).flatMap((day) =>
-    meals.map((meal) => ({ key: slotKey(day, meal), day, meal, course: 'any-main' }))
-  );
+/**
+ * Composizione di ogni pasto da riempire. Per ogni tipo di pasto: i pasti con una composizione
+ * imposta (Ripeti) la tengono; gli altri ricevono le composizioni ammesse, bilanciate, in
+ * ordine di giorno. Il seme fissa le estrazioni: a parità di input il risultato è lo stesso.
+ */
+function assignCompositions(
+  ctx: PlanContext,
+  meals: readonly MealSlot[],
+  preset: ReadonlyMap<string, MealComposition> | undefined,
+  compositionSeed: number
+): Map<string, MealComposition> {
+  const rng = createRng(compositionSeed);
+  const assigned = new Map<string, MealComposition>();
+  for (const meal of MEAL_TYPE_VALUES) {
+    const free: MealSlot[] = [];
+    for (const slot of meals.filter((candidate) => candidate.meal === meal)) {
+      const imposed = preset?.get(mealKey(slot.day, slot.meal));
+      if (imposed === undefined) free.push(slot);
+      else assigned.set(mealKey(slot.day, slot.meal), imposed);
+    }
+    if (free.length === 0) continue;
+    const drawn = distributeCompositions(ctx.household.meal_compositions[meal], free.length, rng);
+    free.forEach((slot, index) => assigned.set(mealKey(slot.day, slot.meal), drawn[index]!));
+  }
+  return assigned;
 }
 
 /**
- * Calcola kept/toFill/exclude dal piano `existing`, valida le pre-assegnazioni sulla
- * `library` e riempie il resto con il planner. Pura rispetto al DB: la chiamano sia la
+ * Calcola kept, piatti da riempire e ricette dal piano `existing`, valida le pre-assegnazioni
+ * sulla `library` e riempie il resto con il planner. Pura rispetto al DB: la chiamano sia la
  * fase che decide se generare sia la transazione che scrive.
  */
 function computeSelection(
   ctx: PlanContext,
   existing: PlanWithSlots | null,
   library: readonly RecipeWithDetails[],
-  preassigned: ReadonlyMap<string, string> | undefined
+  build: BuildTargetPlanOptions,
+  compositionSeed: number
 ): Selection {
-  const kept = (existing?.slots ?? []).filter(
-    (slot) => slot.day < ctx.target.first_day || slot.locked
+  // Un pasto si tiene per intero se ha un piatto passato o bloccato (requirements P6).
+  const keptMealKeys = new Set(
+    (existing?.slots ?? [])
+      .filter((slot) => slot.day < ctx.target.first_day || slot.locked)
+      .map((slot) => mealKey(slot.day, slot.meal))
   );
-  const keptKeys = new Set(kept.map((slot) => slotKey(slot.day, slot.meal)));
-  const toFill = desiredSlots(ctx).filter((slot) => !keptKeys.has(slot.key));
+  const kept = (existing?.slots ?? []).filter((slot) => keptMealKeys.has(mealKey(slot.day, slot.meal)));
+
+  const meals = MEAL_TYPE_VALUES.filter((meal) => ctx.household.meals.includes(meal));
+  const mealsToFill: MealSlot[] = listDays(ctx.target.first_day, ctx.target.last_day).flatMap((day) =>
+    meals.filter((meal) => !keptMealKeys.has(mealKey(day, meal))).map((meal) => ({ day, meal }))
+  );
+
+  const compositions = assignCompositions(ctx, mealsToFill, build.presetCompositions, compositionSeed);
+  const dishes: DishSlot[] = mealsToFill.flatMap(({ day, meal }) => {
+    const { main, side } = compositionDishes(compositions.get(mealKey(day, meal))!);
+    const courses: Course[] = side ? [main, 'contorno'] : [main];
+    return courses.map((course) => ({ key: slotKey(day, meal, course), day, meal, course }));
+  });
 
   const usedRecipeIds = new Set(
     kept.map((slot) => slot.recipe_id).filter((id): id is string => id !== null)
@@ -324,11 +391,11 @@ function computeSelection(
   const libraryById = new Map(library.map((recipe) => [recipe.id, recipe]));
 
   const fixed = new Map<string, string>();
-  for (const slot of toFill) {
-    const recipeId = preassigned?.get(slot.key);
+  for (const slot of dishes) {
+    const recipeId = build.preassigned?.get(slot.key);
     const recipe = recipeId === undefined ? undefined : libraryById.get(recipeId);
     if (recipeId === undefined || recipe === undefined) continue;
-    const reason = exclusionReason(recipe, slot.meal, 'any-main', {
+    const reason = exclusionReason(recipe, slot.meal, slot.course, {
       household: ctx.household,
       ingredientPrefs: ctx.prefs,
       excludeRecipeIds: usedRecipeIds,
@@ -339,7 +406,7 @@ function computeSelection(
   }
 
   const planner = selectRecipes({
-    slots: toFill.filter((slot) => !fixed.has(slot.key)),
+    slots: dishes.filter((slot) => !fixed.has(slot.key)),
     candidates: library,
     household: ctx.household,
     ingredientPrefs: ctx.prefs,
@@ -352,7 +419,7 @@ function computeSelection(
 
   return {
     kept,
-    fills: toFill.map((slot) => ({
+    fills: dishes.map((slot) => ({
       slot,
       recipeId: fixed.get(slot.key) ?? selected.get(slot.key) ?? null,
     })),
@@ -392,6 +459,9 @@ async function buildTargetPlan(
 
   assertTargetPlanWritable(await findPlanByWeek(db, household.id, target.week_start));
 
+  // Un solo seme per tutta la costruzione: le composizioni restano le stesse tra un giro e l'altro.
+  const compositionSeed = Math.floor(ctx.rng() * COMPOSITION_SEED_RANGE);
+
   const loadLibrary = (executor: DbExecutor) =>
     listRecipesWith(executor, { household_id: household.id });
   const select = async (): Promise<Selection> =>
@@ -399,7 +469,8 @@ async function buildTargetPlan(
       ctx,
       await findPlanByWeek(db, household.id, target.week_start),
       await loadLibrary(db),
-      build.preassigned
+      build,
+      compositionSeed
     );
 
   let selection = await select();
@@ -410,16 +481,20 @@ async function buildTargetPlan(
 
   while (needsGeneration(selection, build.generation) && rounds < build.maxRounds && !stop) {
     rounds++;
-    // Tutti i lotti (<= generationBatchSize ricette) di tutti i tipi di pasto in parallelo.
-    const batches = shortagesToGenerate(selection, build.generation).flatMap((shortage) =>
-      splitGenerationBatches(computeGenerationCount(shortage, config), config).map((count) => ({
-        mealType: shortage.meal_type,
-        count,
-      }))
+    // Richieste per gruppo (pasto, portata), al più `generationMax` per tipo di pasto; poi lotti
+    // (<= generationBatchSize ricette) di tutte le richieste in parallelo.
+    const batches = planGeneration(shortagesToGenerate(selection, build.generation), config).flatMap(
+      (request) =>
+        splitGenerationBatches(request.count, config).map((count) => ({ request, count }))
     );
     const outcomes = await Promise.allSettled(
-      batches.map((batch) =>
-        ctx.generate({ householdId: household.id, count: batch.count, mealType: batch.mealType })
+      batches.map(({ request, count }) =>
+        ctx.generate({
+          householdId: household.id,
+          count,
+          mealType: request.meal_type,
+          courses: filterCourses(request.course),
+        })
       )
     );
 
@@ -454,9 +529,8 @@ async function buildTargetPlan(
     const persons = constraints.household.persons;
 
     const library = await loadLibrary(tx);
-    const finalSelection = computeSelection(finalCtx, current, library, build.preassigned);
+    const finalSelection = computeSelection(finalCtx, current, library, build, compositionSeed);
     if (hasGap(finalSelection)) throw llmError ?? new PlanError('insufficient_recipes');
-    const libraryById = new Map(library.map((recipe) => [recipe.id, recipe]));
 
     let planId: string;
     if (current === null) {
@@ -480,16 +554,13 @@ async function buildTargetPlan(
       );
     }
 
-    // Fino alla composizione dei pasti: un piatto per pasto, con la portata della ricetta.
     await insertSlots(
       tx,
       planId,
       finalSelection.fills.map(({ slot, recipeId }) => ({
         day: slot.day,
         meal: slot.meal,
-        course: mainCourseOf(
-          recipeId === null ? [] : (libraryById.get(recipeId)?.courses ?? [])
-        ),
+        course: slot.course,
         recipe_id: recipeId,
         servings: persons,
         locked: false,
@@ -563,7 +634,10 @@ export async function confirmPlan(
   return { plan: toPlanView(confirmed, household) };
 }
 
-/** Blocca/sblocca uno slot (piani `draft` e `active` non chiusi). */
+/**
+ * Blocca/sblocca il pasto dello slot indicato: tutti i suoi piatti (piani `draft` e `active`
+ * non chiusi). Il blocco vale per il pasto intero, principale e contorno.
+ */
 export async function setSlotLock(
   planId: string,
   slotId: string,
@@ -577,8 +651,9 @@ export async function setSlotLock(
   const updated = await db.transaction(async (tx) => {
     await acquirePlanLock(tx, household.id);
     const plan = await loadOpenOwnedPlan(tx, planId, household, currentWeekStart);
-    if (!plan.slots.some((slot) => slot.id === slotId)) throw new PlanError('slot_not_found');
-    await setSlotLocked(tx, slotId, locked);
+    const slot = plan.slots.find((candidate) => candidate.id === slotId);
+    if (!slot) throw new PlanError('slot_not_found');
+    await setMealLocked(tx, planId, slot.day, slot.meal, locked);
     const fresh = await getPlanById(tx, planId);
     if (!fresh) throw new PlanError('plan_not_found');
     return fresh;
@@ -587,32 +662,44 @@ export async function setSlotLock(
 }
 
 // ============================================================================
-// Swap di uno slot
+// Swap di uno slot, contorni
 // ============================================================================
 
 /**
- * Slot sostituibile del piano, oppure l'errore di dominio corrispondente. I giorni passati
- * sono immutabili come nella rigenerazione (bloccarli resta consentito).
+ * Slot sostituibile del piano, oppure l'errore di dominio corrispondente. Un pasto con un piatto
+ * bloccato è bloccato per intero. I giorni passati sono immutabili come nella rigenerazione.
  */
 function findSwappableSlot(plan: PlanWithSlots, slotId: string, today: string): PlanSlotRecord {
   const slot = plan.slots.find((candidate) => candidate.id === slotId);
   if (!slot) throw new PlanError('slot_not_found');
-  if (slot.locked) throw new PlanError('slot_locked');
+  if (plan.slots.some((candidate) => sameMeal(candidate, slot) && candidate.locked)) {
+    throw new PlanError('slot_locked');
+  }
   if (slot.day < today) throw new PlanError('slot_past');
   return slot;
 }
 
+/** Ciò che cambia tra lo swap e le aggiunte di un contorno: controlli, portata e scrittura. */
+interface DishFill {
+  /** Controlli in più sullo slot di partenza, ripetuti sotto lock. Lanciano PlanError. */
+  check: (plan: PlanWithSlots, slot: PlanSlotRecord) => void;
+  /** Portata del piatto da riempire. */
+  course: (slot: PlanSlotRecord) => Course;
+  /** Scrive la ricetta scelta, dentro la transazione. */
+  write: (tx: DbExecutor, slot: PlanSlotRecord, recipeId: string) => Promise<void>;
+}
+
 /**
- * Sostituisce la ricetta di uno slot senza riproporre ricette del piano o già scartate.
- * L'LLM interviene (fuori da transazioni) solo se la libreria non offre alternative; la
- * scelta definitiva si rifà dentro il lock sullo stato riletto, così due swap concorrenti
- * non assegnano la stessa ricetta a due slot.
+ * Riempie un piatto (swap o nuovo contorno): ricetta scelta fuori dal lock, poi rifatta sotto
+ * lock sullo stato riletto, così due richieste concorrenti non assegnano la stessa ricetta.
+ * L'LLM interviene (fuori da transazioni) solo se la libreria non offre alternative.
  */
-export async function swapSlot(
+async function fillDish(
   planId: string,
   slotId: string,
   request: SwapSlotRequest,
-  options: PlanServiceOptions = {}
+  options: PlanServiceOptions,
+  fill: DishFill
 ): Promise<PlanMutationResult> {
   const household = await loadHousehold(options.householdId);
   const { now, today, currentWeekStart } = resolveClock(options);
@@ -632,7 +719,7 @@ export async function swapSlot(
       if (planSlot.recipe_id !== null) exclude.add(planSlot.recipe_id);
     }
     const { assignments } = selectRecipes({
-      slots: [{ key: slot.id, day: slot.day, meal: slot.meal, course: 'any-main' }],
+      slots: [{ key: slot.id, day: slot.day, meal: slot.meal, course: fill.course(slot) }],
       candidates: library,
       household,
       ingredientPrefs: prefs,
@@ -649,6 +736,7 @@ export async function swapSlot(
   // Fase 1 (fuori dalla transazione): decide solo se generare.
   const plan = await loadOpenOwnedPlan(db, planId, household, currentWeekStart);
   const slot = findSwappableSlot(plan, slotId, today);
+  fill.check(plan, slot);
 
   let rounds = 0;
   let created = 0;
@@ -663,6 +751,7 @@ export async function swapSlot(
           householdId: household.id,
           count: config.generationMin,
           mealType: slot.meal,
+          courses: filterCourses(fill.course(slot)),
         });
         created = result.created.length;
       } catch (err) {
@@ -673,6 +762,7 @@ export async function swapSlot(
     // Uscita rapida: niente da scrivere se non c'è alternativa nemmeno dopo la generazione.
     const refreshed = await loadOpenOwnedPlan(db, planId, household, currentWeekStart);
     const refreshedSlot = findSwappableSlot(refreshed, slotId, today);
+    fill.check(refreshed, refreshedSlot);
     const constraints = await loadConstraints(household.id, db);
     if (pickRecipe(refreshed, refreshedSlot, await loadLibrary(db), constraints) === null) {
       throw llmError ?? new PlanError('no_alternatives');
@@ -684,12 +774,13 @@ export async function swapSlot(
     await acquirePlanLock(tx, household.id);
     const current = await loadOpenOwnedPlan(tx, planId, household, currentWeekStart);
     const currentSlot = findSwappableSlot(current, slotId, today);
+    fill.check(current, currentSlot);
 
     const constraints = await loadConstraints(household.id, tx);
     const recipeId = pickRecipe(current, currentSlot, await loadLibrary(tx), constraints);
     if (recipeId === null) throw llmError ?? new PlanError('no_alternatives');
 
-    await updateSlotRecipe(tx, slotId, recipeId);
+    await fill.write(tx, currentSlot, recipeId);
     if (current.status === 'active') {
       await incrementRecipeUsage(tx, [{ recipeId, day: currentSlot.day }]);
     }
@@ -706,6 +797,84 @@ export async function swapSlot(
   };
 }
 
+/**
+ * Sostituisce la ricetta di uno slot senza riproporre ricette del piano o già scartate. Il
+ * piatto resta della sua portata: un principale cambia con un principale, un contorno con un contorno.
+ */
+export async function swapSlot(
+  planId: string,
+  slotId: string,
+  request: SwapSlotRequest,
+  options: PlanServiceOptions = {}
+): Promise<PlanMutationResult> {
+  return fillDish(planId, slotId, request, options, {
+    check: () => undefined,
+    course: (slot) => slot.course,
+    write: (tx, slot, recipeId) => updateSlotRecipe(tx, slot.id, recipeId),
+  });
+}
+
+function assertCanAddSide(plan: PlanWithSlots, slot: PlanSlotRecord): void {
+  if (slot.course !== 'primo' && slot.course !== 'secondo') throw new PlanError('side_not_allowed');
+  if (plan.slots.some((candidate) => sameMeal(candidate, slot) && candidate.course === 'contorno')) {
+    throw new PlanError('side_exists');
+  }
+}
+
+/**
+ * Aggiunge un contorno al pasto dello slot principale indicato. Stesse regole dello swap.
+ */
+export async function addSideDish(
+  planId: string,
+  mainSlotId: string,
+  request: SwapSlotRequest,
+  options: PlanServiceOptions = {}
+): Promise<PlanMutationResult> {
+  return fillDish(planId, mainSlotId, request, options, {
+    check: assertCanAddSide,
+    course: () => 'contorno',
+    write: (tx, slot, recipeId) =>
+      insertSlots(tx, planId, [
+        {
+          day: slot.day,
+          meal: slot.meal,
+          course: 'contorno',
+          recipe_id: recipeId,
+          servings: slot.servings,
+          locked: false,
+        },
+      ]),
+  });
+}
+
+/** Toglie il contorno del pasto. Una sola transazione; la lista della spesa va rifatta. */
+export async function removeSideDish(
+  planId: string,
+  sideSlotId: string,
+  options: PlanServiceOptions = {}
+): Promise<PlanResult> {
+  const household = await loadHousehold(options.householdId);
+  const { today, currentWeekStart } = resolveClock(options);
+
+  const { updated, freshHousehold } = await db.transaction(async (tx) => {
+    await acquirePlanLock(tx, household.id);
+    const plan = await loadOpenOwnedPlan(tx, planId, household, currentWeekStart);
+    const slot = findSwappableSlot(plan, sideSlotId, today);
+    if (slot.course !== 'contorno') throw new PlanError('not_a_side_dish');
+
+    await deleteSlots(tx, [slot.id]);
+    await markShoppingListStale(tx, planId);
+
+    const fresh = await getPlanById(tx, planId);
+    if (!fresh) throw new PlanError('plan_not_found');
+    const current = await getHouseholdById(household.id, tx);
+    if (!current) throw new Error(`Household ${household.id} non trovato`);
+    return { updated: fresh, freshHousehold: current };
+  });
+
+  return { plan: toPlanView(updated, freshHousehold) };
+}
+
 // ============================================================================
 // Scelta a mano di una ricetta
 // ============================================================================
@@ -714,6 +883,7 @@ export async function swapSlot(
  * Ricette della libreria che si possono mettere a mano nello slot: non bloccate, del tipo
  * di pasto dello slot, che rispettano diete ed elettrodomestici. Gli ingredienti «non mi
  * piace» non le escludono. Manca quella già nello slot; l'ordine è quello della Libreria.
+ * Il filtro segue il piatto: un contorno per il contorno, una qualsiasi principale per il principale.
  */
 export async function listSlotCandidates(
   planId: string,
@@ -731,7 +901,7 @@ export async function listSlotCandidates(
     .filter(
       (recipe) =>
         recipe.id !== slot.recipe_id &&
-        manualChoiceExclusionReason(recipe, slot.meal, 'any-main', household) === null
+        manualChoiceExclusionReason(recipe, slot.meal, courseFilterOf(slot), household) === null
     )
     .map(toLibraryCard)
     .sort(compareLibraryCards);
@@ -746,7 +916,9 @@ export async function listSlotCandidates(
 /**
  * Mette nello slot la ricetta scelta dall'utente. Stessi effetti di uno swap (uso della
  * ricetta se il piano è confermato, lista della spesa da aggiornare), ma nessun sorteggio
- * e nessuna chiamata LLM. Tutto si rilegge sotto il lock dei piani dell'household.
+ * e nessuna chiamata LLM. Un principale segue la portata della ricetta: con un contorno, un
+ * primo o un secondo tiene il contorno; un piatto unico lo toglie. Tutto si rilegge sotto il
+ * lock dei piani dell'household.
  */
 export async function assignSlotRecipe(
   planId: string,
@@ -768,14 +940,25 @@ export async function assignSlotRecipe(
     const library = await listRecipesWith(tx, { household_id: household.id });
     const recipe = library.find((candidate) => candidate.id === recipeId);
     if (!recipe) throw new PlanError('recipe_not_found');
-    if (manualChoiceExclusionReason(recipe, slot.meal, 'any-main', current) !== null) {
+    if (manualChoiceExclusionReason(recipe, slot.meal, courseFilterOf(slot), current) !== null) {
       throw new PlanError('recipe_not_eligible');
     }
 
-    // Richiesta ripetuta: la ricetta è già quella dello slot, niente da scrivere.
-    if (slot.recipe_id === recipeId) return { updated: plan, freshHousehold: current };
+    const side = plan.slots.find((candidate) => sameMeal(candidate, slot) && candidate.course === 'contorno');
+    const course: Course =
+      slot.course === 'contorno'
+        ? slot.course
+        : mainCourseForChoice(recipe.courses, slot.course, side !== undefined);
 
-    await updateSlotRecipe(tx, slotId, recipeId);
+    // Richiesta ripetuta: la ricetta (e la portata) sono già quelle dello slot, niente da scrivere.
+    if (slot.recipe_id === recipeId && course === slot.course) {
+      return { updated: plan, freshHousehold: current };
+    }
+
+    await updateSlotRecipe(tx, slotId, recipeId, course);
+    // Un piatto unico non ha contorno.
+    if (course === 'piatto-unico' && side) await deleteSlots(tx, [side.id]);
+
     if (plan.status === 'active') {
       await incrementRecipeUsage(tx, [{ recipeId, day: slot.day }]);
     }
@@ -794,9 +977,10 @@ export async function assignSlotRecipe(
 // ============================================================================
 
 /**
- * Copia un piano (anche di una settimana conclusa) sulla settimana obiettivo: per ogni
- * pasto la ricetta dello stesso giorno della settimana, se ancora ammessa. Il resto lo
- * riempie il planner; l'LLM interviene solo se resta uno slot vuoto.
+ * Copia un piano (anche di una settimana conclusa) sulla settimana obiettivo: per ogni pasto la
+ * composizione dello stesso giorno della settimana, e per ogni piatto la ricetta se ancora
+ * ammessa. Un piatto non più idoneo si riempie con il planner nella stessa portata; l'LLM
+ * interviene solo se resta uno slot vuoto.
  */
 export async function repeatPlan(
   sourcePlanId: string,
@@ -809,14 +993,25 @@ export async function repeatPlan(
   if (source.week_start === ctx.target.week_start) throw new PlanError('repeat_same_week');
 
   const preassigned = new Map<string, string>();
+  const sourceCourses = new Map<string, Course[]>();
   for (const slot of source.slots) {
-    if (slot.recipe_id === null) continue;
     const day = addDays(ctx.target.week_start, isoWeekday(slot.day) - 1);
-    preassigned.set(slotKey(day, slot.meal), slot.recipe_id);
+    const key = mealKey(day, slot.meal);
+    sourceCourses.set(key, [...(sourceCourses.get(key) ?? []), slot.course]);
+    if (slot.recipe_id !== null) {
+      preassigned.set(slotKey(day, slot.meal, slot.course), slot.recipe_id);
+    }
+  }
+  // La composizione si copia anche se non è più ammessa (D10); una sorgente non valida non ne impone una.
+  const presetCompositions = new Map<string, MealComposition>();
+  for (const [key, courses] of sourceCourses) {
+    const composition = mealCompositionOf(courses);
+    if (composition !== null) presetCompositions.set(key, composition);
   }
 
   const generation = await buildTargetPlan(ctx, {
     preassigned,
+    presetCompositions,
     generation: 'unfilledOnly',
     maxRounds: ctx.config.maxGenerationRoundsSwap,
   });

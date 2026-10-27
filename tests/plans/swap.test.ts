@@ -143,7 +143,12 @@ describe.skipIf(!dbUp)('swapSlot', { timeout: DB_TEST_TIMEOUT_MS }, () => {
     const result = await swapSlot(plan.id, plan.slots[2].id, NO_EXCLUSIONS, opts(householdId, WED, generate));
 
     expect(generate).toHaveBeenCalledTimes(1);
-    expect(generate).toHaveBeenCalledWith({ householdId, count: 3, mealType: 'cena' });
+    expect(generate).toHaveBeenCalledWith({
+      householdId,
+      count: 3,
+      mealType: 'cena',
+      courses: ['piatto-unico'],
+    });
     const createdIds = (await generate.mock.results[0].value).created.map((r: { id: string }) => r.id);
     const swapped = result.plan.slots.find((s) => s.id === plan.slots[2].id)!.recipe!.id;
     expect(createdIds).toContain(swapped);
@@ -186,7 +191,11 @@ describe.skipIf(!dbUp)('swapSlot', { timeout: DB_TEST_TIMEOUT_MS }, () => {
   });
 
   it('never swaps in a side-dish-only recipe, and takes a free main course instead', async () => {
-    const householdId = await createTestHousehold({ meals: ['cena'] });
+    // Piano di secondi: un contorno non entra mai in uno slot principale.
+    const householdId = await createTestHousehold({
+      meals: ['cena'],
+      meal_compositions: { pranzo: ['piatto-unico'], cena: ['secondo'] },
+    });
     createdHouseholdIds.push(householdId);
     await insertTestRecipes(householdId, 5, { meal_types: ['cena'], courses: ['secondo'] });
     const sideDish = await insertTestRecipe(householdId, { meal_types: ['cena'], courses: ['contorno'] });

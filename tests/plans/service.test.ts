@@ -15,7 +15,7 @@ import { getRecipeById } from '@/lib/db/repositories/recipe-repo';
 import { updateHousehold } from '@/lib/db/repositories/household-repo';
 import { PLANNER_CONFIG } from '@/lib/domain/planner-config';
 import { createRng } from '@/lib/domain/rng';
-import type { GeneratePlanResult, MealType } from '@/lib/domain/types';
+import type { GeneratePlanResult, MealCompositions, MealType } from '@/lib/domain/types';
 import { LlmError } from '@/lib/llm/errors';
 import {
   confirmPlan,
@@ -78,8 +78,16 @@ describe.skipIf(!dbUp)('plan service', () => {
     createdHouseholdIds = [];
   });
 
-  async function newHousehold(meals: MealType[] = BOTH_MEALS, persons?: number): Promise<string> {
-    const id = await createTestHousehold({ meals, ...(persons ? { persons } : {}) });
+  async function newHousehold(
+    meals: MealType[] = BOTH_MEALS,
+    persons?: number,
+    meal_compositions?: MealCompositions
+  ): Promise<string> {
+    const id = await createTestHousehold({
+      meals,
+      ...(persons ? { persons } : {}),
+      ...(meal_compositions ? { meal_compositions } : {}),
+    });
     createdHouseholdIds.push(id);
     return id;
   }
@@ -137,7 +145,10 @@ describe.skipIf(!dbUp)('plan service', () => {
   });
 
   it('reads a plan that already holds a side dish assigned before the rule, without errors', async () => {
-    const householdId = await newHousehold(['cena']);
+    const householdId = await newHousehold(['cena'], undefined, {
+      pranzo: ['piatto-unico'],
+      cena: ['secondo'],
+    });
     await insertTestRecipes(householdId, 5, { meal_types: ['cena'], courses: ['secondo'] });
     const sideDish = await insertTestRecipe(householdId, { meal_types: ['cena'], courses: ['contorno'] });
     const { screen } = await generatePlan(opts(householdId, WED, fakeGenerate(() => 0)));
