@@ -3,7 +3,7 @@
 # Node 24.22.1 (fix CVE-2026-111497); `ai` 7 richiede Node >= 22. Il tag è scritto per
 # esteso nei due FROM perché Dependabot non risolve gli ARG; il gate CI legge la
 # versione da qui, quindi va cambiata solo in questo file.
-FROM node:24.22.1-alpine AS base
+FROM node:24.22.2-alpine AS base
 RUN apk add --no-cache libc6-compat \
   && npm install -g pnpm@11.14.0
 WORKDIR /app
@@ -22,7 +22,7 @@ ENV NEXT_OUTPUT=standalone
 RUN pnpm build
 
 # --- Immagine finale: solo l'output standalone ---
-FROM node:24.22.1-alpine AS runner
+FROM node:24.22.2-alpine AS runner
 LABEL org.opencontainers.image.source="https://github.com/Elverle/Mealy"
 WORKDIR /app
 ENV NODE_ENV=production
