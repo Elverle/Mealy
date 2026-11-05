@@ -1,8 +1,8 @@
 # Mealy — Production readiness
 
-Cosa resta da verificare e da decidere prima di considerare chiusa la v1 e, più avanti, prima di rendere pubblico il repository. La decisione sulla visibilità è **rimandata**: prima si prova l'app sul Raspberry.
+Cosa resta da verificare prima di considerare chiusa la v1, e come il repository è stato reso pubblico.
 
-Stato al 5 novembre 2026: `main` al commit `fdb9b63`, versione 0.10.0, repository privato. I controlli della sezione 3.1 sono stati rifatti lo stesso giorno, sullo stesso commit, e le decisioni della sezione 3.2 sono prese.
+Stato al 5 novembre 2026: versione 0.10.0, **repository pubblico** dallo stesso giorno (merge della PR #29, `6b7508b`). I controlli della sezione 3.1 sono stati rifatti prima del cambio, le decisioni della sezione 3.2 sono prese e la checklist della sezione 3.4 è chiusa. Resta aperta solo la prova del riavvio del Raspberry (sezione 1).
 
 ## 1. Prove sul Raspberry
 
@@ -111,17 +111,19 @@ Prese il 5 novembre 2026.
 ### 3.3 Da sapere
 
 - **L'immagine su GHCR resta privata.** La visibilità del pacchetto è separata da quella del repository. Un pacchetto reso pubblico non può più tornare privato.
-- **Il deploy si semplifica.** Con il repository pubblico il Raspberry clona in HTTPS senza deploy key. Con il pacchetto pubblico non serve nemmeno il token GHCR.
+- **Il deploy si semplifica.** Con il repository pubblico il Raspberry clona in HTTPS senza deploy key (`DEPLOY.md §3.3`, con il passaggio per un Raspberry già preparato in SSH). Con il pacchetto pubblico non servirebbe nemmeno il token GHCR.
 - **Il repository dichiara che l'app non ha autenticazione** e che ascolta sulla porta 3000. Non cambia il rischio finché il Raspberry resta raggiungibile solo dalla rete di casa e da Tailscale (`DEPLOY.md §1`, nota su IPv6).
 - **Gli avvisi di Dependabot restano privati.** Diventano pubbliche solo le pull request che apre.
 - **I minuti di GitHub Actions diventano illimitati** sui runner standard.
 - **Protezione dei branch e secret scanning si attivano solo dopo il cambio.** Su un repository privato del piano gratuito GitHub li rifiuta ("Upgrade to GitHub Pro or make this repository public").
 
-### 3.4 Da fare al momento del cambio
+### 3.4 Il cambio
+
+Fatto il 5 novembre 2026, dopo il merge della PR #29.
 
 Prima:
 
-- [x] Ripetere i controlli della sezione 3.1 (5 novembre 2026, su `fdb9b63`): resta da ripeterli sui commit arrivati dopo
+- [x] Ripetere i controlli della sezione 3.1 (5 novembre 2026, su `fdb9b63`, poi sui 5 commit arrivati fino a `6b7508b`)
 - [x] Ricontrollare gli avvisi di Dependabot e `pnpm audit` (5 novembre 2026: solo `minimatch`, sezione 2)
 - [x] Aggiungere la licenza e aggiornare il README
 - [x] Aggiungere `CONTRIBUTING.md` (aperto ai contributi, in italiano)
@@ -129,8 +131,10 @@ Prima:
 
 Subito dopo:
 
-- [ ] Attivare la protezione del branch `main`: modifiche solo da pull request, con i due job del gate verdi
-- [ ] Attivare secret scanning e il blocco dei push che contengono segreti
-- [ ] Attivare *Private vulnerability reporting*: `CONTRIBUTING.md` chiede di segnalare i problemi di sicurezza da *Security → Report a vulnerability*
-- [ ] Controllare che le pull request dai fork richiedano l'approvazione prima di far partire i workflow
-- [ ] Aggiornare `DEPLOY.md`: §2 dice che il repository è privato, §3.3 e §3.4 descrivono deploy key e token GHCR
+- [x] Protezione del branch `main`: modifiche solo da pull request, con i due job del gate obbligatori (`lint, typecheck, test, build` e `docker image, production stack smoke`), senza review obbligatorie. Vale **anche per gli amministratori**; force push e cancellazione del branch sono bloccati
+- [x] Secret scanning e blocco dei push che contengono segreti. Al momento dell'attivazione nessun avviso
+- [x] *Private vulnerability reporting*, a cui rimanda `CONTRIBUTING.md`
+- [x] Approvazione dei workflow per **tutte** le pull request da fork (`all_external_contributors`; prima era solo per chi contribuiva la prima volta)
+- [x] `DEPLOY.md` e la wiki (`wiki/topics/e6-deploy.md`) aggiornati: clone in HTTPS, passaggio da SSH per il Raspberry già preparato, token GHCR ancora necessario
+
+Da fare sul Raspberry, quando capita: passare il remote a HTTPS e togliere la deploy key (`DEPLOY.md §3.3`). Finché la deploy key resta su GitHub, il clone in SSH continua a funzionare.

@@ -17,7 +17,7 @@ Guida operativa della v1. Mealy gira su un Raspberry Pi con Docker Compose ed è
 ## 2. Cosa serve
 
 - Raspberry Pi 4 (bastano 2 GB) con Raspberry Pi OS **a 64 bit** e accesso SSH
-- un account GitHub con accesso al repository `Elverle/Mealy` (privato)
+- un account GitHub che possa leggere le immagini `ghcr.io/elverle/mealy`: il repository è pubblico, il pacchetto delle immagini è privato
 - un account Tailscale e l'app Tailscale sul telefono
 - la chiave API del provider LLM scelto
 
@@ -49,31 +49,27 @@ Nella console di amministrazione di Tailscale: disattiva la scadenza della chiav
 
 ### 3.3 Accesso al repository
 
-Il repository è privato: il Raspberry lo legge con una deploy key in sola lettura. Se `git` manca (su Raspberry Pi OS Lite può non esserci): `sudo apt-get install -y git`.
+Il repository è pubblico: il Raspberry lo clona in HTTPS, senza chiavi. Se `git` manca (su Raspberry Pi OS Lite può non esserci): `sudo apt-get install -y git`.
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/mealy_deploy -N "" -C "mealy-raspberry"
-cat ~/.ssh/mealy_deploy.pub
-```
-
-Su GitHub: repository **Mealy → Settings → Deploy keys → Add deploy key**, incolla la chiave pubblica, lascia **senza** spunta "Allow write access".
-
-```bash
-cat >> ~/.ssh/config <<'EOF'
-Host github.com
-  IdentityFile ~/.ssh/mealy_deploy
-  IdentitiesOnly yes
-EOF
-
 sudo mkdir -p /opt/mealy
 sudo chown "$USER": /opt/mealy
-git clone git@github.com:Elverle/Mealy.git /opt/mealy
+git clone https://github.com/Elverle/Mealy.git /opt/mealy
 cd /opt/mealy
 ```
 
+**Raspberry preparato quando il repository era privato** (fino al 5 novembre 2026). Clona in SSH con una deploy key in sola lettura, e continua a funzionare. Per passare a HTTPS:
+
+```bash
+git -C /opt/mealy remote set-url origin https://github.com/Elverle/Mealy.git
+git -C /opt/mealy pull --ff-only   # deve riuscire senza chiedere credenziali
+```
+
+Dopo si possono togliere la deploy key da GitHub (**Mealy → Settings → Deploy keys**) e, sul Raspberry, la voce `Host github.com` con `IdentityFile ~/.ssh/mealy_deploy` da `~/.ssh/config`, insieme ai file `~/.ssh/mealy_deploy*`.
+
 ### 3.4 Accesso alle immagini
 
-Anche le immagini su GHCR sono private. Su GitHub: **Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token**, con il solo scope `read:packages`. Scegli tu la scadenza: quando il token scade, `deploy.sh` si ferma con `denied` e va rifatto questo passo.
+Le immagini su GHCR invece sono private: la visibilità del pacchetto è separata da quella del repository. Su GitHub: **Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token**, con il solo scope `read:packages`. Scegli tu la scadenza: quando il token scade, `deploy.sh` si ferma con `denied` e va rifatto questo passo.
 
 ```bash
 docker login ghcr.io -u Elverle
@@ -250,7 +246,7 @@ Tutti da `/opt/mealy`. `scripts/compose-prod.sh` è `docker compose` con il file
 | `Imposta POSTGRES_PASSWORD…` o `Imposta LLM_MODEL…` | Variabile obbligatoria vuota | Compila `.env.production` |
 | `immagine non trovata per il commit …` | Workflow **Image** non finito o fallito | Controlla la scheda Actions e riprova |
 | `denied` o `unauthorized` durante il pull | Token GHCR scaduto o mancante | §3.4 |
-| `git pull` fallisce con `Permission denied (publickey)` | Deploy key non configurata | §3.3 |
+| `git pull` fallisce con `Permission denied (publickey)` | Il clone usa ancora SSH e la deploy key manca o è stata tolta | Passa a HTTPS (§3.3) |
 | `git pull` dice che non sei su un branch | Sei rimasto su un commit dopo un ritorno indietro | `git checkout main` |
 | `backup non riuscito`, oppure `il database o il servizio di backup non partono` | La cartella dei backup non è scrivibile (disco staccato o pieno), oppure il database non parte | L'app non è stata toccata. Controlla `BACKUP_DIR` e `bash scripts/compose-prod.sh logs backup db`, poi rilancia lo script |
 | `lo stack non è diventato sano entro 180 secondi` | L'app non parte | Leggi i log stampati dallo script: `[bootstrap] avvio interrotto` indica un problema di database o di migrazioni. Una migrazione fallita non modifica il database: torna alla versione precedente (§6) senza ripristinare nulla. Fa eccezione un errore che cita `ingredient_aliases`: lì le migrazioni sono già applicate, e per tornare indietro serve anche il dump `predeploy` (§7) |
