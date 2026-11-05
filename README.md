@@ -1,133 +1,229 @@
-# Mealy — Cosa Mangio Oggi
+<h1 align="center">Mealy</h1>
 
-App web personale di meal planning: genera il piano settimanale con una selezione pesata dalla libreria di ricette, tiene conto delle preferenze esplicite e produce la lista della spesa consolidata. Le ricette generate dall'LLM non sono usa-e-getta: entrano nella libreria e vengono riusate nei piani successivi.
+<p align="center">
+  <em>Cosa mangio oggi?</em><br>
+  Il piano dei pasti della settimana e la lista della spesa, da una libreria di ricette<br>
+  che cresce con te. Sul tuo server di casa, con il provider LLM che scegli tu.
+</p>
 
-## Stato
+<p align="center">
+  <a href="LICENSE"><img alt="Licenza: MIT" src="https://img.shields.io/badge/licenza-MIT-blue.svg"></a>
+  <a href="https://github.com/Elverle/Mealy/actions/workflows/image.yml"><img alt="Stato del workflow Image" src="https://img.shields.io/github/actions/workflow/status/Elverle/Mealy/image.yml?branch=main&label=image"></a>
+  <a href="package.json"><img alt="Versione" src="https://img.shields.io/github/package-json/v/Elverle/Mealy?label=versione"></a>
+</p>
 
-Versione **0.10.1**. Feature completate:
+<p align="center">
+  <img src="docs/images/plan.png" width="250" alt="Il Piano: la settimana confermata, con una card per pasto, la portata del piatto, le etichette e le azioni Cambia, Scegli e la stella">
+  &nbsp;
+  <img src="docs/images/shopping-list.png" width="250" alt="La lista della spesa: il riquadro del progresso, il reparto Ortofrutta con tre articoli spuntati e, sotto ogni articolo, le ricette per cui serve">
+  &nbsp;
+  <img src="docs/images/library.png" width="250" alt="La Libreria: la ricerca per ricetta o ingrediente, i filtri Preferite, Pranzo e Cena e le card delle ricette con tempo, portata ed etichette">
+</p>
 
-- **E0 Fondamenta** — scaffold Next.js, schema DB, shell UI a 4 tab
-- **E1 Motore ricette** — adapter LLM multi-provider, generazione e persistenza delle ricette, fixtures e seed
-- **E5 Impostazioni** — wizard di primo avvio e vincoli del nucleo (`/impostazioni`, `GET/PUT /api/settings`)
-- **E3 Pianificatore** — piano settimanale dalla libreria con selezione pesata, swap, blocco, conferma, *Ripeti* e navigatore di settimane (`/`, `/api/plans`)
-- **E2 Libreria e preferenze** — libreria con ricerca e filtri, voto, ★ e *Non proporre più* sulle ricette, 👍/👎 sugli ingredienti e sezione *I miei ingredienti* (`/libreria`, `/api/recipes`, `/api/ingredient-prefs`)
-- **E4 Lista della spesa** — lista consolidata dal piano confermato e ordinata per reparto, spunte che reggono la rete assente, articoli aggiunti a mano e *Aggiorna lista* quando il piano cambia (`/lista`, `/api/plans/:id/shopping-list`, `/api/shopping-items`)
-- **E6 Deploy** — produzione su un server di casa con Docker Compose (un Raspberry Pi nel caso del maintainer), raggiungibile dalla rete di casa e via VPN: immagine costruita sul server o da GitHub Actions, migrazioni e alias applicati all'avvio dell'app, backup notturno e aggiornamento con un solo comando (`docs/DEPLOY.md`, `scripts/deploy.sh`, `GET /api/health`)
-- **Ricette su richiesta (Feature 9)** — dalla ricerca della Libreria si chiede una ricetta all'LLM, che entra in libreria solo con *Aggiungi alla libreria*; sulla card del Piano *Scegli* apre le ricette adatte a quel pasto, con *Metti nel piano* e la richiesta all'LLM se la ricetta non c'è (`POST /api/recipes/propose`, `POST /api/recipes`, `/api/plans/:id/slots/:slotId/candidates`, `/api/plans/:id/slots/:slotId/recipe`). Nessuna migrazione né variabile nuova
-- **Portate ed etichette (Feature 8)** — ogni ricetta ha una o più portate (piatto unico, primo, secondo, contorno), mostrate con un badge su card e dettaglio e filtrabili dal gruppo *Portata* della Libreria; le etichette di stile passano da 7 a 12; un contorno da solo non entra mai nel piano. Le ricette salvate prima le classifica l'LLM all'avvio dell'app in produzione (in sviluppo con `pnpm recipes:classify`). Una migrazione (`0005`), nessuna variabile nuova
-- **Pacchetto iniziale di ricette (Feature 10)** — la libreria parte da 200 ricette italiane riscritte da un dataset (49 primi, 51 secondi, 41 piatti unici, 60 contorni), con le diete ricavate per regola da una tabella degli ingredienti rivista a mano: il primo piano di solito esce senza chiamare l'LLM. L'app le carica all'avvio in produzione, saltando i titoli già in libreria o simili; il pacchetto si prepara una volta sola sul PC con `pnpm recipes:pack`. Nessuna migrazione né variabile nuova
-- **Composizione del pasto (Feature 11)** — un pasto è un piatto unico, un primo o un secondo, con o senza contorno: nell'onboarding e nelle Impostazioni, dentro *Pasti da pianificare*, si scelgono le composizioni ammesse per pranzo e per cena (di default tutte e cinque), e *Genera piano* le alterna in modo bilanciato. Sulla card del pasto si aggiunge, si cambia o si toglie il contorno, *Scegli* sul principale cambia anche la composizione e il lucchetto blocca il pasto intero; la lista della spesa comprende i contorni. L'etichetta di stile *Piatto unico* sparisce: resta come portata. Due migrazioni (`0006`, `0007`), due rotte nuove (`POST /api/plans/:id/slots/:slotId/side`, `DELETE /api/plans/:id/slots/:slotId`), nessuna variabile nuova
+## Cos'è
 
-Avanzamento completo in [`docs/planning/feature-index.md`](docs/planning/feature-index.md).
+**Mealy** è un'app web per chi ogni settimana si chiede cosa cucinare e poi cosa comprare. Compone il piano di pranzi e cene scegliendo dalla tua libreria di ricette, impara cosa ti piace dai voti che dai, e alla fine mette insieme la lista della spesa ordinata per reparto.
 
-## Stack
+Non inventa ogni settimana da capo: **le ricette sono la libreria**. Il piano è una selezione pesata tra le ricette che hai già, e un modello linguistico (LLM) interviene solo quando la libreria non basta o quando gli chiedi qualcosa di preciso. Ogni ricetta che genera resta in libreria per le settimane dopo. La libreria parte già con 200 ricette italiane, quindi di solito il primo piano esce senza nessuna chiamata al modello.
 
-Next.js (App Router, TypeScript) · Tailwind CSS + shadcn/ui · PostgreSQL 16 · Drizzle ORM + drizzle-kit · Zod · Vercel AI SDK (provider via env `LLM_PROVIDER` + `LLM_MODEL`) · Vitest · pnpm
+Gira su un computer di casa tuo. Non c'è un nostro server, un account o un abbonamento: solo l'app, il suo database e il provider LLM che configuri.
 
-## Requisiti
+## Funzionalità
 
-- Node.js 22 o superiore (lo richiede l'AI SDK; il gate e l'immagine di produzione usano la 24). Il progetto non fissa la versione: né `engines` in `package.json` né `.nvmrc`
-- pnpm
-- Docker (con Docker Compose) per il PostgreSQL di sviluppo
+- **Il piano della settimana in un tap.** Pranzo, cena o entrambi, con la composizione che preferisci: piatto unico, primo o secondo, con o senza contorno. *Genera piano* le alterna in modo bilanciato.
+- **Cambiare idea costa poco.** *Cambia* sostituisce un piatto con un altro adatto, *Scegli* apre le ricette della libreria giuste per quel pasto, il lucchetto tiene fermo un pasto quando rigeneri. *Ripeti* ricopia una settimana passata.
+- **Una libreria che cresce.** 200 ricette italiane di partenza (primi, secondi, piatti unici, contorni), ricerca per titolo o ingrediente e filtri. Se una ricetta non c'è, la chiedi all'LLM e la tieni solo se ti convince.
+- **Preferenze che contano.** Voto da 1 a 5, ★ per le preferite, *Non proporre più* per quelle da evitare, 👍/👎 sui singoli ingredienti. Il piano successivo ne tiene conto.
+- **La lista della spesa fatta da sola.** Gli ingredienti di tutta la settimana sommati, scalati sul numero di persone e ordinati come il giro al supermercato. Le spunte reggono anche quando la rete al supermercato non c'è.
+- **I tuoi vincoli.** Numero di persone, diete (vegetariana, vegana, pescetariana, senza glutine, senza lattosio), stile dei pasti, elettrodomestici che hai in cucina.
+- **Il provider lo scegli tu.** Google Gemini, OpenRouter, Anthropic o qualsiasi endpoint compatibile con OpenAI: si cambia con due variabili, senza toccare il codice.
 
-## Avvio in sviluppo
+## Installazione
+
+Mealy gira su **qualsiasi macchina Linux a 64 bit con Docker** che tieni accesa in casa: un mini PC, un vecchio portatile, un NAS, un Raspberry Pi 4 (bastano 2 GB). Lo stack è Docker Compose: l'app, PostgreSQL 16 e un backup notturno del database.
+
+> [!WARNING]
+> **L'app non ha autenticazione.** Chiunque la raggiunga può modificare i dati e generare ricette con la tua chiave, a tue spese. Tienila raggiungibile solo dalla rete di casa e, da fuori, attraverso una VPN (Tailscale, WireGuard) o dietro un reverse proxy con login. Non aprire la porta su Internet.
+
+### Cosa ti serve
+
+- Una macchina Linux a 64 bit (`x86_64` o `aarch64`) con Docker, Docker Compose v2 e `git`.
+- La chiave API di un provider LLM. Generare ricette costa quello che il provider fa pagare per i token; con la libreria di partenza le generazioni sono rare, e i piani di prova gratuiti di Gemini o OpenRouter bastano per cominciare.
+- Facoltativa, per usarla dal telefono fuori casa: una VPN.
+
+### Avvio
 
 ```bash
+git clone https://github.com/Elverle/Mealy.git && cd Mealy
+cp .env.production.example .env.production && chmod 600 .env.production
+nano .env.production       # POSTGRES_PASSWORD, LLM_PROVIDER, LLM_MODEL e la chiave del provider
+bash scripts/deploy.sh --build
+```
+
+Poi apri `http://<ip-del-server>:3000`, anche dal telefono. Al primo avvio l'app crea il database e carica da sola le ricette di partenza: sul server non si lancia nessun altro comando.
+
+Per aggiornare a una versione nuova basta rilanciare `bash scripts/deploy.sh --build`: lo script fa un backup prima di toccare qualcosa. Su una macchina piccola puoi far costruire l'immagine a GitHub Actions dal tuo fork e lasciare che il server la scarichi soltanto.
+
+La guida completa è [`docs/DEPLOY.md`](docs/DEPLOY.md): preparazione del server, Tailscale, immagini da GitHub Actions, backup e ripristino, aggiornamenti e ritorno a una versione precedente.
+
+### Configurazione
+
+Le variabili di `.env.production`; l'elenco completo, con i commenti, è in [`.env.production.example`](.env.production.example).
+
+| Variabile | Obbligatoria | Esempio | A cosa serve |
+| --- | --- | --- | --- |
+| `POSTGRES_PASSWORD` | Sì | `openssl rand -hex 24` | Password del database, solo lettere e cifre |
+| `LLM_PROVIDER` | Sì | `google` | Uno tra `google`, `openrouter`, `anthropic`, `openai-compatible` |
+| `LLM_MODEL` | Sì | `gemini-3.1-flash-lite` | Il modello che scrive le ricette |
+| `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` | Quella del provider scelto | — | La chiave API; le altre restano vuote |
+| `LLM_BASE_URL`, `LLM_API_KEY` | Solo per `openai-compatible` | `https://api.example.com/v1` | L'endpoint compatibile con OpenAI e la sua chiave |
+| `LLM_TIMEOUT_MS` | No | `90000` | Quanto aspettare una risposta del modello, per un lotto di 3 ricette |
+| `APP_PORT` | No | `3000` | Porta dell'app sul server |
+| `BACKUP_DIR`, `BACKUP_KEEP`, `BACKUP_CRON` | No | `./backups`, `7`, `0 3 * * *` | Dove, quanti e quando salvare i backup |
+
+## Primo avvio
+
+1. Apri l'app: ti accoglie un percorso in cinque passi, già precompilato.
+2. Indica **quante persone** siete, **quali pasti** pianificare (pranzo, cena o entrambi) e come li componi: piatto unico, primo, secondo, con o senza contorno.
+3. Scegli lo **stile** dei pasti (veloce, salutare, proteico, tradizionale…), le **esigenze alimentari** e gli **elettrodomestici** che hai.
+4. Sul **Piano** premi *Genera piano*. Ritocca quello che non ti convince con *Cambia* o *Scegli*, poi *Conferma piano*.
+5. Premi *Crea lista della spesa*. Al supermercato apri la tab **Lista** e spunta man mano; *Aggiungi* mette in lista anche quello che non viene dalle ricette.
+
+Da lunedì a venerdì si pianifica la settimana in corso, nel weekend quella dopo. Le frecce in alto mostrano le settimane passate. I vincoli si cambiano quando vuoi da **Impostazioni**.
+
+<p align="center">
+  <img src="docs/images/recipe.png" width="250" alt="Il dettaglio di una ricetta: portata ed etichette, descrizione, porzioni regolabili, ingredienti con i pulsanti mi piace e non mi piace, passi numerati">
+  &nbsp;
+  <img src="docs/images/settings.png" width="250" alt="Le Impostazioni: persone nel nucleo e, per pranzo e cena, le composizioni ammesse come piatto unico, primo, primo con contorno, secondo, secondo con contorno">
+</p>
+
+## Come funziona
+
+### La libreria
+
+Ogni ricetta ha ingredienti con quantità, passi, tempo, portate (piatto unico, primo, secondo, contorno), etichette di stile e diete compatibili. Gli ingredienti sono **normalizzati** quando la ricetta entra in libreria: un nome canonico, un'unità e un reparto presi da elenchi chiusi. È quello che permette di sommarli nella lista della spesa e di giudicarli uno per uno.
+
+La libreria parte da un pacchetto di 200 ricette italiane, riscritte da un dataset e controllate a mano negli ingredienti. Cresce in tre modi: quando il piano ha bisogno di ricette che non ci sono, quando chiedi una ricetta dalla ricerca o dal selettore del Piano, e quando la tieni dopo averla vista.
+
+### Il piano
+
+Per ogni pasto Mealy filtra prima le ricette che **non possono** entrare: bloccate, della portata sbagliata, incompatibili con le tue diete o con i tuoi elettrodomestici, con un ingrediente che hai scartato, già presenti nella settimana. Tra quelle che restano sorteggia **con un peso**: contano il voto, la ★, quanto tempo è passato dall'ultima volta che l'hai mangiata, se è nuova, se contiene ingredienti che ti piacciono.
+
+Nessun apprendimento automatico: la regola è scritta in chiaro in [`docs/ARCHITECTURE.md §5.2`](docs/ARCHITECTURE.md), e alla domanda "perché mi hai proposto questa?" c'è sempre una risposta. Solo quando per un tipo di pasto restano troppe poche ricette fresche il piano chiede al modello di scriverne di nuove, con i tuoi vincoli e la lista dei titoli da non ripetere.
+
+### La lista della spesa
+
+Nasce dal piano confermato e copre i pasti da oggi in poi. Le quantità di ogni ricetta si scalano sul numero di persone, gli ingredienti uguali si sommano anche quando hanno nomi diversi ("pomodori pelati" e "pelati"), e le righe si raggruppano nell'ordine del giro al supermercato: ortofrutta, pane, macelleria, pescheria, banco frigo, dispensa, surgelati, bevande.
+
+Se cambi il piano dopo averla creata, la lista te lo segnala e *Aggiorna lista* la rifà tenendo le spunte che hanno ancora senso e gli articoli aggiunti a mano. Una spunta data senza rete resta a schermo e parte da sola quando la connessione torna.
+
+## Privacy e dati
+
+**Cosa esce dalla tua rete.** Solo le richieste al provider LLM che hai configurato, e solo quando serve una ricetta: i tuoi vincoli (persone, pasto, diete, stile, elettrodomestici), gli ingredienti che hai segnato come graditi o scartati, i titoli delle ricette già in libreria da non ripetere e, se la scrivi tu, la tua richiesta. Nient'altro: niente analytics, niente telemetria, nessun controllo degli aggiornamenti.
+
+**Cosa resta a casa.** Ricette, piani, preferenze, liste e impostazioni stanno nel PostgreSQL che gira sulla tua macchina; i backup notturni nella cartella che scegli.
+
+**Cosa non ti protegge.** L'app non ha login: la protezione è la rete. Chi la raggiunge può usarla tutta, compresa la tua chiave API. La chiave sta in chiaro in `.env.production` sul server, leggibile solo dal tuo utente (`chmod 600`).
+
+## Problemi frequenti
+
+| Cosa vedi | Cosa vuol dire di solito |
+| --- | --- |
+| *La generazione non è andata a buon fine. Riprova.* | Il provider non ha risposto in tempo o ha risposto male. Riprova; se succede spesso, controlla la chiave, prova un modello più capace o alza `LLM_TIMEOUT_MS` |
+| Il piano propone sempre le stesse ricette | I vincoli sono stretti (diete, ingredienti scartati, elettrodomestici) e restano poche ricette adatte. Chiedine di nuove dalla ricerca della Libreria, o allenta un vincolo nelle Impostazioni |
+| Lo script di deploy dice `Imposta POSTGRES_PASSWORD…` o `Imposta LLM_MODEL…` | Manca una variabile obbligatoria in `.env.production` |
+| `la build dell'immagine non è riuscita` | Con `--build`, spesso memoria o disco insufficienti. L'app in funzione non è stata toccata; su una macchina piccola usa l'immagine di GitHub Actions |
+| `lo stack non è diventato sano entro 180 secondi` | L'app non parte: leggi i log che lo script stampa, poi [`docs/DEPLOY.md §9`](docs/DEPLOY.md) |
+| La porta 3000 è occupata | Un altro servizio sul server: metti `APP_PORT=3001` in `.env.production` e rilancia `bash scripts/deploy.sh --no-pull` |
+| Fuori casa non risponde | La VPN è spenta sul telefono, oppure con Tailscale la chiave del server è scaduta |
+
+L'elenco completo, con i rimedi, è in [`docs/DEPLOY.md §9`](docs/DEPLOY.md). Non hai risolto? [Apri una issue](https://github.com/Elverle/Mealy/issues) con cosa hai fatto, cosa ti aspettavi e cosa è successo.
+
+## Come è sviluppato
+
+Mealy è un monolite Next.js (App Router, TypeScript) con Tailwind CSS e shadcn/ui, PostgreSQL 16 con Drizzle ORM, schemi Zod come unica fonte dei tipi di dominio e il Vercel AI SDK per parlare con il modello. Il pianificatore, la lista della spesa e le preferenze sono funzioni pure, testate senza rete; solo il modulo delle ricette parla con l'LLM.
+
+È sviluppato con [agentic-feature-factory](https://github.com/Elverle/agentic-feature-factory), il mio workflow guidato da agenti per Claude Code. Ogni feature segue la stessa pipeline: specifica, piano a work package, architecture review, implementazione test-driven con il gate di verifica, code review e documentazione. La traccia di quel lavoro fa parte del repository:
+
+| Dove | Cosa c'è |
+| --- | --- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architettura, modello dati, la formula del piano, la lista della spesa, le API |
+| [`docs/DESIGN.md`](docs/DESIGN.md) | Design system, schermate, microcopy e requisiti minimi di accessibilità |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | Epic, story e criteri di accettazione |
+| [`docs/planning/`](docs/planning/) | Strategia di esecuzione, e per ogni feature specifica, piano e review |
+| [`docs/wiki/`](docs/wiki/index.md) | La wiki tecnica del codice, una pagina per modulo |
+
+## Sviluppo
+
+### Requisiti
+
+- Node.js 22 o superiore (la CI e l'immagine di produzione usano la 24)
+- pnpm
+- Docker con Docker Compose, per il PostgreSQL di sviluppo
+
+### Avvio in locale
+
+```bash
+git clone https://github.com/Elverle/Mealy.git && cd Mealy
 pnpm install
-cp .env.example .env        # poi imposta le variabili (v. sotto)
+cp .env.example .env        # LLM_PROVIDER, LLM_MODEL e la chiave del provider
 docker compose -f docker-compose.dev.yml up -d
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
 
-Variabili in `.env` (i nomi completi e i commenti sono in `.env.example`):
+`pnpm db:seed` carica qualche ricetta di esempio, non le 200 del pacchetto: per averle anche in sviluppo c'è `pnpm recipes:pack load`. I test non chiamano il modello e non servono chiavi: le risposte dell'LLM sono registrate in `tests/fixtures/llm/`.
 
-| Variabile | Uso |
-|---|---|
-| `DATABASE_URL` | Connessione Postgres; il default punta al container di sviluppo (`postgresql://mealy:mealy@localhost:5432/mealy_dev`) |
-| `LLM_PROVIDER` | `google` \| `openrouter` \| `anthropic` \| `openai-compatible` |
-| `LLM_MODEL` | Modello del provider scelto (es. `gemini-3.1-flash-lite`; alternativa consigliata `z-ai/glm-5.3-flash` su OpenRouter) |
-| `LLM_TIMEOUT_MS` | Timeout di una chiamata LLM in millisecondi, per un lotto da 3 ricette (default `90000`; fino a `120000` con modelli lenti) |
-| `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` | Chiave del provider attivo: serve solo quella |
-| `LLM_BASE_URL`, `LLM_API_KEY` | Solo per `LLM_PROVIDER=openai-compatible` |
+Se la porta 5432 è già occupata, rimappala con un file di override:
 
-Note:
-
-- **Primo avvio.** Finché l'onboarding non è completato, ogni tab reindirizza al wizard `/benvenuto` (5 passi precompilati). Dopo si arriva al Piano; i vincoli si modificano da Impostazioni.
-- **Piano.** *Genera piano* sceglie le ricette dalla libreria e chiama l'LLM solo quando la libreria non basta: fino alla 0.9, con `pnpm db:seed` e le impostazioni di default, il primo piano non richiedeva una chiave API. `pnpm db:seed` non carica il pacchetto iniziale di ricette: per provarlo in sviluppo c'è `pnpm recipes:pack load`. Dalla 0.10 le composizioni di default comprendono il contorno; le ricette d'esempio hanno sette contorni (sei per pranzo e cena, uno solo per cena), che bastano al primo piano in quasi tutte le settimane: solo se il sorteggio dà quattro pasti con il contorno sia a pranzo sia a cena (circa una settimana su cento) il piano chiede un contorno all'LLM. Da lunedì a venerdì si pianifica la settimana in corso, nel weekend la successiva; le frecce ‹ › (`/?settimana=YYYY-MM-DD`) mostrano anche le settimane passate, in sola lettura.
-- **`.env` già esistente.** Se il tuo `.env` ha ancora `LLM_TIMEOUT_MS=50000` (valore precedente di `.env.example`), portalo a `90000`: il timeout ora vale per un lotto di 3 ricette.
-- **Porta 5432 occupata.** Crea un file di override (es. `docker-compose.dev.override.yml`) che rimappa la porta host, per esempio:
-
-  ```yaml
-  services:
-    postgres:
-      ports: !override
-        - "5433:5432"
-  ```
-
-  Il tag `!override` (Docker Compose 2.24 o successivo) sostituisce la mappatura originale invece di aggiungerne una seconda. Avvialo con `docker compose -f docker-compose.dev.yml -f docker-compose.dev.override.yml up -d` e aggiorna `DATABASE_URL` in `.env` con la nuova porta. `pnpm test` non legge `.env`: per i test DB esporta `DATABASE_URL` anche nella shell.
-
-## Comandi
-
-| Comando | Cosa fa |
-|---|---|
-| `pnpm dev` | Server di sviluppo |
-| `pnpm test` | Test Vitest (i test DB richiedono il Postgres Docker attivo e migrato) |
-| `pnpm lint` | ESLint |
-| `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm build` | Build di produzione |
-| `pnpm db:migrate` | Applica le migrazioni drizzle-kit |
-| `pnpm db:seed` | Seed idempotente (household di default, ricette fixture, alias ingredienti); solo per lo sviluppo |
-| `pnpm db:seed:aliases` | Inserisce o corregge gli alias degli ingredienti usati dalla lista della spesa (idempotente). In produzione lo stesso caricamento avviene da solo all'avvio dell'app |
-| `pnpm db:generate` | Genera una nuova migrazione dallo schema (`lib/db/schema.ts`) |
-| `pnpm llm:record` | Registra una risposta LLM reale in `tests/fixtures/llm/recorded/` (richiede una chiave API); con `--request "testo"` registra una richiesta libera |
-| `pnpm recipes:classify` | Assegna portate ed etichette di stile alle ricette senza portata sul database di `DATABASE_URL` (richiede una chiave API). In produzione lo stesso procedimento parte da solo all'avvio dell'app |
-| `pnpm recipes:pack <passo>` | Pacchetto iniziale di ricette. Si prepara una volta sola sul PC, dal dataset `docs/recipe.csv` (non nel repository): `select` → revisione di `.recipe-pack/selection.md` → `convert` → `ingredients` → revisione della tabella e `ingredients --approve` → `build`, che scrive `fixtures/recipe-pack.json`. `convert` e `ingredients` richiedono una chiave API. `load` carica il pacchetto sul database di `DATABASE_URL`; in produzione lo carica l'app all'avvio |
-
-Gate di verifica: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`, tutti verdi. I test non usano la rete: l'LLM è simulato con risposte registrate.
-
-## Deploy
-
-Mealy gira su **qualsiasi macchina Linux con Docker** che tieni in casa: un mini PC, un vecchio portatile, un NAS, un Raspberry Pi a 64 bit (`x86_64` o `aarch64`). Lo stack è Docker Compose: app Next.js standalone, PostgreSQL 16 e backup notturno. Il maintainer lo fa girare su un Raspberry Pi 4 con Tailscale, ma il progetto non dipende dal Raspberry.
-
-> **L'app non ha autenticazione** (`docs/ARCHITECTURE.md §8`). Tienila raggiungibile solo dalla rete di casa e, da fuori casa, con una VPN (Tailscale, WireGuard) oppure dietro un reverse proxy con login. Non aprire la porta su Internet: chiunque la raggiunga può modificare i dati e generare ricette con la tua chiave LLM, a tue spese.
-
-Avvio rapido sul server. Servono Docker con Compose v2, `git` e la chiave API di un provider LLM:
-
-```bash
-git clone https://github.com/Elverle/Mealy.git && cd Mealy
-cp .env.production.example .env.production && chmod 600 .env.production
-nano .env.production       # POSTGRES_PASSWORD (openssl rand -hex 24), LLM_MODEL e la chiave del provider
-bash scripts/deploy.sh --build
+```yaml
+# docker-compose.dev.override.yml
+services:
+  postgres:
+    ports: !override
+      - "5433:5432"
 ```
 
-Poi apri `http://<ip-del-server>:3000`. Per aggiornare a una versione nuova basta rilanciare `bash scripts/deploy.sh --build`. La guida completa è [`docs/DEPLOY.md`](docs/DEPLOY.md): preparazione del server, VPN, backup e ripristino, aggiornamenti, ritorno a una versione precedente e problemi frequenti.
+Avvialo con `docker compose -f docker-compose.dev.yml -f docker-compose.dev.override.yml up -d` (Compose 2.24 o successivo) e aggiorna `DATABASE_URL` in `.env`. `pnpm test` non legge `.env`: per i test del database esporta `DATABASE_URL` anche nella shell.
 
-- **Da dove viene l'immagine.** Con `--build` la costruisce il server stesso. In alternativa la costruisce GitHub Actions a ogni push su `main` (workflow `Image`, `ghcr.io/<proprietario del repository>/mealy:sha-<commit>`, anche da un fork) e `bash scripts/deploy.sh` la scarica: conviene su una macchina piccola, ed è il modo usato sul Raspberry del maintainer (`docs/DEPLOY.md §3.4`).
-- All'avvio in produzione l'app applica le migrazioni e carica gli alias degli ingredienti (`DB_BOOTSTRAP_ON_START=true`, `lib/db/bootstrap.ts`): sul server non si lancia nessun comando `pnpm`. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione.
-- Dopo migrazioni e alias l'app carica il pacchetto iniziale di ricette (`fixtures/recipe-pack.json`): entrano solo le ricette con un titolo non già in libreria, né uguale né simile, e l'avvio aspetta il caricamento. Nei log dell'app compare `[pack] ricette del pacchetto inserite: N, già presenti o simili: M` (ai riavvii N è 0); se il caricamento fallisce l'app parte lo stesso e riprova al riavvio successivo.
-- Dopo il pacchetto l'app classifica in background, a lotti di 10, le ricette ancora senza portata: l'avvio non la aspetta e i log dell'app mostrano righe `[classify]`. Senza modello configurato le ricette restano senza portata e l'app funziona lo stesso; le rimaste si riprovano al riavvio.
-- Dalla 0.8 si torna a una versione precedente solo ripristinando il dump `predeploy` (`docs/DEPLOY.md §6`); vale anche per la 0.10, che aggiunge la portata dei piatti dei piani e le composizioni dei pasti.
-- Prova locale dello stack di produzione: `docker build -t mealy-app:smoke . && bash scripts/smoke-prod.sh mealy-app:smoke`.
+### Comandi
 
-## Come è sviluppato
+| Comando | Cosa fa |
+| --- | --- |
+| `pnpm dev` | Server di sviluppo |
+| `pnpm test` | Test Vitest (quelli del database vogliono il PostgreSQL Docker attivo e migrato) |
+| `pnpm lint` · `pnpm typecheck` · `pnpm build` | ESLint, `tsc --noEmit`, build di produzione |
+| `pnpm db:migrate` · `pnpm db:generate` | Applica le migrazioni; ne genera una nuova da `lib/db/schema.ts` |
+| `pnpm db:seed` | Seed idempotente per lo sviluppo: nucleo di default, ricette di esempio, alias degli ingredienti |
+| `pnpm db:seed:aliases` | Solo gli alias degli ingredienti (in produzione li carica l'app all'avvio) |
+| `pnpm llm:record` | Registra una risposta reale del modello in `tests/fixtures/llm/recorded/` (serve una chiave) |
+| `pnpm recipes:classify` | Assegna portate ed etichette alle ricette che non le hanno (in produzione lo fa l'app all'avvio) |
+| `pnpm recipes:pack <passo>` | Prepara il pacchetto di ricette dal dataset `docs/recipe.csv`, che non è nel repository (`select` → `convert` → `ingredients` → `build`); `load` lo carica sul database |
 
-Mealy è sviluppato con [agentic-feature-factory](https://github.com/Elverle/agentic-feature-factory), il mio workflow di sviluppo guidato da agenti per Claude Code. Ogni feature segue la stessa pipeline: brainstorming e specifica, piano a work package (`/feature-plan`), architecture review (`/arch-review`), implementazione test-driven con il gate di verifica (`/feature-dev`), code review (`/feature-review`) e documentazione (`/feature-docs`). Specifiche, piani e review di ogni feature sono in [`docs/planning/`](docs/planning/); la wiki tecnica che il workflow tiene aggiornata è in [`docs/wiki/`](docs/wiki/index.md).
+Prima di una pull request deve passare il gate completo, lo stesso che gira in CI:
 
-## Documentazione
+```bash
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architettura, modello dati, logiche core, API
-- [`docs/DESIGN.md`](docs/DESIGN.md) — design system, schermate, microcopy
-- [`docs/BACKLOG.md`](docs/BACKLOG.md) — epic, story e criteri di accettazione
-- [`docs/planning/`](docs/planning/) — strategia di esecuzione, piani e stato delle feature
-- [`docs/wiki/index.md`](docs/wiki/index.md) — wiki tecnica del codice
-- [`docs/DEPLOY.md`](docs/DEPLOY.md) — deploy su un server di casa
+Per provare in locale lo stack di produzione: `docker build -t mealy-app:smoke . && bash scripts/smoke-prod.sh mealy-app:smoke`.
 
 ## Contribuire
 
-Segnalazioni e pull request sono benvenute: come procedere è in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Segnalazioni, idee e pull request sono benvenute. [`CONTRIBUTING.md`](CONTRIBUTING.md) spiega come procedere, le regole del codice e le convenzioni dei commit.
+
+## Roadmap
+
+Rinviato a dopo la v1, più o meno nell'ordine in cui servirebbe. I dettagli sono in [`docs/v2-funzionalita.md`](docs/v2-funzionalita.md).
+
+- [ ] Un catalogo con tutte le ricette adatte del dataset (circa 2.500), cercabile per nome, ingrediente o etichetta
+- [ ] Lo stile dei pasti scelto nelle Impostazioni nel peso del piano, e una quota fissa di ricette nuove ogni settimana
+- [ ] Inserire e correggere le ricette a mano, con l'aiuto facoltativo del modello
+- [ ] Richieste libere ("una cena leggera con le zucchine che ho in frigo") anche sul catalogo
+- [ ] Login, per esporre l'app fuori dalla rete di casa, e uso condiviso in due
+- [ ] Installazione come PWA, export e stampa di piano e lista
 
 ## Licenza
 
-[MIT](LICENSE).
+Mealy è distribuito con licenza MIT. Il testo completo è in [`LICENSE`](LICENSE).
