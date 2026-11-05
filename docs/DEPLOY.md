@@ -265,3 +265,12 @@ Tutti da `/opt/mealy`. `scripts/compose-prod.sh` è `docker compose` con il file
 - **Migrazioni**: una migrazione arrivata su `main` non si modifica, se ne aggiunge una nuova. Il migratore guarda solo l'orario dell'ultima applicata: un test (`tests/db/bootstrap.test.ts`) controlla che il journal resti in ordine e applica l'ultima migrazione a un database fermo a quella precedente.
 - **Cartella `public/`**: oggi non esiste e il `Dockerfile` non la copia. Se viene creata, va aggiunta la riga `COPY --from=builder --chown=nextjs:nodejs /app/public ./public` nello stadio `runner`.
 - **Spazio su GHCR**: ogni push su `main` pubblica un'immagine nuova. Quelle vecchie si cancellano a mano da GitHub (profilo → **Packages → mealy → Package settings**).
+- **Repository pubblico** (dal 5 novembre 2026, licenza MIT):
+  - `main` si modifica solo con pull request, con i job `lint, typecheck, test, build` e `docker image, production stack smoke` verdi. La regola vale anche per gli amministratori;
+  - sono attivi secret scanning con blocco dei push che contengono segreti e la segnalazione privata delle vulnerabilità;
+  - i workflow delle pull request da fork partono solo dopo l'approvazione del maintainer.
+
+  Il pacchetto GHCR resta privato: un pacchetto reso pubblico non può più tornare privato. Il repository dice che l'app non ha autenticazione e ascolta sulla porta 3000, quindi il Raspberry deve restare raggiungibile solo dalla rete di casa e da Tailscale (§1).
+- **Dipendenze.** `.github/dependabot.yml` segue solo `docker` e `github-actions`. Per gli avvisi di sicurezza npm Dependabot apre pull request che non si chiudono da sole dopo un aggiornamento fatto a mano: vanno chiuse a mano. Le correzioni di sicurezza di Next.js compaiono prima nelle note di rilascio dell'ultima 15.5.x che negli avvisi e in `pnpm audit`. Lasciati aperti di proposito (ultimo giro: 5 novembre 2026):
+  - `minimatch` 10 ([GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), moderata). Arriva solo da ESLint (`@typescript-eslint/typescript-estree`), quindi non entra nell'immagine. La correzione c'è solo nella 11, un modulo ESM che forzato con un override rischia di rompere il lint. Si chiude quando typescript-eslint passerà alla 11;
+  - le versioni major (`next` 16, `typescript` 7, `eslint` 10, `vitest` 5, `postgres` 4, `jsdom` 30, `@vitejs/plugin-react` 6 e altre): nessuna porta correzioni di sicurezza per le versioni in uso, e ognuna è un lavoro a parte.
