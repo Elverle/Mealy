@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Node 24.22.1 (fix CVE-2026-111497); `ai` 7 richiede Node >= 22. Il tag è scritto per
+# Node 24, almeno 24.22.1 (fix CVE-2026-111497); `ai` 7 richiede Node >= 22. Il tag è scritto per
 # esteso nei due FROM perché Dependabot non risolve gli ARG; il gate CI legge la
 # versione da qui, quindi va cambiata solo in questo file.
 FROM node:24.22.2-alpine AS base

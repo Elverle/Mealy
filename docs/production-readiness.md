@@ -20,13 +20,23 @@ La Feature 7 è `done` dal 27 ottobre 2026: le verifiche che la chiudevano (rete
 
 ## 2. Aggiornamento delle dipendenze
 
-Rinviato a dopo la Feature 7, quindi ora è dovuto.
+Fatto in due giri: il 27 ottobre 2026 (PR #22–#25) e il 5 novembre 2026 (PR #26 e branch `chore/deps-2026-11`).
 
-- [ ] 17 vulnerabilità segnalate da Dependabot su `main` (1 critica, 9 alte, 7 moderate)
-- [ ] Quattro pull request di Dependabot aperte: #7 `source-map-js`, #9 `next`, #10 `sharp`, #11 `shell-quote`
-- [ ] Estendere `pnpm lint` alla radice, a `tests/` e a `scripts/`
+- [x] Le 17 vulnerabilità segnalate da Dependabot (1 critica, 9 alte, 7 moderate), più quelle arrivate dopo: chiuse con #22 (Node 24.22.1), #23 (tutte tranne `zod`, alcune con un override in `pnpm-workspace.yaml`) e #25 (`zod` 4). Al 5 novembre Dependabot ha 0 avvisi aperti su 35.
+- [x] Le pull request di Dependabot #7, #9, #10 e #11: chiuse, superate dagli aggiornamenti sopra
+- [x] `pnpm lint` esteso a tutto il repository (#24)
+- [x] Node 24.22.2 nel `Dockerfile` (#26)
+- [x] `next` 15.5.29 (3 correzioni di sicurezza moderate, una per le app installate in proprio) e tutte le versioni patch e minori compatibili con i range di `package.json`
 
-Il rischio pratico è basso finché l'app non è esposta su Internet. Con il repository pubblico il lockfile e le pull request mostrano a chiunque le versioni vulnerabili: conviene fare questo giro prima del cambio di visibilità.
+Lasciato aperto di proposito:
+
+- **`minimatch` 10.2.6** ([GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), moderata, denial of service). `pnpm audit` la segnala, Dependabot no. Arriva solo da ESLint (`@typescript-eslint/typescript-estree`, che chiede `^10.2.2` anche all'ultima versione): non entra nell'immagine e non legge input esterni. La correzione c'è solo nella 11, che è un modulo ESM, e forzarla con un override rischia di rompere il lint. Si chiude da sola quando typescript-eslint passerà alla 11.
+- **Le versioni major**: `next` 16, `typescript` 7, `eslint` 10, `vitest` 5, `postgres` 4, `jsdom` 30, `@vitejs/plugin-react` 6 e altre. Nessuna porta correzioni di sicurezza per le versioni in uso, e ognuna è un lavoro a parte: non servono per la v1.
+
+Per i prossimi giri:
+
+- `.github/dependabot.yml` segue solo `docker` e `github-actions`. Le pull request npm che Dependabot apre per gli avvisi di sicurezza non si chiudono da sole dopo l'aggiornamento: vanno chiuse a mano.
+- Gli avvisi di Next.js compaiono prima nelle note di rilascio che negli avvisi di Dependabot e in `pnpm audit`: la 15.5.29 è stata trovata così. Vale la pena guardare le note dell'ultima 15.5.x.
 
 ## 3. Rendere pubblico il repository
 
@@ -81,7 +91,7 @@ git log --all --format='%an <%ae>' | sort | uniq -c
 
 3. **Cosa diventa visibile oltre al codice.** Le pull request con le loro descrizioni, i log passati di GitHub Actions, i branch remoti vecchi (`feature/6-e4-lista-spesa`, `feature/7-e6-deploy`, `fix/lista-ordine-stabile`, quelli di Dependabot) e tutta la cartella `docs/`, compresi piani, review e wiki. Decidere se va bene così o se prima va tolto o riletto qualcosa.
 
-4. **Dipendenze.** Vedi la sezione 2.
+4. **Dipendenze.** Aggiornate (sezione 2). Con il repository pubblico il lockfile mostra a chiunque le versioni in uso: subito prima del cambio vanno ricontrollati gli avvisi di Dependabot e `pnpm audit`.
 
 ### 3.3 Da sapere
 
@@ -94,6 +104,7 @@ git log --all --format='%an <%ae>' | sort | uniq -c
 ### 3.4 Da fare al momento del cambio
 
 - [ ] Ripetere i controlli della sezione 3.1
+- [ ] Ricontrollare gli avvisi di Dependabot e `pnpm audit` (sezione 2)
 - [ ] Attivare la protezione del branch `main`: modifiche solo da pull request, con i due job del gate verdi
 - [ ] Attivare secret scanning e il blocco dei push che contengono segreti
 - [ ] Controllare che le pull request dai fork richiedano l'approvazione prima di far partire i workflow
