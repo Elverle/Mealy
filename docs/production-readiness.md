@@ -2,7 +2,7 @@
 
 Cosa resta da verificare e da decidere prima di considerare chiusa la v1 e, più avanti, prima di rendere pubblico il repository. La decisione sulla visibilità è **rimandata**: prima si prova l'app sul Raspberry.
 
-Stato al 12 ottobre 2026: `main` al commit `22e02f2`, versione 0.6.0, repository privato.
+Stato al 5 novembre 2026: `main` al commit `8f7c5ed`, versione 0.10.0, repository privato. I controlli della sezione 3.1 sono invece fermi al 12 ottobre 2026 (commit `22e02f2`).
 
 ## 1. Prove sul Raspberry
 
@@ -20,7 +20,7 @@ La Feature 7 è `done` dal 27 ottobre 2026: le verifiche che la chiudevano (rete
 
 ## 2. Aggiornamento delle dipendenze
 
-Fatto in due giri: il 27 ottobre 2026 (PR #22–#25) e il 5 novembre 2026 (PR #26 e branch `chore/deps-2026-11`).
+Fatto in due giri: il 27 ottobre 2026 (PR #22–#25) e il 5 novembre 2026 (PR #26 e #27).
 
 - [x] Le 17 vulnerabilità segnalate da Dependabot (1 critica, 9 alte, 7 moderate), più quelle arrivate dopo: chiuse con #22 (Node 24.22.1), #23 (tutte tranne `zod`, alcune con un override in `pnpm-workspace.yaml`) e #25 (`zod` 4). Al 5 novembre Dependabot ha 0 avvisi aperti su 35.
 - [x] Le pull request di Dependabot #7, #9, #10 e #11: chiuse, superate dagli aggiornamenti sopra
@@ -81,15 +81,15 @@ git log --all --format='%an <%ae>' | sort | uniq -c
 
 ### 3.2 Decisioni aperte
 
-1. **Email personale nei commit.** L'indirizzo personale compare come autore in 59 commit, e in 6 c'è anche nome e cognome. Con il repository pubblico lo legge chiunque.
+1. **Email personale nei commit.** L'indirizzo personale compare come autore in 144 commit su 145 (al 5 novembre 2026), e in 16 c'è anche nome e cognome. Con il repository pubblico lo legge chiunque.
    - Riscrivere la storia non basta: i commit vecchi restano raggiungibili dalle pull request già chiuse.
-   - Per toglierlo davvero serve un repository nuovo con la storia riscritta. Si perdono le 13 pull request, e l'immagine va ricostruita perché cambiano gli hash dei commit.
+   - Per toglierlo davvero serve un repository nuovo con la storia riscritta. Si perdono le pull request (27 al 5 novembre 2026), e l'immagine va ricostruita perché cambiano gli hash dei commit.
    - Se non importa: impostare l'indirizzo `noreply` di GitHub per i commit futuri e attivare in GitHub il blocco dei push che espongono l'email.
    - È l'unico punto a cui non si rimedia dopo il cambio.
 
 2. **Licenza.** Oggi non c'è. Senza licenza il codice è visibile ma nessuno può riusarlo legalmente. Se si vuole permetterlo, aggiungere un file `LICENSE` (MIT è la scelta più semplice). `"private": true` in `package.json` non c'entra: impedisce solo la pubblicazione su npm e va lasciato.
 
-3. **Cosa diventa visibile oltre al codice.** Le pull request con le loro descrizioni, i log passati di GitHub Actions, i branch remoti vecchi (`feature/6-e4-lista-spesa`, `feature/7-e6-deploy`, `fix/lista-ordine-stabile`, quelli di Dependabot) e tutta la cartella `docs/`, compresi piani, review e wiki. Decidere se va bene così o se prima va tolto o riletto qualcosa.
+3. **Cosa diventa visibile oltre al codice.** Le pull request con le loro descrizioni, i log passati di GitHub Actions, i branch remoti rimasti dopo il merge (al 5 novembre 2026: da `feature/6-e4-lista-spesa` a `feature/11-composizione-pasto`, `fix/lista-ordine-stabile` e `dependabot/docker/node-24.22.2-alpine`; si possono cancellare, le pull request restano) e tutta la cartella `docs/`, compresi piani, review e wiki. Decidere se va bene così o se prima va tolto o riletto qualcosa.
 
 4. **Dipendenze.** Aggiornate (sezione 2). Con il repository pubblico il lockfile mostra a chiunque le versioni in uso: subito prima del cambio vanno ricontrollati gli avvisi di Dependabot e `pnpm audit`.
 
