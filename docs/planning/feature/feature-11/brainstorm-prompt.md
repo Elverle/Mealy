@@ -4,7 +4,7 @@ Punto di partenza per `/feature-brainstorm`, scritto il 14 ottobre 2026 durante 
 
 Uso: `/agentic-feature-factory:feature-brainstorm 11 docs/planning/feature/feature-11/brainstorm-prompt.md`
 
-Dipende da: Feature 8 (portate delle ricette, `../feature-8/spec.md`) e, per avere abbastanza contorni in libreria, Feature 10 (pacchetto iniziale, `../feature-10/brainstorm-prompt.md`).
+Dipende da: Feature 8 (portate delle ricette, `../feature-8/spec.md`) e, per avere abbastanza contorni in libreria, Feature 10 (pacchetto iniziale, `../feature-10/spec.md`).
 
 ---
 

@@ -1,6 +1,6 @@
 # Feature 10 — Pacchetto iniziale di ricette
 
-Specifica del 23 ottobre 2026, da `/feature-brainstorm`, a partire da `brainstorm-prompt.md`. È la seconda delle tre feature che riprendono `docs/rework-catalogo.md` nella versione attuale dell'app:
+Specifica del 23 ottobre 2026, da `/feature-brainstorm`, a partire da uno spunto di brainstorming che non è più nel repository. È la seconda delle tre feature che riprendono il rework del catalogo nella versione attuale dell'app:
 
 | Ordine | Feature | Contenuto |
 |---|---|---|
@@ -32,11 +32,11 @@ Prossimo passo: `/feature-plan 10 docs/planning/feature/feature-10/spec.md`.
 | D3 | **200 ricette, a quote fisse per gruppo di selezione**: primi 50, secondi 50, piatti unici 40, contorni 60. Il pranzo e la cena li assegna il modello ricetta per ricetta. | 120 o 150: meno varietà. I 60 contorni non servono al piano fino alla Feature 11, che li userà per "secondo + contorno". |
 | D4 | **Prima la selezione per regola, poi la revisione dei titoli da parte dell'utente.** Lo script propone circa 1,5 candidati per posto (300 spuntati) più le riserve, in un file markdown a caselle. | Elenco di esattamente 200 titoli: ogni titolo tolto lascerebbe un buco da riempire con un secondo giro. Scelta a mano sul CSV: 2.700 righe. |
 | D5 | **La conversione la fa il modello configurato via env** (`LLM_PROVIDER`, `LLM_MODEL`), attraverso l'adattatore unico `lib/llm/`, una ricetta per chiamata. Il modello si può cambiare a ogni lancio. | Un modello fisso nel codice: viola "il provider è configurazione, non codice". Più ricette per chiamata: un errore farebbe perdere tutto il lotto, e i controlli (D7) lavorano per ricetta. |
-| D6 | **Le esigenze alimentari si ricavano per regola da una tabella degli ingredienti rivista dall'utente**, `fixtures/recipe-pack-ingredients.json`. Per ogni nome canonico la tabella dice carne, pesce, latticini, uova, miele, glutine e il reparto. La bozza la scrive il modello, l'utente la rivede una volta. | Parole chiave nel codice: un ingrediente non previsto, come la 'nduja, darebbe un "vegetariano" sbagliato. Diete del modello con veto a parole chiave: poco lavoro, ma un filtro vincolante non può essere probabilistico (`rework-catalogo.md` §6). |
+| D6 | **Le esigenze alimentari si ricavano per regola da una tabella degli ingredienti rivista dall'utente**, `fixtures/recipe-pack-ingredients.json`. Per ogni nome canonico la tabella dice carne, pesce, latticini, uova, miele, glutine e il reparto. La bozza la scrive il modello, l'utente la rivede una volta. | Parole chiave nel codice: un ingrediente non previsto, come la 'nduja, darebbe un "vegetariano" sbagliato. Diete del modello con veto a parole chiave: poco lavoro, ma un filtro vincolante non può essere probabilistico. |
 | D7 | **Salvaguardie per un repository pubblico.** Il modello scrive passi e descrizione da capo e usa l'originale solo come informazione su tecnica, tempi e temperature. Un controllo automatico scarta i testi che condividono 8 o più parole di fila con l'originale. Nel pacchetto non ci sono link, indici del dataset o il nome del sito. | Copiare o parafrasare i procedimenti: sono il testo protetto della fonte. Nomi dei piatti, ingredienti e quantità sono fatti e restano. |
 | D8 | **Nessun link all'originale.** Link e indice del dataset restano nei file di lavoro, in una cartella ignorata da git. | Campo `source_url` con link nella scheda: migrazione e UI per un'informazione che serve solo a controllare la conversione. |
 | D9 | **Le ricette del pacchetto entrano con l'origine `manual`**, che esiste già, tramite un parametro `source` di `insertGeneratedRecipe`. Le regole derivate (portate normalizzate, `pochi-ingredienti`, `piatto-unico`) valgono come per ogni altra ricetta. | Valore nuovo `'pack'`: nessuno lo legge, e cambierebbe un elenco chiuso del dominio. Un percorso di scrittura separato: duplicherebbe le regole della Feature 8 (`../feature-8/plan.md`, "Contratti consegnati"). |
-| D10 | **Si accetta che il modello non generi quasi più ricette da solo.** Con 140 piatti da pasto in più la soglia di generazione è quasi sempre superata. Le ricette nuove arrivano con lo swap e con le richieste della Feature 9. | Una quota di scoperte o pesi nuovi nel planner: è il catalogo della V2 (`rework-catalogo.md` §5), fuori ambito. |
+| D10 | **Si accetta che il modello non generi quasi più ricette da solo.** Con 140 piatti da pasto in più la soglia di generazione è quasi sempre superata. Le ricette nuove arrivano con lo swap e con le richieste della Feature 9. | Una quota di scoperte o pesi nuovi nel planner: è il catalogo della V2, fuori ambito. |
 | D11 | **Solo le categorie del dataset adatte a pranzo e cena**: primi, secondi, piatti unici, torte salate, insalate e contorni. Niente dolci, antipasti, lievitati, salse, bevande o conserve. | Pizze e focacce (lievitati): non richieste e con quantità spesso a pezzi. |
 | D12 | **Il dataset resta fuori dal repository.** `docs/recipe.csv` è già in `.gitignore` e non è mai stato committato; i file di lavoro vanno in `.recipe-pack/`, anch'essa ignorata. | — |
 
@@ -253,7 +253,7 @@ Nessuna migrazione. Il caricamento usa `listRecipeTitles`, `findSimilarRecipeTit
 
 ## 6. Fuori ambito
 
-- Catalogo separato dalla libreria, quota di scoperte, stile nel peso, pesi o soglie del planner (`rework-catalogo.md` §5, `v2-funzionalita.md`).
+- Catalogo separato dalla libreria, quota di scoperte, stile nel peso, pesi o soglie del planner (`v2-funzionalita.md`).
 - L'intero dataset (2.578 ricette) e la classificazione con Jev.
 - Link all'originale, campo `source_url`, valore nuovo di `source`.
 - Cancellazione delle ricette e la tabella che segnerebbe il pacchetto come caricato: quando la V2 renderà possibile cancellare, una ricetta del pacchetto cancellata tornerebbe al riavvio, e allora servirà un segno nel DB.

@@ -8,7 +8,7 @@ tags: [planner, meal-plans, compositions, courses, side-dish, settings, onboardi
 
 ## Panoramica
 
-La **Feature 11** (*Composizione del pasto*) chiude la serie che riprende `docs/rework-catalogo.md`: 8 (portate, [[f8-portate-etichette]]) → 10 (pacchetto con 60 contorni, [[f10-pacchetto-ricette]]) → 11 (composizione). La 8 ha fissato lo schema, la 10 l'ha popolato, la 11 lo sfrutta. Non è in `docs/BACKLOG.md` né in `execution-strategy.md`: l'unica fonte dei requisiti è `spec.md`. Per questo la pagina usa il prefisso `f11-`, come [[f8-portate-etichette]], [[f9-ricette-su-richiesta]] e [[f10-pacchetto-ricette]]. Esce con la versione **0.10.0**.
+La **Feature 11** (*Composizione del pasto*) chiude la serie che riprende il rework del catalogo: 8 (portate, [[f8-portate-etichette]]) → 10 (pacchetto con 60 contorni, [[f10-pacchetto-ricette]]) → 11 (composizione). La 8 ha fissato lo schema, la 10 l'ha popolato, la 11 lo sfrutta. Non è in `docs/BACKLOG.md` né in `execution-strategy.md`: l'unica fonte dei requisiti è `spec.md`. Per questo la pagina usa il prefisso `f11-`, come [[f8-portate-etichette]], [[f9-ricette-su-richiesta]] e [[f10-pacchetto-ricette]]. Esce con la versione **0.10.0**.
 
 **Il problema.** Fino alla 0.9 un pasto era una ricetta sola: il planner usava la portata solo per escludere i contorni (motivo `course` con `isMainDish`, [[planner]]). Una cena «secondo con contorno», la forma più comune di un pasto italiano, non si poteva pianificare, e i 60 contorni del pacchetto non entravano mai nel piano né nella lista della spesa.
 
