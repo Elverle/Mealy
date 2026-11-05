@@ -124,11 +124,13 @@ Prima:
 - [x] Ripetere i controlli della sezione 3.1 (5 novembre 2026, su `fdb9b63`): resta da ripeterli sui commit arrivati dopo
 - [x] Ricontrollare gli avvisi di Dependabot e `pnpm audit` (5 novembre 2026: solo `minimatch`, sezione 2)
 - [x] Aggiungere la licenza e aggiornare il README
+- [x] Aggiungere `CONTRIBUTING.md` (aperto ai contributi, in italiano)
 - [x] Controllare che il pacchetto su GHCR sia privato (5 novembre 2026)
 
 Subito dopo:
 
 - [ ] Attivare la protezione del branch `main`: modifiche solo da pull request, con i due job del gate verdi
 - [ ] Attivare secret scanning e il blocco dei push che contengono segreti
+- [ ] Attivare *Private vulnerability reporting*: `CONTRIBUTING.md` chiede di segnalare i problemi di sicurezza da *Security → Report a vulnerability*
 - [ ] Controllare che le pull request dai fork richiedano l'approvazione prima di far partire i workflow
 - [ ] Aggiornare `DEPLOY.md`: §2 dice che il repository è privato, §3.3 e §3.4 descrivono deploy key e token GHCR
