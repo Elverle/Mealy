@@ -23,7 +23,10 @@ RUN pnpm build
 
 # --- Immagine finale: solo l'output standalone ---
 FROM node:24.22.2-alpine AS runner
-LABEL org.opencontainers.image.source="https://github.com/Elverle/Mealy"
+# Repository di origine: GHCR collega il pacchetto a questo repository. Il workflow Image passa
+# quello da cui costruisce (anche un fork).
+ARG SOURCE_URL=https://github.com/Elverle/Mealy
+LABEL org.opencontainers.image.source="${SOURCE_URL}"
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

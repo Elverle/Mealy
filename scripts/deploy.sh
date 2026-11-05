@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Aggiorna Mealy sul Raspberry: codice, immagine, backup, riavvio, verifica.
-# Uso: bash scripts/deploy.sh [--no-pull]
-#   --no-pull  non esegue `git pull` né scarica l'immagine: riapplica la configurazione
+# Aggiorna Mealy sul server: codice, immagine, backup, riavvio, verifica.
+# Uso: bash scripts/deploy.sh [--build | --no-pull]
+#   (nessuna opzione)  `git pull`, poi scarica l'immagine del commit pubblicata dal workflow Image.
+#   --build    `git pull`, poi costruisce l'immagine su questa macchina con `docker build`
+#              (se esiste già per quel commit la riusa). Non serve né GitHub Actions né GHCR.
+#   --no-pull  non esegue `git pull` né scarica o costruisce l'immagine: riapplica la configurazione
 #              (per esempio dopo una modifica a .env.production) con ciò che c'è già in locale.
+# Il nome dell'immagine lo calcola scripts/image-name.sh.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -14,37 +18,55 @@ compose() {
 # Tutto in una funzione: bash la legge per intero prima di eseguirla, quindi `git pull`
 # può aggiornare questo file senza disturbare l'esecuzione in corso.
 main() {
-  local pull=1
+  local mode=pull
   case "${1:-}" in
     "") ;;
-    --no-pull) pull=0 ;;
+    --build) mode=build ;;
+    --no-pull) mode=local ;;
     *)
-      echo "Argomento sconosciuto: $1. Uso: bash scripts/deploy.sh [--no-pull]" >&2
+      echo "Argomento sconosciuto: $1. Uso: bash scripts/deploy.sh [--build | --no-pull]" >&2
       exit 2
       ;;
   esac
 
-  if [ "$pull" -eq 1 ]; then
+  if [ "$mode" != local ]; then
     echo "[deploy] aggiorno il codice"
     git pull --ff-only
-    echo "[deploy] scarico l'immagine del commit $(git rev-parse --short HEAD)"
+  fi
+
+  # Il nome dipende dal commit: va calcolato dopo `git pull`. Esportato, compose-prod.sh usa lo stesso.
+  local image
+  image="$(bash scripts/image-name.sh)"
+  export MEALY_IMAGE="$image"
+
+  if [ "$mode" = pull ]; then
+    echo "[deploy] scarico l'immagine ${image}"
     if ! compose pull app; then
       echo "[deploy] immagine non trovata per il commit $(git rev-parse HEAD)." >&2
       echo "[deploy] Il workflow 'Image' su GitHub potrebbe essere ancora in corso: riprova tra qualche minuto." >&2
       echo "[deploy] Se l'errore parla di accesso negato, rifai 'docker login ghcr.io' (v. docs/DEPLOY.md)." >&2
+      echo "[deploy] Se non usi il workflow 'Image', costruisci l'immagine qui: bash scripts/deploy.sh --build" >&2
       exit 1
+    fi
+  elif [ "$mode" = build ]; then
+    if docker image inspect "$image" > /dev/null 2>&1; then
+      echo "[deploy] l'immagine ${image} c'è già: la riuso"
+    else
+      echo "[deploy] costruisco l'immagine ${image} (può richiedere diversi minuti)"
+      if ! docker build -t "$image" .; then
+        echo "[deploy] FALLITO: la build dell'immagine non è riuscita. L'app non è stata aggiornata." >&2
+        exit 1
+      fi
     fi
   fi
 
   # Il dump va fatto prima che parta l'immagine nuova, che applica le migrazioni. Si salta solo
   # se l'app sta già girando con la stessa immagine: in quel caso lo schema non può cambiare.
-  local running target running_id="" target_id=""
+  local running running_id="" target_id=""
   running="$(compose ps -q --status running app)"
   if [ -n "$running" ]; then
-    # Lo stesso nome che scripts/compose-prod.sh passa a docker compose.
-    target="${MEALY_IMAGE:-ghcr.io/elverle/mealy:sha-$(git rev-parse HEAD)}"
     running_id="$(docker inspect --format '{{.Image}}' "$running")"
-    target_id="$(docker image inspect --format '{{.Id}}' "$target" 2> /dev/null || true)"
+    target_id="$(docker image inspect --format '{{.Id}}' "$image" 2> /dev/null || true)"
   fi
 
   if [ -n "$running_id" ] && [ "$running_id" = "$target_id" ]; then
