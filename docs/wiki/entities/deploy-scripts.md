@@ -1,20 +1,32 @@
 ---
-title: Script Operativi — compose-prod.sh, deploy.sh e smoke-prod.sh (deploy-scripts)
+title: Script Operativi — image-name.sh, compose-prod.sh, deploy.sh e smoke-prod.sh (deploy-scripts)
 type: entity
 created: 2026-10-11
-updated: 2026-10-26
-tags: [scripts, bash, deploy, compose, smoke-test, backup, raspberry-pi, ghcr, production, recipe-pack, feature-7, feature-10]
+updated: 2026-11-05
+tags: [scripts, bash, deploy, compose, smoke-test, backup, raspberry-pi, ghcr, production, recipe-pack, feature-7, feature-10, portable-deploy]
 ---
 
 ## File e Responsabilità
 
 - **Percorsi file**:
+  - `scripts/image-name.sh`: stampa il nome dell'immagine dell'app per il commit in uso.
   - `scripts/compose-prod.sh`: `docker compose` per lo stack di produzione, con il file d'ambiente e l'immagine giusti.
-  - `scripts/deploy.sh [--no-pull]`: aggiornamento a comando singolo sul Raspberry.
+  - `scripts/deploy.sh [--build | --no-pull]`: aggiornamento a comando singolo sul server.
   - `scripts/smoke-prod.sh <immagine>`: prova lo stack di produzione con un'immagine già costruita.
-- **Scopo**: ridurre il deploy a un comando e rendere lo stesso stack provabile su un PC e in CI. I tre script si lanciano sempre con l'interprete (`bash scripts/….sh`): su Windows non si può contare sul bit di esecuzione, e `.gitattributes` impone il fine riga LF (requirements P19 della Feature 7).
+- **Scopo**: ridurre il deploy a un comando su qualsiasi server Linux con Docker (il Raspberry del maintainer è uno dei casi) e rendere lo stesso stack provabile su un PC e in CI. Gli script si lanciano sempre con l'interprete (`bash scripts/….sh`): su Windows non si può contare sul bit di esecuzione, e `.gitattributes` impone il fine riga LF (requirements P19 della Feature 7).
 
-Ogni script si sposta per prima cosa nella radice del repository, quindi funziona da qualsiasi cartella. Le procedure per chi opera il Raspberry sono in `docs/DEPLOY.md` (§4 primo avvio, §6 aggiornamento, §8 comandi utili, §9 guasti).
+Ogni script si sposta per prima cosa nella radice del repository, quindi funziona da qualsiasi cartella. Le procedure per chi gestisce il server sono in `docs/DEPLOY.md` (§4 primo avvio, §6 aggiornamento, §8 comandi utili, §9 guasti).
+
+## `scripts/image-name.sh`
+
+Aggiunto il 5 novembre 2026 (deploy portabile): prima il nome `ghcr.io/elverle/mealy` era scritto in `compose-prod.sh` e `deploy.sh`. Stampa il primo nome disponibile, in quest'ordine:
+
+1. `MEALY_IMAGE`, se impostata, così com'è;
+2. `MEALY_IMAGE_REPO` + `:sha-<git rev-parse HEAD>`. La variabile viene dall'ambiente oppure dall'ultima riga `MEALY_IMAGE_REPO=` del file d'ambiente (`MEALY_ENV_FILE`, default `.env.production`), senza virgolette né `\r`;
+3. `ghcr.io/<proprietario del remote origin, in minuscolo>/mealy:sha-<commit>`, se `origin` è un URL GitHub (`https://github.com/<owner>/<repo>` oppure `git@github.com:<owner>/<repo>`). È il nome che pubblica il workflow `Image` di quel repository ([[ci-workflows]]): per il clone del maintainer resta `ghcr.io/elverle/mealy`, quindi il Raspberry non ha cambiato nulla;
+4. altrimenti `mealy:sha-<commit>`, un nome solo locale, adatto a `deploy.sh --build`.
+
+Se `git rev-parse` fallisce (script lanciato con `sudo`, o da una cartella che non è la copia clonata), stampa un messaggio ed esce con 1.
 
 ## `scripts/compose-prod.sh`
 
@@ -27,7 +39,7 @@ Esegue `docker compose --env-file <file> -f docker-compose.prod.yml "$@"` dopo a
 | Variabile | Default | Significato |
 |---|---|---|
 | `MEALY_ENV_FILE` | `.env.production` | File d'ambiente. Se manca: `Manca <file>: copialo da .env.production.example e compilalo.` e uscita 1 |
-| `MEALY_IMAGE` | `ghcr.io/elverle/mealy:sha-<git rev-parse HEAD>` | Immagine del servizio `app`. Se `git rev-parse` fallisce (script lanciato con `sudo`, o da una cartella che non è la copia clonata): messaggio e uscita 1, senza chiamare Docker |
+| `MEALY_IMAGE` | quello di `scripts/image-name.sh` | Immagine del servizio `app`. Se `image-name.sh` fallisce: messaggio e uscita 1, senza chiamare Docker |
 
 Esporta anche `MSYS_NO_PATHCONV=1`, perché Git Bash su Windows non converta i percorsi del container (`/opt/backup/…`) in percorsi Windows.
 
@@ -38,16 +50,17 @@ Il compose di produzione va usato **sempre** attraverso questo script: chiamato 
 ## `scripts/deploy.sh`
 
 ```bash
-bash scripts/deploy.sh              # aggiornamento completo
+bash scripts/deploy.sh              # aggiornamento completo, immagine scaricata da GHCR
+bash scripts/deploy.sh --build      # aggiornamento completo, immagine costruita sul server
 bash scripts/deploy.sh --no-pull    # riapplica la configurazione con ciò che c'è già in locale
 ```
 
-Un argomento diverso fa uscire con 2. Il corpo sta in una funzione `main`: bash la legge per intero prima di eseguirla, quindi `git pull` può aggiornare il file dello script senza disturbare l'esecuzione in corso.
+Un argomento diverso fa uscire con 2. Il corpo sta in una funzione `main`: bash la legge per intero prima di eseguirla, quindi `git pull` può aggiornare il file dello script senza disturbare l'esecuzione in corso. Il nome dell'immagine si calcola una volta, **dopo** `git pull` (dipende dal commit), con `scripts/image-name.sh`, e viene esportato come `MEALY_IMAGE`: così `compose-prod.sh` e il confronto del passo 3 usano lo stesso.
 
 | # | Passo | Se fallisce |
 |---|---|---|
 | 1 | `git pull --ff-only` (saltato con `--no-pull`) | Lo script si ferma (`set -e`) |
-| 2 | `compose pull app`: scarica l'immagine del commit (saltato con `--no-pull`) | `immagine non trovata per il commit …`, con il suggerimento di attendere il workflow `Image` o rifare `docker login ghcr.io`; uscita 1 |
+| 2 | Senza opzioni: `compose pull app`, scarica l'immagine del commit. Con `--build`: `docker build -t <immagine> .`, saltato se l'immagine di quel commit esiste già in locale. Con `--no-pull`: niente | `immagine non trovata per il commit …`, con il suggerimento di attendere il workflow `Image`, rifare `docker login ghcr.io` o usare `--build`; con `--build`, `FALLITO: la build dell'immagine non è riuscita`. In entrambi i casi uscita 1, app non toccata |
 | 3 | **Dump `predeploy`**, a meno che l'app stia già girando con la stessa immagine | v. sotto |
 | 4 | `compose up -d --remove-orphans --wait --wait-timeout 180` | `FALLITO: lo stack non è diventato sano entro 180 secondi`, ultime 60 righe di log dell'app, uscita 1 |
 | 5 | `curl` su `http://127.0.0.1:<porta>/api/health` (limite 10 s); la porta viene da `compose port app 3000` | `FALLITO: /api/health non risponde sulla porta <porta>`, uscita 1 ([[health-check]]) |

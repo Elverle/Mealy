@@ -14,6 +14,8 @@ Mealy è nato per uso personale, ma i contributi sono benvenuti: segnalazioni di
 - [`docs/DESIGN.md`](docs/DESIGN.md): design system, schermate, microcopy e requisiti minimi di accessibilità.
 - [`docs/wiki/index.md`](docs/wiki/index.md): wiki tecnica del codice, una pagina per modulo.
 
+Le cartelle `docs/planning/` e `docs/wiki/` le produce [agentic-feature-factory](https://github.com/Elverle/agentic-feature-factory), il workflow con cui è sviluppato il progetto (README, "Come è sviluppato"). Per contribuire non serve usarlo.
+
 Il principio guida del prodotto: **le ricette generate non sono usa e getta, sono la libreria** (`ARCHITECTURE §1.3`). Il piano è una selezione pesata dalla libreria; l'LLM interviene solo quando la libreria non basta.
 
 ## Ambiente di sviluppo

@@ -2,7 +2,7 @@
 # docker compose per lo stack di produzione, con il file d'ambiente e l'immagine giusti.
 # Uso: bash scripts/compose-prod.sh <argomenti di docker compose>   es.: ps | logs -f app
 #   MEALY_ENV_FILE  file d'ambiente (default: .env.production)
-#   MEALY_IMAGE     immagine dell'app (default: quella pubblicata per il commit in uso)
+#   MEALY_IMAGE     immagine dell'app (default: quella del commit in uso, v. scripts/image-name.sh)
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -14,11 +14,7 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 if [ -z "${MEALY_IMAGE:-}" ]; then
-  if ! sha="$(git rev-parse HEAD)"; then
-    echo "Non riesco a leggere il commit con git: lancia lo script dalla copia clonata del repository, senza sudo, oppure imposta MEALY_IMAGE." >&2
-    exit 1
-  fi
-  MEALY_IMAGE="ghcr.io/elverle/mealy:sha-${sha}"
+  MEALY_IMAGE="$(MEALY_ENV_FILE="$ENV_FILE" bash scripts/image-name.sh)"
 fi
 export MEALY_IMAGE
 # Git Bash su Windows: non convertire i percorsi del container (/opt/backup/...) in percorsi Windows.

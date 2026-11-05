@@ -4,7 +4,7 @@ App web personale di meal planning: genera il piano settimanale con una selezion
 
 ## Stato
 
-Versione **0.10.0**. Feature completate:
+Versione **0.10.1**. Feature completate:
 
 - **E0 Fondamenta** — scaffold Next.js, schema DB, shell UI a 4 tab
 - **E1 Motore ricette** — adapter LLM multi-provider, generazione e persistenza delle ricette, fixtures e seed
@@ -12,7 +12,7 @@ Versione **0.10.0**. Feature completate:
 - **E3 Pianificatore** — piano settimanale dalla libreria con selezione pesata, swap, blocco, conferma, *Ripeti* e navigatore di settimane (`/`, `/api/plans`)
 - **E2 Libreria e preferenze** — libreria con ricerca e filtri, voto, ★ e *Non proporre più* sulle ricette, 👍/👎 sugli ingredienti e sezione *I miei ingredienti* (`/libreria`, `/api/recipes`, `/api/ingredient-prefs`)
 - **E4 Lista della spesa** — lista consolidata dal piano confermato e ordinata per reparto, spunte che reggono la rete assente, articoli aggiunti a mano e *Aggiorna lista* quando il piano cambia (`/lista`, `/api/plans/:id/shopping-list`, `/api/shopping-items`)
-- **E6 Deploy** — produzione su Raspberry Pi con Docker Compose, raggiungibile via LAN e Tailscale: immagine arm64 costruita da GitHub Actions, migrazioni e alias applicati all'avvio dell'app, backup notturno e aggiornamento con un solo comando (`docs/DEPLOY.md`, `scripts/deploy.sh`, `GET /api/health`)
+- **E6 Deploy** — produzione su un server di casa con Docker Compose (un Raspberry Pi nel caso del maintainer), raggiungibile dalla rete di casa e via VPN: immagine costruita sul server o da GitHub Actions, migrazioni e alias applicati all'avvio dell'app, backup notturno e aggiornamento con un solo comando (`docs/DEPLOY.md`, `scripts/deploy.sh`, `GET /api/health`)
 - **Ricette su richiesta (Feature 9)** — dalla ricerca della Libreria si chiede una ricetta all'LLM, che entra in libreria solo con *Aggiungi alla libreria*; sulla card del Piano *Scegli* apre le ricette adatte a quel pasto, con *Metti nel piano* e la richiesta all'LLM se la ricetta non c'è (`POST /api/recipes/propose`, `POST /api/recipes`, `/api/plans/:id/slots/:slotId/candidates`, `/api/plans/:id/slots/:slotId/recipe`). Nessuna migrazione né variabile nuova
 - **Portate ed etichette (Feature 8)** — ogni ricetta ha una o più portate (piatto unico, primo, secondo, contorno), mostrate con un badge su card e dettaglio e filtrabili dal gruppo *Portata* della Libreria; le etichette di stile passano da 7 a 12; un contorno da solo non entra mai nel piano. Le ricette salvate prima le classifica l'LLM all'avvio dell'app in produzione (in sviluppo con `pnpm recipes:classify`). Una migrazione (`0005`), nessuna variabile nuova
 - **Pacchetto iniziale di ricette (Feature 10)** — la libreria parte da 200 ricette italiane riscritte da un dataset (49 primi, 51 secondi, 41 piatti unici, 60 contorni), con le diete ricavate per regola da una tabella degli ingredienti rivista a mano: il primo piano di solito esce senza chiamare l'LLM. L'app le carica all'avvio in produzione, saltando i titoli già in libreria o simili; il pacchetto si prepara una volta sola sul PC con `pnpm recipes:pack`. Nessuna migrazione né variabile nuova
@@ -89,14 +89,31 @@ Gate di verifica: `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build`, t
 
 ## Deploy
 
-La v1 gira su Raspberry Pi con Docker Compose (app Next.js standalone, PostgreSQL 16, backup notturno), raggiungibile solo via LAN/Tailscale e senza autenticazione (`docs/ARCHITECTURE.md §8`). La guida operativa è [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Mealy gira su **qualsiasi macchina Linux con Docker** che tieni in casa: un mini PC, un vecchio portatile, un NAS, un Raspberry Pi a 64 bit (`x86_64` o `aarch64`). Lo stack è Docker Compose: app Next.js standalone, PostgreSQL 16 e backup notturno. Il maintainer lo fa girare su un Raspberry Pi 4 con Tailscale, ma il progetto non dipende dal Raspberry.
 
-- L'immagine dell'app la costruisce GitHub Actions a ogni push su `main` (workflow `Image`, `ghcr.io/elverle/mealy:sha-<commit>`); il Raspberry la scarica con `bash scripts/deploy.sh`.
-- All'avvio in produzione l'app applica le migrazioni e carica gli alias degli ingredienti (`DB_BOOTSTRAP_ON_START=true`, `lib/db/bootstrap.ts`): sul Raspberry non si lancia nessun comando `pnpm`. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione.
+> **L'app non ha autenticazione** (`docs/ARCHITECTURE.md §8`). Tienila raggiungibile solo dalla rete di casa e, da fuori casa, con una VPN (Tailscale, WireGuard) oppure dietro un reverse proxy con login. Non aprire la porta su Internet: chiunque la raggiunga può modificare i dati e generare ricette con la tua chiave LLM, a tue spese.
+
+Avvio rapido sul server. Servono Docker con Compose v2, `git` e la chiave API di un provider LLM:
+
+```bash
+git clone https://github.com/Elverle/Mealy.git && cd Mealy
+cp .env.production.example .env.production && chmod 600 .env.production
+nano .env.production       # POSTGRES_PASSWORD (openssl rand -hex 24), LLM_MODEL e la chiave del provider
+bash scripts/deploy.sh --build
+```
+
+Poi apri `http://<ip-del-server>:3000`. Per aggiornare a una versione nuova basta rilanciare `bash scripts/deploy.sh --build`. La guida completa è [`docs/DEPLOY.md`](docs/DEPLOY.md): preparazione del server, VPN, backup e ripristino, aggiornamenti, ritorno a una versione precedente e problemi frequenti.
+
+- **Da dove viene l'immagine.** Con `--build` la costruisce il server stesso. In alternativa la costruisce GitHub Actions a ogni push su `main` (workflow `Image`, `ghcr.io/<proprietario del repository>/mealy:sha-<commit>`, anche da un fork) e `bash scripts/deploy.sh` la scarica: conviene su una macchina piccola, ed è il modo usato sul Raspberry del maintainer (`docs/DEPLOY.md §3.4`).
+- All'avvio in produzione l'app applica le migrazioni e carica gli alias degli ingredienti (`DB_BOOTSTRAP_ON_START=true`, `lib/db/bootstrap.ts`): sul server non si lancia nessun comando `pnpm`. Le ricette di esempio di `pnpm db:seed` non entrano mai in produzione.
 - Dopo migrazioni e alias l'app carica il pacchetto iniziale di ricette (`fixtures/recipe-pack.json`): entrano solo le ricette con un titolo non già in libreria, né uguale né simile, e l'avvio aspetta il caricamento. Nei log dell'app compare `[pack] ricette del pacchetto inserite: N, già presenti o simili: M` (ai riavvii N è 0); se il caricamento fallisce l'app parte lo stesso e riprova al riavvio successivo.
 - Dopo il pacchetto l'app classifica in background, a lotti di 10, le ricette ancora senza portata: l'avvio non la aspetta e i log dell'app mostrano righe `[classify]`. Senza modello configurato le ricette restano senza portata e l'app funziona lo stesso; le rimaste si riprovano al riavvio.
 - Dalla 0.8 si torna a una versione precedente solo ripristinando il dump `predeploy` (`docs/DEPLOY.md §6`); vale anche per la 0.10, che aggiunge la portata dei piatti dei piani e le composizioni dei pasti.
 - Prova locale dello stack di produzione: `docker build -t mealy-app:smoke . && bash scripts/smoke-prod.sh mealy-app:smoke`.
+
+## Come è sviluppato
+
+Mealy è sviluppato con [agentic-feature-factory](https://github.com/Elverle/agentic-feature-factory), il mio workflow di sviluppo guidato da agenti per Claude Code. Ogni feature segue la stessa pipeline: brainstorming e specifica, piano a work package (`/feature-plan`), architecture review (`/arch-review`), implementazione test-driven con il gate di verifica (`/feature-dev`), code review (`/feature-review`) e documentazione (`/feature-docs`). Specifiche, piani e review di ogni feature sono in [`docs/planning/`](docs/planning/); la wiki tecnica che il workflow tiene aggiornata è in [`docs/wiki/`](docs/wiki/index.md).
 
 ## Documentazione
 
@@ -105,6 +122,7 @@ La v1 gira su Raspberry Pi con Docker Compose (app Next.js standalone, PostgreSQ
 - [`docs/BACKLOG.md`](docs/BACKLOG.md) — epic, story e criteri di accettazione
 - [`docs/planning/`](docs/planning/) — strategia di esecuzione, piani e stato delle feature
 - [`docs/wiki/index.md`](docs/wiki/index.md) — wiki tecnica del codice
+- [`docs/DEPLOY.md`](docs/DEPLOY.md) — deploy su un server di casa
 
 ## Contribuire
 
