@@ -147,7 +147,7 @@ Il 12 ottobre 2026 il branch è stato pubblicato e la pull request #13 aperta: i
 | Job `gate` e `image` del gate su GitHub | Verdi sulla pull request #13 |
 | Preparazione del Raspberry, `git pull` e pull dell'immagine con `scripts/deploy.sh` | Verificato sul Raspberry: deploy della Feature 8 (22 ottobre 2026) e della 10 (27 ottobre 2026), app in uso |
 | Accesso da LAN e da fuori casa via Tailscale, generazione LLM dal Raspberry, backup notturno, dump `predeploy` e pulizia delle immagini dopo un deploy | Verificati dall'utente (27 ottobre 2026) |
-| Riavvio dell'host | **Non ancora verificato** (`docs/production-readiness.md` §1) |
+| Riavvio dell'host | Verificato dall'utente (5 novembre 2026): dopo il riavvio del Raspberry l'app è ripartita da sola |
 
 Non provati nemmeno in locale: l'esclusione delle immagini senza tag nella pulizia di `deploy.sh`, il ramo d'errore dello smoke quando nel database ci sono ricette, il ramo d'errore di `tests/db/bootstrap.test.ts` quando il database di sviluppo è indietro di una migrazione.
 
