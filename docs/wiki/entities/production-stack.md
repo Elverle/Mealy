@@ -37,7 +37,7 @@ Stadio `runner`:
 - etichetta `org.opencontainers.image.source` con l'URL del repository.
 
 Scelte e motivi (requirements della Feature 7):
-- **Node 24** (P1): `ai` 7 richiede Node ≥ 22. Dal 2026-10-27 è fissato a `24.22.1` (CVE-2026-111497), scritto per esteso in entrambi i `FROM`: Dependabot non risolve gli `ARG` nelle righe `FROM`, e con il tag esplicito apre lui le PR per le patch di Node. Il gate CI legge la versione dal `Dockerfile` (passo `node` di `gate.yml`), che resta l'unico posto dove cambiarla.
+- **Node 24** (P1): `ai` 7 richiede Node ≥ 22. Il tag è fissato alla patch (almeno `24.22.1` per CVE-2026-111497; dal 2026-11-05 `24.22.2`, PR #26) e scritto per esteso in entrambi i `FROM`: Dependabot non risolve gli `ARG` nelle righe `FROM`, e con il tag esplicito apre lui le PR per le patch di Node. Il gate CI legge la versione dal `Dockerfile` (passo `node` di `gate.yml`), che resta l'unico posto dove cambiarla.
 - **pnpm fissato a 11.14.0 con `npm install -g`**, non corepack (P2): `package.json` non ha il campo `packageManager`.
 - **Nessuna cartella `public/`** (P22): nel repository non esiste e il `Dockerfile` non la copia. Se viene creata serve la riga `COPY --from=builder --chown=nextjs:nodejs /app/public ./public` nello stadio `runner`.
 - **La build non ha bisogno del database**: solo `/_not-found` è prerenderizzata (verifica di planning, requirements §5).
