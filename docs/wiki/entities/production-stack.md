@@ -2,7 +2,7 @@
 title: Immagine e Stack di Produzione — Dockerfile e docker-compose.prod.yml (production-stack)
 type: entity
 created: 2026-10-11
-updated: 2026-10-26
+updated: 2026-11-05
 tags: [docker, dockerfile, compose, standalone, production, raspberry-pi, environment, postgres, deploy, feature-7, feature-10]
 ---
 
@@ -16,7 +16,7 @@ tags: [docker, dockerfile, compose, standalone, production, raspberry-pi, enviro
   - `.env.production.example`: modello del file `.env.production`, che non va mai committato.
   - `.gitattributes`: fine riga LF per tutti i file `.sh`.
   - `.gitignore`: eccezione per `.env.production.example`; cartelle `backups/` e `.smoke/` ignorate.
-- **Scopo**: descrivere tutto ciò che gira sul Raspberry Pi. Il Raspberry non costruisce l'immagine: la scarica da GHCR ([[ci-workflows]]) e la avvia con questo compose, sempre attraverso `scripts/compose-prod.sh` ([[deploy-scripts]]).
+- **Scopo**: descrivere tutto ciò che gira sul server di produzione: qualsiasi macchina Linux con Docker, nel caso del maintainer un Raspberry Pi. Il server scarica l'immagine da GHCR ([[ci-workflows]]) oppure la costruisce con `deploy.sh --build` ([[deploy-scripts]]), e la avvia con questo compose, sempre attraverso `scripts/compose-prod.sh` ([[deploy-scripts]]).
 
 I comandi per chi opera il Raspberry sono in `docs/DEPLOY.md`.
 
@@ -34,7 +34,7 @@ Stadio `runner`:
 - utente non root `nextjs` (uid 1001) del gruppo `nodejs` (gid 1001);
 - tre copie da `builder`, tutte con `--chown=nextjs:nodejs`: `.next/standalone` nella radice, `.next/static`, e **`lib/db/migrations`**. Le migrazioni SQL le legge il bootstrap dal disco e non fanno parte del bundle ([[db-bootstrap]]);
 - `EXPOSE 3000`, `CMD ["node", "server.js"]`;
-- etichetta `org.opencontainers.image.source` con l'URL del repository.
+- etichetta `org.opencontainers.image.source` con l'URL del repository, dall'argomento di build `SOURCE_URL` (default `https://github.com/Elverle/Mealy`; il workflow `Image` passa il repository da cui costruisce, anche un fork).
 
 Scelte e motivi (requirements della Feature 7):
 - **Node 24** (P1): `ai` 7 richiede Node ≥ 22. Il tag è fissato alla patch (almeno `24.22.1` per CVE-2026-111497; dal 2026-11-05 `24.22.2`, PR #26) e scritto per esteso in entrambi i `FROM`: Dependabot non risolve gli `ARG` nelle righe `FROM`, e con il tag esplicito apre lui le PR per le patch di Node. Il gate CI legge la versione dal `Dockerfile` (passo `node` di `gate.yml`), che resta l'unico posto dove cambiarla.

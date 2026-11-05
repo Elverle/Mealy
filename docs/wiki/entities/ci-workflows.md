@@ -2,7 +2,7 @@
 title: Workflow di GitHub Actions — Gate delle Pull Request e Image (ci-workflows)
 type: entity
 created: 2026-10-11
-updated: 2026-10-12
+updated: 2026-11-05
 tags: [ci, github-actions, gate, docker, ghcr, arm64, image, smoke-test, deploy, feature-7]
 ---
 
@@ -34,27 +34,30 @@ La migrazione prima dei test non è decorativa: i test DB si saltano da soli se 
 | Quando parte | `push` su `main` e `workflow_dispatch` (avvio a mano) |
 | Concorrenza | Gruppo `image-<ref>`, `cancel-in-progress: true` |
 | Permessi | `contents: read`, `packages: write` |
-| Runner | `ubuntu-24.04-arm`, limite 30 minuti |
-| Immagine | `ghcr.io/elverle/mealy:sha-<sha completo del commit>` |
+| Runner | variabile del repository `IMAGE_RUNNER`, default `ubuntu-24.04-arm`; limite 30 minuti |
+| Immagine | `ghcr.io/<proprietario del repository, in minuscolo>/mealy:sha-<sha completo del commit>`; nel repository del maintainer `ghcr.io/elverle/mealy` |
 
-Passi del job `publish`:
+Passi del job `publish` (nome `build image, push to GHCR`):
 1. checkout;
-2. `docker build -t "$IMAGE" .`;
-3. `bash scripts/smoke-prod.sh "$IMAGE"`: l'immagine arm64 viene provata **prima** di essere pubblicata ([[deploy-scripts]]);
-4. login a GHCR con `GITHUB_TOKEN`; token e utente passano dall'ambiente del passo, non dal testo del comando;
-5. `docker push "$IMAGE"`.
+2. `Image name`: scrive `IMAGE` in `$GITHUB_ENV` con `${GITHUB_REPOSITORY_OWNER,,}` (minuscolo, come richiede GHCR);
+3. `docker build --build-arg SOURCE_URL=<server>/<repository> -t "$IMAGE" .`;
+4. `bash scripts/smoke-prod.sh "$IMAGE"`: l'immagine viene provata **prima** di essere pubblicata ([[deploy-scripts]]);
+5. login a GHCR con `GITHUB_TOKEN`; token e utente passano dall'ambiente del passo, non dal testo del comando;
+6. `docker push "$IMAGE"`.
 
 ### Scelte e motivi
 
-- **Runner arm64 nativo** (requirements P10): l'immagine serve a un Raspberry (`linux/arm64`) e si costruisce senza emulazione QEMU. Lo smoke prima del push prova l'immagine arm64 vera.
+- **Runner nativo** (requirements P10): l'immagine si costruisce senza emulazione QEMU, e lo smoke prima del push prova l'immagine vera. L'architettura è quella del runner: arm64 di default, per il Raspberry del maintainer. Un fork con un server `x86_64` imposta `IMAGE_RUNNER=ubuntu-24.04` e ottiene un'immagine amd64. Niente immagine multi-architettura: servirebbe un secondo job e un manifest, per un solo server per repository.
+- **Nome dal proprietario del repository** (5 novembre 2026, deploy portabile): un fork pubblica nel proprio spazio GHCR senza modifiche al workflow. `scripts/image-name.sh` ricava lo stesso nome sul server dal remote `origin` ([[deploy-scripts]]).
 - **Comandi `docker` semplici**: nessuna action di terze parti da tenere aggiornata; l'unica action usata è `actions/checkout`.
-- **Tag = commit, nessun `latest`** (requirements P9): è il nome che `scripts/compose-prod.sh` chiede sul Raspberry. Il nome è tutto minuscolo (`elverle`), come richiede GHCR.
+- **Tag = commit, nessun `latest`** (requirements P9): è il nome che `scripts/compose-prod.sh` chiede sul server.
 - **Nessuna pulizia automatica dei pacchetti** (requirements P26): ogni push su `main` pubblica un'immagine nuova; quelle vecchie si cancellano a mano da GitHub (`docs/DEPLOY.md §10`).
-- L'etichetta `org.opencontainers.image.source` del `Dockerfile` lega il pacchetto GHCR al repository.
+- L'etichetta `org.opencontainers.image.source` del `Dockerfile` lega il pacchetto GHCR al repository. Il valore viene dall'argomento di build `SOURCE_URL` (default `https://github.com/Elverle/Mealy`); il workflow passa il repository da cui costruisce.
 
 ### Cosa ne segue per il deploy
 
-- **Il Raspberry deve aspettare `Image`.** `scripts/deploy.sh` chiede l'immagine del commit che ha appena scaricato con `git pull`: se il workflow non ha finito, il pull fallisce con `immagine non trovata per il commit …` (`docs/DEPLOY.md §6`).
+- **Questa strada è facoltativa.** Un server può costruire l'immagine da sé con `bash scripts/deploy.sh --build`, senza GitHub Actions né GHCR ([[deploy-scripts]]).
+- **Il server deve aspettare `Image`.** `scripts/deploy.sh` senza opzioni chiede l'immagine del commit che ha appena scaricato con `git pull`: se il workflow non ha finito, il pull fallisce con `immagine non trovata per il commit …` (`docs/DEPLOY.md §6`).
 - **Non ogni commit ha un'immagine.** Esiste solo per i commit che sono stati in cima a `main` con il workflow verde. Con `cancel-in-progress`, due push ravvicinati annullano la build del primo.
 - **Le pull request non pubblicano nulla**: il gate costruisce un'immagine amd64 locale al runner e la butta.
 - **arm64 si prova solo in `Image`**: il job `image` del gate gira su amd64.

@@ -2,7 +2,7 @@
 title: E6 Deploy — Raspberry Pi, Immagine da GitHub Actions e Database che si Prepara da Solo
 type: topic
 created: 2026-10-11
-updated: 2026-10-26
+updated: 2026-11-05
 tags: [deploy, raspberry-pi, tailscale, docker, compose, ghcr, github-actions, bootstrap, migrations, backup, health, recipe-pack, e6, feature-7, feature-10]
 ---
 
@@ -17,7 +17,9 @@ L'iniziativa **E6 Deploy** (Feature 7, story `S6.1` del backlog) porta Mealy in 
 5. **Script operativi**: un wrapper di `docker compose`, l'aggiornamento a comando singolo e la prova locale dello stack ([[deploy-scripts]]).
 6. **CI**: il gate delle pull request costruisce l'immagine e prova lo stack; il workflow `Image` pubblica l'immagine arm64 su GHCR ([[ci-workflows]]).
 
-La procedura per chi opera il Raspberry è in **`docs/DEPLOY.md`** (dieci sezioni: preparazione, primo avvio, verifica, aggiornamento, backup e ripristino, guasti). Questa wiki spiega come funzionano i pezzi e perché; per i comandi rimanda alla guida.
+**Deploy portabile (5 novembre 2026).** Il deploy non dipende dal Raspberry: qualsiasi macchina Linux con Docker va bene. Il server può costruire l'immagine da sé con `bash scripts/deploy.sh --build`, senza GitHub Actions né GHCR. Il nome dell'immagine lo calcola `scripts/image-name.sh` dal remote `origin` ([[deploy-scripts]]). Il workflow `Image` pubblica in `ghcr.io/<proprietario del repository>/mealy`, anche da un fork, con l'architettura scelta dalla variabile `IMAGE_RUNNER` ([[ci-workflows]]).
+
+La procedura per chi gestisce il server è in **`docs/DEPLOY.md`** (dieci sezioni: preparazione, primo avvio, verifica, aggiornamento, backup e ripristino, guasti). Questa wiki spiega come funzionano i pezzi e perché; per i comandi rimanda alla guida.
 
 La feature **non aggiunge migrazioni né dipendenze**: `lib/db/schema.ts`, `package.json` e `pnpm-lock.yaml` sono invariati. Fuori da `lib/db/`, `lib/health/`, `app/api/health/`, `instrumentation.ts` e `next.config.ts` il codice applicativo non cambia; in `lib/domain/types.ts` cambia solo `IngredientAliasesFileSchema` ([[domain-types]]).
 
@@ -51,7 +53,7 @@ Conseguenze da conoscere, tutte scritte in `docs/DEPLOY.md §1`:
                                                docker build (arm64) → smoke-prod.sh → docker push
                                                           │
                                                           ▼
-                                          ghcr.io/elverle/mealy:sha-<commit>
+                                          ghcr.io/<owner>/mealy:sha-<commit>   (oppure: docker build sul server, deploy.sh --build)
                                                           │ pull
 [ Raspberry Pi 4 · /opt/mealy ]                           ▼
   bash scripts/deploy.sh
@@ -74,7 +76,7 @@ Conseguenze da conoscere, tutte scritte in `docs/DEPLOY.md §1`:
 
 Tre regole tengono insieme il flusso:
 
-- **Il Raspberry non costruisce nulla e non esegue comandi `pnpm`.** Scarica l'immagine del commit che ha in `git` e la avvia. Migrazioni e alias li applica l'app.
+- **Il server non esegue comandi `pnpm`.** Scarica l'immagine del commit che ha in `git`, oppure dal 5 novembre 2026 la costruisce con `deploy.sh --build`, e la avvia. Migrazioni e alias li applica l'app.
 - **Tag dell'immagine = commit** (`sha-<sha completo>`), senza tag `latest` (requirements P9). Compose, script e immagine restano allineati; se il workflow `Image` non ha finito, il pull fallisce con un messaggio invece di avviare un'immagine vecchia; tornare indietro è un `git checkout`.
 - **Le ricette di esempio non entrano mai in produzione.** In produzione non gira nessun seed di ricette né di household (requirements P7): l'household di default lo crea `getDefaultHousehold()` alla prima lettura ([[household-repo]]) e la libreria parte vuota, quindi il primo *Genera piano* crea tutte le ricette con l'LLM. *Nota (Feature 10): la regola sulle ricette d'esempio resta, ma la libreria non parte più vuota: all'avvio l'app carica il pacchetto iniziale di 200 ricette, crea l'household di default e di solito il primo piano non chiama il modello (v. "Sviluppi nella Feature 10").*
 
@@ -93,7 +95,7 @@ Tre regole tengono insieme il flusso:
 - [[backup-service]]: `docker/backup/entrypoint.sh` e `docker/backup/backup.sh`.
 
 ### 4. Script (`scripts/`)
-- [[deploy-scripts]]: `scripts/compose-prod.sh`, `scripts/deploy.sh [--no-pull]`, `scripts/smoke-prod.sh <immagine>`.
+- [[deploy-scripts]]: `scripts/image-name.sh`, `scripts/compose-prod.sh`, `scripts/deploy.sh [--build | --no-pull]`, `scripts/smoke-prod.sh <immagine>`.
 
 ### 5. CI (`.github/workflows/`)
 - [[ci-workflows]]: job `image` in `gate.yml` e nuovo workflow `image.yml`.

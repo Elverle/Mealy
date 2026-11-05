@@ -2,6 +2,11 @@
 
 Append-only operation log per le modifiche alla documentazione tecnica di Mealy.
 
+## [2026-11-05] update | Deploy portabile: qualsiasi server Linux con Docker
+- Aggiornata [[deploy-scripts]]: nuova sezione su `scripts/image-name.sh` (ordine `MEALY_IMAGE` → `MEALY_IMAGE_REPO` → proprietario del remote `origin` → nome locale `mealy`), `deploy.sh --build` (costruisce l'immagine sul server e la riusa se esiste già), nome dell'immagine calcolato dopo `git pull` ed esportato.
+- Aggiornata [[ci-workflows]]: nome dell'immagine dal proprietario del repository (funziona anche da un fork), runner scelto dalla variabile `IMAGE_RUNNER` (default arm64), argomento di build `SOURCE_URL` per l'etichetta del pacchetto.
+- Aggiornati [[e6-deploy]] (paragrafo "Deploy portabile", diagramma, regole del flusso), [[production-stack]] (scopo ed etichetta `SOURCE_URL`) e il catalogo in [[index]].
+
 ## [2026-10-27] feat-11 | Documentazione Feature 11 (Composizione del pasto)
 - Documentato il topic aggregato [[f11-composizione-pasto]] (la feature non appartiene a un epic del backlog, da cui il prefisso `f11-`): problema, modello "uno slot per piatto", decisioni della spec (D1–D12) e dell'utente (U1–U2), flusso tra Impostazioni, costruzione del piano e azioni sulla card, regole di dominio, innesti R1–R6 e P3 dell'architecture review e fix della code review (`028fb7d`), esito dei contratti delle Feature 8, 10 e 4, contratti per chi viene dopo, limiti noti e verifiche manuali ancora da fare, strategia di test con 120 file di test. Versione 0.10.0. Per i dettagli di progetto la pagina rimanda a `ARCHITECTURE` §1.1, §4.2, §5.1–§5.3, §5.5, §6, a `DESIGN` §3 e §5 e a `DEPLOY` §6, senza copiarli.
 - Create le entità [[compositions]] (`lib/domain/compositions.ts`: le sette funzioni, bilanciamento, perché `fitsCourse` accanto a `coursesAllowed`) e [[side-dish-row]] (`components/plan/side-dish-row.tsx`: props, struttura, configurazione da `PlanSlotCard`).
