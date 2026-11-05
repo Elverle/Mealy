@@ -8,7 +8,7 @@ tags: [recipes, recipe-pack, dataset, llm, diet-flags, ingredients, startup, ins
 
 ## Panoramica
 
-La **Feature 10** (*Pacchetto iniziale di ricette*) riempie la libreria con **200 ricette reali**, riscritte da un dataset di ricette italiane, prima che il modello ne generi una sola. È la seconda delle tre feature che riprendono `docs/rework-catalogo.md`: 8 (portate, [[f8-portate-etichette]]) → 10 (pacchetto) → 11 (composizione del pasto). Non è in `docs/BACKLOG.md` né in `execution-strategy.md`: l'unica fonte dei requisiti è `spec.md`. Per questo la pagina usa il prefisso `f10-`, come [[f8-portate-etichette]] e [[f9-ricette-su-richiesta]].
+La **Feature 10** (*Pacchetto iniziale di ricette*) riempie la libreria con **200 ricette reali**, riscritte da un dataset di ricette italiane, prima che il modello ne generi una sola. È la seconda delle tre feature che riprendono il rework del catalogo: 8 (portate, [[f8-portate-etichette]]) → 10 (pacchetto) → 11 (composizione del pasto). Non è in `docs/BACKLOG.md` né in `execution-strategy.md`: l'unica fonte dei requisiti è `spec.md`. Per questo la pagina usa il prefisso `f10-`, come [[f8-portate-etichette]] e [[f9-ricette-su-richiesta]].
 
 **Il problema.** Sul Raspberry la libreria si era fermata a 26 ricette. Con quel numero la soglia di generazione del planner (9 ricette fresche per pasto su una settimana intera, [[planner]]) è superata, quindi il modello non genera più e due piani di fila si sovrappongono per più di metà. Al primo avvio, invece, con la libreria vuota, il primo piano dipendeva tutto dal modello ed era andato in timeout (spec §1).
 

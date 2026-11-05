@@ -1,11 +1,11 @@
 # Feature 8 — Portate delle ricette e nuove etichette di stile
 
-Specifica del 14 ottobre 2026, da `/feature-brainstorm`. È la prima di tre feature che riprendono `docs/rework-catalogo.md` nella versione attuale dell'app:
+Specifica del 14 ottobre 2026, da `/feature-brainstorm`. È la prima di tre feature che riprendono il rework del catalogo nella versione attuale dell'app:
 
 | Ordine | Feature | Contenuto |
 |---|---|---|
 | 1 | **8 — Portate ed etichette** (questa) | Portata di ogni ricetta, cinque etichette di stile nuove, classificazione delle ricette già in libreria |
-| 2 | 10 — Pacchetto iniziale | 100–200 ricette dal dataset, senza dolci, con portata ed etichette (`../feature-10/brainstorm-prompt.md`) |
+| 2 | 10 — Pacchetto iniziale | 100–200 ricette dal dataset, senza dolci, con portata ed etichette (`../feature-10/spec.md`) |
 | 3 | 11 — Composizione del pasto | Piatto unico, primo o secondo, con o senza contorno (`../feature-11/brainstorm-prompt.md`) |
 
 Prossimo passo: `/feature-plan 8 docs/planning/feature/feature-8/spec.md`.
@@ -246,7 +246,7 @@ Il parsing dei parametri del filtro della Libreria segue quello attuale di `meal
 ## 5. Requisiti non funzionali
 
 - **Avvio.** La classificazione non allunga la partenza dell'app né la sua prima risposta: il bootstrap resta l'unica parte attesa. Un suo errore non ferma mai l'app.
-- **Costo e carico.** Sul Raspberry, 26 ricette sono 3 chiamate in sequenza, mai in parallelo, per non ripetere i timeout del primo avvio (`rework-catalogo.md` §1). Un avvio con tutto già classificato fa una sola query e nessuna chiamata al modello.
+- **Costo e carico.** Sul Raspberry, 26 ricette sono 3 chiamate in sequenza, mai in parallelo, per non ripetere i timeout del primo avvio. Un avvio con tutto già classificato fa una sola query e nessuna chiamata al modello.
 - **Idempotenza e concorrenza.**
   - La classificazione scrive solo su ricette ancora non classificate, quindi due avvii ravvicinati o una ricetta salvata nel frattempo non producono conflitti.
   - La migrazione è idempotente rispetto alla regola di FR-2.3.

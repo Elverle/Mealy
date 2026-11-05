@@ -1,6 +1,6 @@
 # Feature 11 — Composizione del pasto
 
-Specifica del 27 ottobre 2026, da `/feature-brainstorm`. Chiude la serie che riprende `docs/rework-catalogo.md`:
+Specifica del 27 ottobre 2026, da `/feature-brainstorm`. Chiude la serie che riprende il rework del catalogo:
 
 | Ordine | Feature | Contenuto |
 |---|---|---|

@@ -1,6 +1,6 @@
 # Mealy — Funzionalità per la V2
 
-Raccolta delle funzionalità rinviate a dopo la v1. Sono **idee, non ancora pianificate**: nessuna ha una specifica o un posto nel backlog. Le prime nascono dal rework del catalogo descritto in [`rework-catalogo.md`](rework-catalogo.md).
+Raccolta delle funzionalità rinviate a dopo la v1. Sono **idee, non ancora pianificate**: nessuna ha una specifica o un posto nel backlog. Le prime nascono dal rework del catalogo.
 
 Stato al 14 ottobre 2026: v1 in prova sul Raspberry (versione 0.6.1). La Feature 9 (ricette su richiesta e cambio con scelta) è sviluppata e anticipa parte di 1.2 e 2.3.
 
@@ -8,7 +8,7 @@ Stato al 14 ottobre 2026: v1 in prova sul Raspberry (versione 0.6.1). La Feature
 
 Emersi dai primi test, da affrontare prima della V2:
 
-- **Seed con 100–200 ricette**: un pacchetto iniziale preso dal dataset, pulito e caricato in libreria. Risponde al problema osservato: con 26 ricette il piano ruota sempre sulle stesse, perché sopra la soglia di 9 ricette fresche per tipo di pasto il planner non genera più. È la Feature 10 (era la 8 fino al 14 ottobre 2026): spunto per il brainstorming in `planning/feature/feature-10/brainstorm-prompt.md`.
+- **Seed con 100–200 ricette**: un pacchetto iniziale preso dal dataset, pulito e caricato in libreria. Risponde al problema osservato: con 26 ricette il piano ruota sempre sulle stesse, perché sopra la soglia di 9 ricette fresche per tipo di pasto il planner non genera più. È la Feature 10 (era la 8 fino al 14 ottobre 2026): specifica in `planning/feature/feature-10/spec.md`.
 - **Più tipi di pasto**: le voci del campo "Tipo di pasti" nelle impostazioni sono poche. Oggi sono sette: veloce, salutare, proteico, leggero, comfort food, economico, piatto unico. Deciso di aggiungerne cinque **prima del seed**, perché la pulizia le assegna a ogni ricetta: tradizionale, dal mondo, pochi ingredienti, si prepara in anticipo, piatto freddo. Sono un elenco chiuso in `lib/domain/types.ts`. Le porta la Feature 8 insieme alla portata delle ricette (piatto unico, primo, secondo, contorno): `planning/feature/feature-8/spec.md`. La composizione del pasto (primo o secondo con contorno) è la Feature 11: `planning/feature/feature-11/brainstorm-prompt.md`.
 - **Chiedere una ricetta e scegliere dal piano**: il solo cambio casuale non basta, e non c'è modo di chiedere una ricetta precisa. È la Feature 9, sviluppata il 14 ottobre 2026: anticipa senza il catalogo la strada "inventare" di 1.2 e il cambio con scelta di 2.3 (`planning/feature/feature-9/spec.md`).
 
@@ -59,7 +59,7 @@ Modificare una ricetta esistente, o segnalarla come sbagliata.
 Portare nell'app tutte le ricette adatte del dataset (2.578), non solo il pacchetto iniziale, usando Jev per la pulizia.
 
 - **Perché**: è il passaggio dal seed al catalogo vero. Il seed della versione attuale ne è la prova generale, con lo stesso procedimento su 100–200 ricette.
-- **Come**: Jev assegna etichette e reparti, che sono classificazione; la confidenza indica quali ricette rivedere a mano. Dettaglio in `rework-catalogo.md` §4 e §6.
+- **Come**: Jev assegna etichette e reparti, che sono classificazione; la confidenza indica quali ricette rivedere a mano.
 - **Da verificare prima**: l'accuratezza di Jev su un centinaio di ricette etichettate a mano. Per dividere i passi e stimare i tempi serve comunque un modello generativo o una regola, perché Jev non scrive testo ed è debole con i numeri. Le esigenze alimentari restano ricavate per regola.
 
 ## 2. Planner
@@ -126,7 +126,7 @@ Non sono descritte qui, solo richiamate:
 
 Prima, nella versione attuale: il seed con 100–200 ricette (§0).
 
-1. Catalogo con l'intero dataset pulito (1.5, `rework-catalogo.md`): è la base di quasi tutto il resto.
+1. Catalogo con l'intero dataset pulito (1.5): è la base di quasi tutto il resto.
 2. Planner sul catalogo: stile nel peso e quota di scoperte (2.1, 2.2).
 3. Ricerca nel catalogo (1.1), anche dal selettore del Piano. Il cambio con scelta dalla libreria (2.3) c'è già, dalla Feature 9.
 4. Inserimento manuale e correzione (1.3, 1.4).

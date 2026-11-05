@@ -1,10 +1,10 @@
 # Feature 10 — Pacchetto iniziale di ricette: Requisiti e Decisioni
 
-Memoria del "perché" dietro `plan.md`. Spec: `spec.md` di questa cartella (brainstorming del 22–23 ottobre 2026), con le decisioni D1–D12 recepite come definitive. Riferimenti: `docs/ARCHITECTURE.md §1.3, §5.2, §7`, `docs/DEPLOY.md §5, §9`, `docs/rework-catalogo.md`, `../feature-8/plan.md` ("Contratti consegnati").
+Memoria del "perché" dietro `plan.md`. Spec: `spec.md` di questa cartella (brainstorming del 22–23 ottobre 2026), con le decisioni D1–D12 recepite come definitive. Riferimenti: `docs/ARCHITECTURE.md §1.3, §5.2, §7`, `docs/DEPLOY.md §5, §9`, `../feature-8/plan.md` ("Contratti consegnati").
 
 ## 1. Layout e identità
 
-- **Layout**: `docs/planning/` (da `.claude/agentic-feature-factory.local.md`), cartella `docs/planning/feature/feature-10/` (esisteva già con `brainstorm-prompt.md` e `spec.md`).
+- **Layout**: `docs/planning/` (da `.claude/agentic-feature-factory.local.md`), cartella `docs/planning/feature/feature-10/` (esisteva già con lo spunto del brainstorming, non più nel repository, e `spec.md`).
 - **Titolo**: Feature 10 — Pacchetto iniziale di ricette.
 - **Prerequisiti**: Feature 1–9 in `main` (v0.8.0, commit `dfa16a6`). Vale "il codice reale vince".
 - **Non è nel backlog** né in `execution-strategy.md`: l'unica fonte dei requisiti è `spec.md`. Segue la Feature 11 (composizione del pasto).

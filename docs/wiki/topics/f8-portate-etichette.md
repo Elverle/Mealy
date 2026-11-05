@@ -8,7 +8,7 @@ tags: [recipes, courses, style-tags, derived-tags, classification, llm, planner,
 
 ## Panoramica
 
-La **Feature 8** (*Portate delle ricette e nuove etichette di stile*) dà a ogni ricetta una **portata** e porta le etichette di stile da 7 a 12. È la prima di tre feature che riprendono `docs/rework-catalogo.md`: 8 (portate) → 10 (pacchetto iniziale di ricette) → 11 (composizione del pasto). Questa fissa lo schema, la 10 lo popola, la 11 lo sfrutta (spec D1). Non è in `docs/BACKLOG.md` né in `execution-strategy.md`: l'unica fonte dei requisiti è `spec.md`. Per questo la pagina usa il prefisso `f8-`, come [[f9-ricette-su-richiesta]].
+La **Feature 8** (*Portate delle ricette e nuove etichette di stile*) dà a ogni ricetta una **portata** e porta le etichette di stile da 7 a 12. È la prima di tre feature che riprendono il rework del catalogo: 8 (portate) → 10 (pacchetto iniziale di ricette) → 11 (composizione del pasto). Questa fissa lo schema, la 10 lo popola, la 11 lo sfrutta (spec D1). Non è in `docs/BACKLOG.md` né in `execution-strategy.md`: l'unica fonte dei requisiti è `spec.md`. Per questo la pagina usa il prefisso `f8-`, come [[f9-ricette-su-richiesta]].
 
 Cosa cambia:
 

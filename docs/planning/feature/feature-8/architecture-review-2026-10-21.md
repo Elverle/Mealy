@@ -1,6 +1,6 @@
 # Architecture review — Feature 8 (Portate delle ricette e nuove etichette di stile)
 
-**Data:** 2026-10-21 · **Piano esaminato:** [`plan.md`](plan.md) (+ [`requirements.md`](requirements.md), [`spec.md`](spec.md)) · **Contesto:** as-built di F1–F7 e F9 (`main`, merge `ea39c59`, v0.7.1), spunti delle feature 10 e 11 (`../feature-10/brainstorm-prompt.md`, `../feature-11/brainstorm-prompt.md`), `docs/DEPLOY.md`, `CLAUDE.md`.
+**Data:** 2026-10-21 · **Piano esaminato:** [`plan.md`](plan.md) (+ [`requirements.md`](requirements.md), [`spec.md`](spec.md)) · **Contesto:** as-built di F1–F7 e F9 (`main`, merge `ea39c59`, v0.7.1), spunti delle feature 10 e 11 (`../feature-11/brainstorm-prompt.md`; quello della 10 non è più nel repository), `docs/DEPLOY.md`, `CLAUDE.md`.
 
 **Esito in una riga:** niente di bloccante e nessun refactoring preliminare. Il piano poggia sui punti giusti: un solo motivo di esclusione nel planner basta per sorteggio, swap, candidate, assegnazione e conteggio delle fresche. Conviene però **dividere WP1**, che oggi concentra in un solo work package sequenziale l'intera onda d'urto del campo nuovo (R1). Conviene anche **dare a portata e vincoli un solo predicato**, che la Feature 11 cambierà di nuovo (R2), e **scrivere nella guida di deploy** che dopo questa versione si torna indietro solo ripristinando il dump (R3).
 

@@ -1,6 +1,6 @@
 # Feature 8 — Portate delle ricette e nuove etichette di stile: Requisiti e Decisioni
 
-Memoria del "perché" dietro `plan.md`. Spec: `spec.md` di questa cartella (brainstorming del 14 ottobre 2026), con le decisioni D1–D8 recepite come definitive. Riferimenti: `docs/ARCHITECTURE.md §4, §5.1, §5.2`, `docs/DESIGN.md §5, §6`, `docs/DEPLOY.md §5, §9`, `docs/rework-catalogo.md`, `docs/v2-funzionalita.md §0`.
+Memoria del "perché" dietro `plan.md`. Spec: `spec.md` di questa cartella (brainstorming del 14 ottobre 2026), con le decisioni D1–D8 recepite come definitive. Riferimenti: `docs/ARCHITECTURE.md §4, §5.1, §5.2`, `docs/DESIGN.md §5, §6`, `docs/DEPLOY.md §5, §9`, `docs/v2-funzionalita.md §0`.
 
 ## 1. Layout e identità
 

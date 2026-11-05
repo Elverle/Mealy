@@ -105,3 +105,11 @@ La v1 gira su Raspberry Pi con Docker Compose (app Next.js standalone, PostgreSQ
 - [`docs/BACKLOG.md`](docs/BACKLOG.md) — epic, story e criteri di accettazione
 - [`docs/planning/`](docs/planning/) — strategia di esecuzione, piani e stato delle feature
 - [`docs/wiki/index.md`](docs/wiki/index.md) — wiki tecnica del codice
+
+## Contribuire
+
+Segnalazioni e pull request sono benvenute: come procedere è in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## Licenza
+
+[MIT](LICENSE).
