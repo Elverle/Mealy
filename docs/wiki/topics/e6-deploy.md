@@ -26,7 +26,7 @@ La feature **non aggiunge migrazioni né dipendenze**: `lib/db/schema.ts`, `pack
 | ID | Decisione |
 |---|---|
 | U1 | **Hardware: Raspberry Pi 4 con 2 GB o meno.** Esclude la build di Next.js sul dispositivo; a regime app e Postgres stanno larghi |
-| U2 | **L'immagine la costruisce GitHub Actions e la pubblica su GHCR; il Raspberry fa solo `pull`.** Il repository è privato: sul Raspberry servono due credenziali in sola lettura, una deploy key per `git` e un token `read:packages` per GHCR |
+| U2 | **L'immagine la costruisce GitHub Actions e la pubblica su GHCR; il Raspberry fa solo `pull`.** Il repository era privato: sul Raspberry servivano due credenziali in sola lettura, una deploy key per `git` e un token `read:packages` per GHCR. Dal 5 novembre 2026 il repository è pubblico e si clona in HTTPS senza chiavi; il pacchetto GHCR resta privato, quindi il token serve ancora (`DEPLOY.md §3.3`, §3.4) |
 | U3 | **Il caricamento degli alias diventa un upsert**: inserisce i nuovi e corregge quelli il cui nome canonico è cambiato; non cancella quelli tolti dal file |
 | U4 | **Il gate delle pull request costruisce l'immagine Docker** e prova lo stack di produzione: un `Dockerfile` rotto si scopre in pull request, non durante il deploy |
 
