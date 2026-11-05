@@ -2,7 +2,7 @@
 
 Cosa resta da verificare prima di considerare chiusa la v1, e come il repository è stato reso pubblico.
 
-Stato al 5 novembre 2026: versione 0.10.0, **repository pubblico** dallo stesso giorno (merge della PR #29, `6b7508b`). I controlli della sezione 3.1 sono stati rifatti prima del cambio, le decisioni della sezione 3.2 sono prese e la checklist della sezione 3.4 è chiusa. Resta aperta solo la prova del riavvio del Raspberry (sezione 1).
+Stato al 5 novembre 2026: versione 0.10.0, **repository pubblico** dallo stesso giorno (merge della PR #29, `6b7508b`). I controlli della sezione 3.1 sono stati rifatti prima del cambio, le decisioni della sezione 3.2 sono prese e la checklist della sezione 3.4 è chiusa. Anche le prove sul Raspberry (sezione 1) sono tutte fatte.
 
 ## 1. Prove sul Raspberry
 
@@ -12,11 +12,11 @@ L'app gira sul Raspberry dalla Feature 8 ed è in uso. Aggiornato il 27 ottobre 
 - [x] Accesso dalla rete di casa
 - [x] Accesso da fuori casa con Tailscale
 - [x] Generazione di un piano dal Raspberry (chiamata al provider LLM)
-- [ ] Riavvio del Raspberry: l'app riparte da sola
+- [x] Riavvio del Raspberry: l'app riparte da sola (5 novembre 2026)
 - [x] Backup notturno: la mattina dopo c'è un file `mealy-daily-…` nella cartella dei backup
 - [x] Un secondo deploy dopo un commit nuovo: dump `predeploy` e pulizia delle immagini vecchie (comprese quelle senza tag). Verificati con il deploy del 27 ottobre 2026 (`5710ac5`)
 
-La Feature 7 è `done` dal 27 ottobre 2026: le verifiche che la chiudevano (rete di casa e Tailscale) sono fatte. La voce ancora aperta è una verifica operativa: quando è fatta, spuntarla qui e nello "Stato delle verifiche" di `wiki/topics/e6-deploy.md`.
+La Feature 7 è `done` dal 27 ottobre 2026: le verifiche che la chiudevano (rete di casa e Tailscale) sono fatte. L'ultima verifica operativa, il riavvio del Raspberry, è fatta il 5 novembre 2026 ed è registrata anche nello "Stato delle verifiche" di `wiki/topics/e6-deploy.md`.
 
 ## 2. Aggiornamento delle dipendenze
 
