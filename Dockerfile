@@ -3,7 +3,7 @@
 # Node 24, almeno 24.22.1 (fix CVE-2026-111497); `ai` 7 richiede Node >= 22. Il tag è scritto per
 # esteso nei due FROM perché Dependabot non risolve gli ARG; il gate CI legge la
 # versione da qui, quindi va cambiata solo in questo file.
-FROM node:24.22.2-alpine AS base
+FROM node:24.22.3-alpine AS base
 RUN apk add --no-cache libc6-compat \
   && npm install -g pnpm@11.14.0
 WORKDIR /app
@@ -22,7 +22,7 @@ ENV NEXT_OUTPUT=standalone
 RUN pnpm build
 
 # --- Immagine finale: solo l'output standalone ---
-FROM node:24.22.2-alpine AS runner
+FROM node:24.22.3-alpine AS runner
 # Repository di origine: GHCR collega il pacchetto a questo repository. Il workflow Image passa
 # quello da cui costruisce (anche un fork).
 ARG SOURCE_URL=https://github.com/Elverle/Mealy
